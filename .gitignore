@@ -1,0 +1,27 @@
+# OS
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Claude Code — local overrides
+**/settings.local.json
+
+# Node (if applicable later)
+node_modules/
+
+# Python (if applicable later)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Env
+.env
+.env.local
