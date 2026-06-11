@@ -1,4 +1,4 @@
-# Who is AgentOS V11 for?
+# Who is Praxis V11 for?
 
 > V11 三角色模型不变。变化在于四个结构化接口的引入改变了各角色的交互方式和职责范围。
 
@@ -11,17 +11,17 @@
               │  用户     │
               │ (User)    │
               └─────┬─────┘
-                    │ 使用 AgentOS + OpenClaw 时:
-                    │  • AgentOS 的 ProtoTask 自动进入任务计划
-                    │  • 任务中的反馈自动改进 AgentOS 的认知
+                    │ 使用 Praxis + OpenClaw 时:
+                    │  • Praxis 的 ProtoTask 自动进入任务计划
+                    │  • 任务中的反馈自动改进 Praxis 的认知
                     │  • 错误的结构在会话中被即时修正
-                    │  • 可以用 /agentos task feedback 手动反馈
+                    │  • 可以用 /praxis task feedback 手动反馈
                     │
     ┌───────────────┼───────────────┐
     │               │               │
     ▼               ▼               ▼
 ┌──────────┐  ┌──────────┐  ┌──────────┐
-│  开发者   │  │  运维者   │  │  AgentOS │
+│  开发者   │  │  运维者   │  │  Praxis │
 │(Developer)│  │(Operator) │  │  自身     │
 └──────────┘  └──────────┘  └──────────┘
  实现四个接口    配置接口行为     生成 GuidanceSignal
@@ -36,13 +36,13 @@
 ### V10 → V11 新增交互
 
 ```
-1. 任务计划自动包含 AgentOS 的知识:
+1. 任务计划自动包含 Praxis 的知识:
    用户: "开始一个新的医院系统项目"
    OpenClaw → planning-with-files 创建计划文件
-   → planning-with-files 查询 AgentOS 知识库
+   → planning-with-files 查询 Praxis 知识库
    → 获得: ProtoTask "医院系统开发" 的阶段模板 + 常见陷阱
    → 计划文件中自动包含:
-     "## 推荐阶段 (来源: AgentOS, 置信度 0.65)
+     "## 推荐阶段 (来源: Praxis, 置信度 0.65)
       - Phase 1: 需求分析 (2-3周)
       - Phase 2: 数据模型设计 (1-2周)
       - Phase 3: API 开发 (3-4周) [⚠ 陷阱: 医保对接模块容易被低估]
@@ -52,27 +52,27 @@
 2. 认知指导信号在会话中可见:
    session_start 后，LLM 的系统提示中出现:
    
-   "## ⚠ 认知指导 [AgentOS V11]
+   "## ⚠ 认知指导 [Praxis V11]
     [WARNING] 当前 Phase 常见陷阱: 医保对接模块容易被低估 (置信度 0.65)
     [INFO] 推荐关注结构: api_design, rest_patterns, outpatient_flow
     [INFO] 建议: 完成预约挂号 API 后优先锁定医保接口的外部依赖"
    
-   → 用户看到 AgentOS 在主动提醒 LLM
+   → 用户看到 Praxis 在主动提醒 LLM
 
 3. 会话中错误被即时修正:
    用户: "不对，我们医院的流程改了，现在挂号之后直接分诊"
-   → AgentOS (mid-session): 检测到对 "门诊流程" ProtoSequence 的纠正
+   → Praxis (mid-session): 检测到对 "门诊流程" ProtoSequence 的纠正
    → 即时下调该序列的置信度 (-0.08)
    → 本次会话中后续不再强调这个被纠正的序列
 
 4. 用户手动反馈任务结果:
-   /agentos task feedback --subtask "预约挂号 API" --outcome "partial_success"
+   /praxis task feedback --subtask "预约挂号 API" --outcome "partial_success"
      --note "功能正确但响应时间不达标"
    → ProtoStructure 置信度根据结果调整
    → ProtoTask 的阶段时长估计更新
 
 5. 查看知识闭环状态:
-   /agentos knowledge status
+   /praxis knowledge status
    → "ProtoTask '医院系统开发': 置信度 0.45 (3 次观察)
       最近反馈: Phase 2 实际比预估多 1.5 周 (2 次)
       陷阱预警准确率: 60% (3/5 次正确预警)
@@ -108,7 +108,7 @@
 ```
 决策 1: 知识查询 API 是同步函数调用还是异步 RPC？
   方案: 同进程同步函数调用。
-  原因: AgentOS 和 planning-with-files 在同一个 OpenClaw plugin 进程中。
+  原因: Praxis 和 planning-with-files 在同一个 OpenClaw plugin 进程中。
        不需要 HTTP/RPC 开销。
   备选: 如果未来 planning-with-files 是独立进程，通过 AgentMemory slot 中转。
 
@@ -125,7 +125,7 @@
 
 决策 4: Bootstrap ProtoTask 何时触发？
   方案: 用户创建新 TaskContext 时如果 task_type 有值 → 立即触发。
-  时机: /agentos task start --type "software_project" 时，
+  时机: /praxis task start --type "software_project" 时，
         或在 session_start 检测到新 task_type 时。
   开销: 一次 LLM 调用 (~2K tokens prompt + 1K output)，可接受。
 ```
@@ -179,7 +179,7 @@ proto_task:
 
 ---
 
-## 五、AgentOS 自身的"自主权边界"（关键不变）
+## 五、Praxis 自身的"自主权边界"（关键不变）
 
 V11 仍然不做：
 - ❌ 触发任务分解——那是 planning-with-files 的事
@@ -193,14 +193,14 @@ V11 新增的"自主权"仅在于：
 - ✅ 检测实时矛盾（规则匹配——确定性逻辑）
 - ✅ 响应知识查询（数据检索——确定性逻辑）
 
-**这些都是"提供信息"而非"做出决策"。AgentOS 的信息质量提高 → LLM 和 OpenClaw 的决策质量提高——但决策者不变。**
+**这些都是"提供信息"而非"做出决策"。Praxis 的信息质量提高 → LLM 和 OpenClaw 的决策质量提高——但决策者不变。**
 
 ---
 
 ## 兄弟文件
 
-- [What is AgentOS V11?](what-is.md) — V11 的工程定义
-- [Why AgentOS V11?](why.md) — 第一性原理：为什么需要知行合一闭环
+- [What is Praxis V11?](what-is.md) — V11 的工程定义
+- [Why Praxis V11?](why.md) — 第一性原理：为什么需要知行合一闭环
 - [How does it work?](how.md) — 四个接口的完整实现
 - [When does it operate?](when.md) — 2 Phase 实现路线图
 - [Where does it sit?](where.md) — 模块树（V10 基础 + 5 新增）

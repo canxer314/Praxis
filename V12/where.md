@@ -1,4 +1,4 @@
-# Where does AgentOS V12 sit?
+# Where does Praxis V12 sit?
 
 > V12 在 V11 基础上的重构：+6 个新模块（任务编排核心），-3 个移除模块（V11 接口内部化），7 个修改模块。新增 `files/` 目录（计划文件持久化）。架构比 V11 更简单——外部接口从 4 减到 1。
 
@@ -7,7 +7,7 @@
 ## 一、完整模块树
 
 ```
-openclaw/src/plugins/agentos-plugin/
+openclaw/src/plugins/praxis-plugin/
 ├── index.ts
 ├── config.ts                              # [修改] +taskOrchestration +verification +pitfallTracking 配置段
 │
@@ -192,7 +192,7 @@ session_start (V12):
   4. 上下文压力测量
   5. 自适应注入:
      Layer 1 (任务编排状态):
-       + "## 任务编排状态 [AgentOS V12]"
+       + "## 任务编排状态 [Praxis V12]"
        + 当前 Phase / 子任务 / 进度
        + ⚠ 活跃陷阱预警
        + 验收标准
@@ -265,8 +265,8 @@ V12 的 TaskOrchestrationState 与 OpenClaw plugin API 的解耦设计:
 
 ## 兄弟文件
 
-- [What is AgentOS V12?](what-is.md) — V12 的工程定义
-- [Why AgentOS V12?](why.md) — 第一性原理：为什么 V11 的边界是错的
+- [What is Praxis V12?](what-is.md) — V12 的工程定义
+- [Why Praxis V12?](why.md) — 第一性原理：为什么 V11 的边界是错的
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — 六个模块的完整实现
 - [When does it operate?](when.md) — 6 Phase 实现路线图

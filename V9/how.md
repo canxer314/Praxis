@@ -1,4 +1,4 @@
-# How does AgentOS V9 work?
+# How does Praxis V9 work?
 
 > V9 的核心工程实现：上下文压力监测与四级压缩、按需结构检索、注意力遥测、角色/概念验证器、工具映射增强、自适应配置、一致性引擎。
 
@@ -21,32 +21,32 @@ interface ContextPressure {
   usageRatio: number;          // 0.0 - 1.0
   totalEstimated: number;      // 估算的总 token 消耗
   availableTokens: number;     // 剩余可用
-  agentOSBudget: number;       // 分配给 AgentOS 注入的预算
+  praxisBudget: number;       // 分配给 Praxis 注入的预算
   breakdown: {
     systemAndTools: number;
     conversationHistory: number;
     userData: number;
-    agentOSPrevious: number;   // 上次 AgentOS 注入的 token 数
+    praxisPrevious: number;   // 上次 Praxis 注入的 token 数
     outputBuffer: number;      // LLM 输出预留
   };
 }
 
 function measureContextPressure(
   sessionContext: SessionContext,
-  config: AgentOSConfig
+  config: PraxisConfig
 ): ContextPressure {
 
   // 1. 估算各部分 (基于字符数, < 1ms)
   const systemAndTools = estimateSystemAndTools(sessionContext);
   const conversationHistory = estimateConversationTokens(sessionContext);
   const userData = estimateUserData(sessionContext);
-  const agentOSPrevious = sessionContext.lastAgentOSInjectionTokens ?? 0;
+  const praxisPrevious = sessionContext.lastPraxisInjectionTokens ?? 0;
 
   // LLM 输出缓冲: 窗口的 10%, 最少 50K
   const outputBuffer = Math.max(50000, Math.floor(config.contextWindow * 0.1));
 
   const totalUsed = systemAndTools + conversationHistory + userData
-                  + agentOSPrevious + outputBuffer;
+                  + praxisPrevious + outputBuffer;
   const usageRatio = totalUsed / config.contextWindow;
   const available = config.contextWindow - totalUsed;
 
@@ -58,15 +58,15 @@ function measureContextPressure(
   else if (usageRatio < t.highThreshold)      level = PressureLevel.High;
   else                                        level = PressureLevel.Critical;
 
-  // 3. AgentOS 注入预算 (最多占可用空间的 30%)
+  // 3. Praxis 注入预算 (最多占可用空间的 30%)
   const maxShare = Math.floor(available * 0.3);
-  const agentOSBudget = calculateBudget(level, maxShare);
+  const praxisBudget = calculateBudget(level, maxShare);
 
   return {
     level, usageRatio, totalEstimated: totalUsed,
-    availableTokens: available, agentOSBudget,
+    availableTokens: available, praxisBudget,
     breakdown: { systemAndTools, conversationHistory,
-                 userData, agentOSPrevious, outputBuffer },
+                 userData, praxisPrevious, outputBuffer },
   };
 }
 
@@ -102,7 +102,7 @@ function organizeContextAdaptive(
   cognitiveStructures: CognitiveStructure[],
   pendingQuestions: Question[],
   pressure: ContextPressure,
-  config: AgentOSConfig
+  config: PraxisConfig
 ): { injection: string; registeredTool?: Tool } {
 
   switch (pressure.level) {
@@ -136,7 +136,7 @@ function organizeElevated(
   protos: ProtoStructure[],
   structs: CognitiveStructure[],
   questions: Question[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): string {
 
   const layer1 = buildMinimalSceneIndex(sceneRec);  // ~300 tokens
@@ -160,7 +160,7 @@ function organizeHigh(
   protos: ProtoStructure[],
   structs: CognitiveStructure[],
   questions: Question[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): string {
 
   const layer1 = buildMinimalSceneIndex(sceneRec);  // ~200 tokens
@@ -206,7 +206,7 @@ function organizeCritical(
   protos: ProtoStructure[],
   structs: CognitiveStructure[],
   questions: Question[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): string {
 
   const currentName = sceneRec.scenario_id;
@@ -229,7 +229,7 @@ function organizeCritical(
   }).join('\n');
 
   return `
-# AgentOS — 精简模式
+# Praxis — 精简模式
 
 当前场景: ${currentName}
 上下文使用率: Critical (可用空间 < 10%)
@@ -259,7 +259,7 @@ ${questions.length > 0 ? questions.slice(0, 2).map(q => `- ${q.question}`).join(
 
 const recallStructureToolDef: ToolDefinition = {
   name: 'recall_structure',
-  description: `按名称或关键词检索 AgentOS 认知结构的完整详情。
+  description: `按名称或关键词检索 Praxis 认知结构的完整详情。
 在上下文空间紧张时，结构不会预先注入——你需要主动调用此工具来获取。
 调用时机: 当你需要某个结构的完整步骤/角色行为/概念特征来完成任务时。`,
   parameters: {
@@ -383,7 +383,7 @@ function parseStructureUsageMarkers(
 function computeUsageStats(
   structureId: string,
   usageHistory: StructureUsageRecord[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): UsageStats {
 
   const recent = usageHistory.slice(-20);  // 最近 20 次会话
@@ -433,7 +433,7 @@ function verifyProtoRole(
   protoRole: ProtoStructure,    // proto_type = 'role'
   toolCallerMap: Map<string, string[]>,  // tool → caller 标识
   otherRolesInScenario: ProtoStructure[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): RoleVerificationResult {
 
   const expectedBehaviors = protoRole.role_behaviors ?? [];
@@ -494,7 +494,7 @@ function verifyProtoRole(
 async function verifyProtoConcept(
   protoConcept: ProtoStructure,    // proto_type = 'concept'
   supportingElements: SalientElement[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): Promise<ConceptVerificationResult> {
 
   // 对抗性 prompt: 尝试反驳这个概念
@@ -546,7 +546,7 @@ ${supportingElements.map(e => `- ${e.raw_observation}`).join('\n')}
 async function checkConsistency(
   scenarioId: string,
   protoStructures: ProtoStructure[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): Promise<ConsistencyReport> {
 
   // 仅检查同一场景且有 > 1 个结构的场景
@@ -605,8 +605,8 @@ ${summarizeProtoForConsistency(p)}
 // analysis/config-adapter.ts
 
 async function adaptConfig(
-  config: AgentOSConfig,
-  telemetry: AgentOSTelemetry,
+  config: PraxisConfig,
+  telemetry: PraxisTelemetry,
   recentSessions: SessionTrace[]
 ): Promise<ConfigAdjustment[]> {
 
@@ -668,8 +668,8 @@ async function adaptConfig(
 
 ## 兄弟文件
 
-- [What is AgentOS V9?](what-is.md) — V9 的工程定义
-- [Why AgentOS V9?](why.md) — 第一性原理：为什么 token 爆炸需要压力感知
+- [What is Praxis V9?](what-is.md) — V9 的工程定义
+- [Why Praxis V9?](why.md) — 第一性原理：为什么 token 爆炸需要压力感知
 - [Who is it for?](who.md) — 三角色职责变化
 - [When does it operate?](when.md) — 4 Phase 实现路线图
 - [Where does it sit?](where.md) — 模块树（V8 基础 + 7 新增）

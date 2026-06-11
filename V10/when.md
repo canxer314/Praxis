@@ -1,4 +1,4 @@
-# When does AgentOS V10 operate?
+# When does Praxis V10 operate?
 
 > V10 的增量极小，可以在 V9 基础上叠加。Phase 1（核心 TaskContext）仅需 2-3 周。Phase 2（ProtoTask）是可选的远期增强。
 
@@ -14,7 +14,7 @@ Phase 1 (核心交付)                          Phase 2 (可选增强)
 │ • task-context.ts                         │ • proto-task.ts
 │ • session_start/end 微调                   │ • construct-proto-task prompt
 │ • context-organizer 任务排序               │ • ProtoTask 验证
-│ • /agentos task 命令                       │ • 任务历史分析 cron
+│ • /praxis task 命令                       │ • 任务历史分析 cron
 │                                           │
 │ 目标: 消除"任务认知真空"                   │ 目标: 学习任务模式
 │                                           │
@@ -30,7 +30,7 @@ Phase 2: 可选, 需积累 >= 3 个同类项目的完成记录
 ## 二、Phase 1: TaskContext 核心交付（2-3 周）
 
 ### 目标
-AgentOS 获得任务认知感知能力——知道当前在做什么项目、处于哪个阶段、哪些认知结构最相关。
+Praxis 获得任务认知感知能力——知道当前在做什么项目、处于哪个阶段、哪些认知结构最相关。
 
 ### 交付物
 
@@ -42,7 +42,7 @@ AgentOS 获得任务认知感知能力——知道当前在做什么项目、处
 | **context-organizer 微调** | Tier A 任务感知排序 | P0 | 极小 (~10 行) |
 | **session_end 微调** | LLM 进度推断 + TaskContext 更新 | P0 | 小 (~20 行) |
 | **transcript-analyzer 微调** | 分析 prompt 中增加进度推断字段 | P0 | 极小 (~5 行) |
-| **用户命令** | /agentos task start/update/status/end | P1 | 中 (~60 行) |
+| **用户命令** | /praxis task start/update/status/end | P1 | 中 (~60 行) |
 | **task_history** | 已完成任务的存档 + 查询 | P1 | 小 |
 
 ### Phase 1 明确不做
@@ -58,7 +58,7 @@ AgentOS 获得任务认知感知能力——知道当前在做什么项目、处
 ✅ TaskContext 正确注入: session_start 后的系统提示包含任务上下文
 ✅ LLM 进度推断准确率 > 60%: 10 个测试会话 → 进度推断与人工判断偏差 < 1 阶段
 ✅ 任务感知排序有效: 有 TaskContext 时，相关场景的结构排在 Tier A 前 3 位
-✅ /agentos task 命令功能正常: start/update/status/end
+✅ /praxis task 命令功能正常: start/update/status/end
 ✅ 子 Agent 继承 TaskContext: 子 Agent session_start 包含父任务上下文
 ✅ V9 所有测试仍然通过: Phase 1 是叠加，不改变 V9 行为
 ```
@@ -117,8 +117,8 @@ V10 Phase 1 可以直接叠加在 V9 之上:
 
 ## 五、兄弟文件
 
-- [What is AgentOS V10?](what-is.md) — V10 的工程定义
-- [Why AgentOS V10?](why.md) — 第一性原理：为什么需要任务级认知
+- [What is Praxis V10?](what-is.md) — V10 的工程定义
+- [Why Praxis V10?](why.md) — 第一性原理：为什么需要任务级认知
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — TaskContext 注入、ProtoTask 构造
 - [Where does it sit?](where.md) — 模块树（V9 基础 + 1 新增）

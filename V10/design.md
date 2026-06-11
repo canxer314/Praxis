@@ -1,4 +1,4 @@
-# AgentOS V10 Architecture Design
+# Praxis V10 Architecture Design
 
 > 版本：v10 (Task-Level Cognitive Awareness)
 > 状态：设计阶段
@@ -9,14 +9,14 @@
 ## 零、架构哲学：认知索引，而非执行计划
 
 ```
-V9:  AgentOS 理解场景（"医院门诊的流程是什么"）
-V10: AgentOS 理解任务中的场景（"在构建医院系统 Phase 2 的上下文中，
+V9:  Praxis 理解场景（"医院门诊的流程是什么"）
+V10: Praxis 理解任务中的场景（"在构建医院系统 Phase 2 的上下文中，
       门诊流程和 API 设计模式是最相关的认知结构"）
 
 关键边界:
-  AgentOS 不替代 planning-with-files 做任务规划。
-  AgentOS 不替代 OpenClaw 做子 Agent 调度。
-  AgentOS 只做一件事: 提供任务级认知上下文——
+  Praxis 不替代 planning-with-files 做任务规划。
+  Praxis 不替代 OpenClaw 做子 Agent 调度。
+  Praxis 只做一件事: 提供任务级认知上下文——
   "当前在做什么、处于哪个阶段、哪些认知结构最相关"。
   
   这是认知索引，不是执行计划。
@@ -159,21 +159,21 @@ interface GovernancePolicy {
 
 ```
 V9 Layer 1:
-  # AgentOS 认知状态
+  # Praxis 认知状态
   ## 已知场景
   - hospital_outpatient: 门诊流程 (原型: 3, 固化: 1)
   ## 当前场景: hospital_outpatient
   ## 架构版本: 2.1.3
 
 V10 Layer 1 (新增 TaskContext):
-  # AgentOS 认知状态
+  # Praxis 认知状态
 
   ## 当前任务
   任务: 构建医院管理系统
   阶段: Phase 2 — API 开发
   进度: 数据模型完成, API 60% (预约挂号进行中)
   活跃子任务: 实现预约挂号接口
-  (进度由 AgentOS 自动推断，可能有误 — 用 /agentos task update 修正)
+  (进度由 Praxis 自动推断，可能有误 — 用 /praxis task update 修正)
 
   ## 已知场景
   - hospital_outpatient: 门诊流程 (原型: 3, 固化: 1)
@@ -219,18 +219,18 @@ V10 Layer 1 (新增 TaskContext):
   │                                                           │
   │  sub-agent orchestration:                                 │
   │    职责: 子 Agent 的 spawn / monitor / aggregate           │
-  │    session_start hook → AgentOS 自动注入 TaskContext       │
+  │    session_start hook → Praxis 自动注入 TaskContext       │
   │                                                           │
   │  context compaction:                                      │
   │    职责: 长会话的自动摘要                                  │
-  │    与 AgentOS 的关系: 摘要后的对话仍然进入 transcript       │
-  │                      → AgentOS 仍然可以从中学习             │
+  │    与 Praxis 的关系: 摘要后的对话仍然进入 transcript       │
+  │                      → Praxis 仍然可以从中学习             │
   └─────────────────────────────────────────────────────────┘
                               │
           TaskContext (轻量接口, ~200 tokens)
                               │
   ┌─────────────────────────────────────────────────────────┐
-  │                     AgentOS V10                           │
+  │                     Praxis V10                           │
   │                                                           │
   │  task-context.ts:                                        │
   │    职责: TaskContext 的读写、注入、自动更新                 │
@@ -248,8 +248,8 @@ V10 Layer 1 (新增 TaskContext):
 
 ## 七、兄弟文件
 
-- [What is AgentOS V10?](what-is.md) — V10 的工程定义
-- [Why AgentOS V10?](why.md) — 第一性原理：为什么需要任务级认知
+- [What is Praxis V10?](what-is.md) — V10 的工程定义
+- [Why Praxis V10?](why.md) — 第一性原理：为什么需要任务级认知
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — TaskContext 注入、ProtoTask 构造
 - [When does it operate?](when.md) — 2 Phase 实现路线图

@@ -1,4 +1,4 @@
-# Who is AgentOS V9 for?
+# Who is Praxis V9 for?
 
 > V9 三角色模型与 V8 相同。变化在于开发者需实现新的核心模块，运维者获得压力阈值配置和自适应参数锁定能力。
 
@@ -11,8 +11,8 @@
               │  用户     │
               │ (User)    │
               └─────┬─────┘
-                    │ 使用 AgentOS 时:
-                    │  • 长会话中 AgentOS 不会突然"失忆"
+                    │ 使用 Praxis 时:
+                    │  • 长会话中 Praxis 不会突然"失忆"
                     │  • Critical 压力时可主动说"查一下门诊流程"
                     │  • 收到一致性矛盾的通知
                     │
@@ -20,7 +20,7 @@
     │               │               │
     ▼               ▼               ▼
 ┌──────────┐  ┌──────────┐  ┌──────────┐
-│  开发者   │  │  运维者   │  │  AgentOS │
+│  开发者   │  │  运维者   │  │  Praxis │
 │(Developer)│  │(Operator) │  │  自身     │
 └──────────┘  └──────────┘  └──────────┘
  实现压力监测   配置压力阈值   根据压力自适应
@@ -112,7 +112,7 @@ adaptive_config:
 
 ### 运维者审批矩阵（与 V8 相同，无变化）
 
-运维者的审批权限在 V9 中没有变化。V9 不改变 AgentOS 的自主权边界。
+运维者的审批权限在 V9 中没有变化。V9 不改变 Praxis 的自主权边界。
 
 ---
 
@@ -122,23 +122,23 @@ adaptive_config:
 
 ```
 1. 用户感知到上下文压力:
-   当 AgentOS 进入 High/Critical 模式时，在系统提示中
+   当 Praxis 进入 High/Critical 模式时，在系统提示中
    注入一个简短的状态信号给 LLM:
 
-   "⚠️ 当前上下文使用率 87% (High)。AgentOS 已压缩认知结构的注入。
+   "⚠️ 当前上下文使用率 87% (High)。Praxis 已压缩认知结构的注入。
     如需完整详情，你可以说 '查一下[结构名]' 来获取。"
 
    → LLM 在回复中不会主动提这个（除非用户问）
    → 但 LLM 知道可以用 recall_structure 获取更多细节
 
 2. 用户主动检索结构:
-   "AgentOS，门诊流程的完整步骤是什么？"
+   "Praxis，门诊流程的完整步骤是什么？"
    → LLM 调用 recall_structure("门诊流程")
    → 获取完整 ProtoSequence 详情
    → 在回复中展示
 
 3. 收到一致性警报:
-   AgentOS 检测到同一场景的两个结构矛盾:
+   Praxis 检测到同一场景的两个结构矛盾:
    → 在 session_start 的待验证问题中提醒
    → "我注意到'门诊标准流程'和'急诊快速通道'对'挂号'步骤的描述矛盾。
       你能帮我确认哪种理解是对的？"
@@ -146,16 +146,16 @@ adaptive_config:
 
 ---
 
-## 五、AgentOS 自身的"自主权边界"（与 V8 相同）
+## 五、Praxis 自身的"自主权边界"（与 V8 相同）
 
-V9 不改变 AgentOS 的自主权边界。压力感知属于编排逻辑的增强，不影响"什么可以自主做 vs 什么需要人类审批"的边界。
+V9 不改变 Praxis 的自主权边界。压力感知属于编排逻辑的增强，不影响"什么可以自主做 vs 什么需要人类审批"的边界。
 
 ---
 
 ## 兄弟文件
 
-- [What is AgentOS V9?](what-is.md) — V9 的工程定义
-- [Why AgentOS V9?](why.md) — 第一性原理：为什么 token 爆炸需要压力感知
+- [What is Praxis V9?](what-is.md) — V9 的工程定义
+- [Why Praxis V9?](why.md) — 第一性原理：为什么 token 爆炸需要压力感知
 - [How does it work?](how.md) — 压力监测器、四级压缩、按需检索等
 - [When does it operate?](when.md) — 4 Phase 实现路线图
 - [Where does it sit?](where.md) — 模块树（V8 基础 + 7 新增）

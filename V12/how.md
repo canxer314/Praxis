@@ -1,4 +1,4 @@
-# How does AgentOS V12 work?
+# How does Praxis V12 work?
 
 > V12 的完整实现代码。6 个新模块 + 7 个修改模块。总代码量 ~1000 行（含注释）。
 
@@ -1190,11 +1190,11 @@ function extractKeywords(description: string): string[] {
 import type { PlanDocument, ProgressEvent, TaskOrchestrationState } from '../types/memory';
 
 interface PlanFileWriterConfig {
-  directory: string;                // "./.agentos"
+  directory: string;                // "./.praxis"
 }
 
 const DEFAULT_CONFIG: PlanFileWriterConfig = {
-  directory: './.agentos',
+  directory: './.praxis',
 };
 
 // ── task_plan.md ──
@@ -1462,7 +1462,7 @@ function buildOrchestrationPrompt(
   progressSummary: string
 ): string {
   const lines: string[] = [];
-  lines.push('## 任务编排状态 [AgentOS V12]');
+  lines.push('## 任务编排状态 [Praxis V12]');
   lines.push('');
   lines.push(progressSummary);
 
@@ -1921,8 +1921,8 @@ analysis/outcome-feedback.ts  → task-orchestrator.ts: processSubtaskOutcome()
 
 ## 兄弟文件
 
-- [What is AgentOS V12?](what-is.md) — V12 的工程定义
-- [Why AgentOS V12?](why.md) — 第一性原理：为什么 V11 的边界是错的
+- [What is Praxis V12?](what-is.md) — V12 的工程定义
+- [Why Praxis V12?](why.md) — 第一性原理：为什么 V11 的边界是错的
 - [Who is it for?](who.md) — 三角色职责变化
 - [When does it operate?](when.md) — 6 Phase 实现路线图
 - [Where does it sit?](where.md) — 模块树（V11 基础 + 6 新增 - 3 移除）

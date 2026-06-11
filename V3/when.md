@@ -1,4 +1,4 @@
-# When does AgentOS V3 operate?
+# When does Praxis V3 operate?
 
 ## V3 触发模型：被动 Hook + 主动检测
 
@@ -15,7 +15,7 @@ Hook (被动)      agent_end                        ✅    ✅（扩展）
 Hook (被动)      session_end                      ✅    ✅（扩展）
 主动检测          Curiosity Engine 缺口扫描        ❌    ✅  ← 新增
 主动检测          定期 cron 知识审计               ❌    ✅  ← 新增
-用户命令          /agentos *                      ✅    ✅（扩展）
+用户命令          /praxis *                      ✅    ✅（扩展）
 ```
 
 ---
@@ -24,7 +24,7 @@ Hook (被动)      session_end                      ✅    ✅（扩展）
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│                  AgentOS V3 Lifecycle                        │
+│                  Praxis V3 Lifecycle                        │
 │                                                              │
 │  OPENCLAW SESSION START ──────────────────────────────────▶ │
 │    │                                                         │
@@ -33,7 +33,7 @@ Hook (被动)      session_end                      ✅    ✅（扩展）
 │    │   ├─ 加载用户模型 (memory_slot_get "user_model")        │
 │    │   ├─ 加载待处理知识缺口列表                              │
 │    │   ├─ memory_smart_search("mental_state", 3)             │
-│    │   └─ 注入 AgentOS Context 到 OpenClaw system prompt     │
+│    │   └─ 注入 Praxis Context 到 OpenClaw system prompt     │
 │    │                                                         │
 │    │   ┌─── WORK PHASE ────────────────────────────────┐    │
 │    │   │                                                │    │
@@ -122,7 +122,7 @@ Hook (被动)      session_end                      ✅    ✅（扩展）
 触发: 每次用户通过 OpenClaw 通道发送消息时
 事件: { from, content, timestamp, sessionKey, ... }
 
-AgentOS 处理逻辑:
+Praxis 处理逻辑:
 
 1. 语义意图分类:
    ┌─────────────────────────────────────────────────┐
@@ -188,7 +188,7 @@ AgentOS 处理逻辑:
 
 ## 提问时机治理
 
-AgentOS 主动提问必须遵守以下时机规则：
+Praxis 主动提问必须遵守以下时机规则：
 
 | 规则 | 说明 |
 |------|------|
@@ -203,7 +203,7 @@ AgentOS 主动提问必须遵守以下时机规则：
 ### 提问消息格式规范
 
 ```
-(AgentOS 主动提问的 Telegram 消息模板)
+(Praxis 主动提问的 Telegram 消息模板)
 
 📚 我有个问题（今天第 1/3 个）
 
@@ -235,15 +235,15 @@ AgentOS 主动提问必须遵守以下时机规则：
 
 | 命令 | 功能 | V2 | V3 |
 |------|------|----|----|
-| `/agentos status` | 查看四维能力雷达图 | ✅ | ✅（扩展） |
-| `/agentos tools` | 工具熟练度 | ✅ | ✅ |
-| `/agentos teach <topic>` | 主动教导 | ✅ | ✅ |
-| `/agentos gaps` | 查看知识缺口列表 | ❌ | ✅ 新增 |
-| `/agentos gaps answer <id>` | 回答某个知识缺口 | ❌ | ✅ 新增 |
-| `/agentos curiosity level` | 查看/设置主动学习级别 | ❌ | ✅ 新增 |
-| `/agentos curiosity off` | 关闭主动提问 | ❌ | ✅ 新增 |
-| `/agentos domains` | 查看领域知识掌握度 | ❌ | ✅ 新增 |
-| `/agentos patterns` | 查看已识别的任务模式 | ❌ | ✅ 新增 |
+| `/praxis status` | 查看四维能力雷达图 | ✅ | ✅（扩展） |
+| `/praxis tools` | 工具熟练度 | ✅ | ✅ |
+| `/praxis teach <topic>` | 主动教导 | ✅ | ✅ |
+| `/praxis gaps` | 查看知识缺口列表 | ❌ | ✅ 新增 |
+| `/praxis gaps answer <id>` | 回答某个知识缺口 | ❌ | ✅ 新增 |
+| `/praxis curiosity level` | 查看/设置主动学习级别 | ❌ | ✅ 新增 |
+| `/praxis curiosity off` | 关闭主动提问 | ❌ | ✅ 新增 |
+| `/praxis domains` | 查看领域知识掌握度 | ❌ | ✅ 新增 |
+| `/praxis patterns` | 查看已识别的任务模式 | ❌ | ✅ 新增 |
 
 ---
 
@@ -265,9 +265,9 @@ AgentOS 主动提问必须遵守以下时机规则：
 
 ## 兄弟文件
 
-- [What is AgentOS V3?](what-is.md) — 它是什么
+- [What is Praxis V3?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 谁在使用？
-- [Why AgentOS V3?](why.md) — 为什么需要 V3
+- [Why Praxis V3?](why.md) — 为什么需要 V3
 - [How does it work?](how.md) — 六层架构 + Curiosity Engine
 - [Where does it sit?](where.md) — 架构定位
 - [Architecture Design](design.md) — V3 架构设计文档

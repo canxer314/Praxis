@@ -1,17 +1,17 @@
-# What is AgentOS V12?
+# What is Praxis V12?
 
 > V12 = 从"被动记忆系统"到"主动认知引擎"。V11 修复了知行闭环，但画错了一条边界。V12 修正了它。
 
 ## 一句话定义
 
-**AgentOS V12 接管了 planning-with-files 的认知职能（任务分解、计划生成、进度跟踪、完成验证），将其降格为文件持久化工具。两个嵌套 while() 循环——外层管理任务级阶段推进，内层管理子任务级执行验证——构成 AgentOS 的任务编排状态机。V11 的四个结构化接口中有三个变为内部函数调用。架构更简单，功能更强。**
+**Praxis V12 接管了 planning-with-files 的认知职能（任务分解、计划生成、进度跟踪、完成验证），将其降格为文件持久化工具。两个嵌套 while() 循环——外层管理任务级阶段推进，内层管理子任务级执行验证——构成 Praxis 的任务编排状态机。V11 的四个结构化接口中有三个变为内部函数调用。架构更简单，功能更强。**
 
 ---
 
 ## V11 → V12 演进
 
 ```
-V1-V6: 认知概念设计 — AgentOS 应该表现出什么行为
+V1-V6: 认知概念设计 — Praxis 应该表现出什么行为
 V7:     场景级工程落地 — 所有认知操作 = Hook + LLM + AgentMemory
 V8:     1M 上下文简化 — 删除 token 妥协，全量注入 + 独立验证
 V9:     上下文压力自适应 — 四级压缩 + Lazy Loading + 注意力遥测
@@ -20,24 +20,24 @@ V11:    知行合一闭环 — 四个结构化接口（KnowledgeQuery, GuidanceS
         OutcomeFeedback, MidSessionLearner）
 
 V12:    从"被动记忆"到"主动认知引擎" — 任务编排状态机
-        从 "AgentOS 与 planning-with-files 通过四个接口协作"
-        到 "AgentOS 直接做任务分解，planning-with-files 降格为文件工具"
+        从 "Praxis 与 planning-with-files 通过四个接口协作"
+        到 "Praxis 直接做任务分解，planning-with-files 降格为文件工具"
 
 关键洞察:
-  V11 画错了一条架构边界。planning-with-files 不是 AgentOS 的"对等层"——
+  V11 画错了一条架构边界。planning-with-files 不是 Praxis 的"对等层"——
   它是一段 SKILL.md prompt 模板，自己的所有"智能"都来自 LLM 阅读它。
-  把一段 prompt 模板和 AgentOS（拥有 ProtoTask 学习能力的认知引擎）并列为
+  把一段 prompt 模板和 Praxis（拥有 ProtoTask 学习能力的认知引擎）并列为
   架构中的两个"层"，是一个分类错误。
 
-  AgentOS 拥有 ProtoTask——从真实项目历史中学习的任务模式结构，包含
+  Praxis 拥有 ProtoTask——从真实项目历史中学习的任务模式结构，包含
   typical_phases、common_pitfalls、key_scenarios、relevant_structures。
   这是天然的任务分解引擎。却让一个空模板（planning-with-files）来做
   任务分解，让有知识的一方站在旁边"提供素材"——这是架构的自我限制。
 
-  V12 拆除了这个不必要的边界。AgentOS 自己生成任务计划（基于 ProtoTask），
+  V12 拆除了这个不必要的边界。Praxis 自己生成任务计划（基于 ProtoTask），
   自己跟踪进度，自己验证完成。planning-with-files 仍然存在——
   但它的角色从"任务规划者"降格为"文件持久化工具"（创建/维护
-  task_plan.md、findings.md、progress.md，但文件内容由 AgentOS 生成）。
+  task_plan.md、findings.md、progress.md，但文件内容由 Praxis 生成）。
 ```
 
 ---
@@ -69,7 +69,7 @@ V13: 主动驱动 — scheduleSessionTurn() + subagent.run() + requestHeartbeat(
 
 ```
 V11: planning-with-files 创建空模板 → LLM 从零填内容
-     → AgentOS 站在旁边通过 KnowledgeQuery 提供 ProtoTask（可能不被采纳）
+     → Praxis 站在旁边通过 KnowledgeQuery 提供 ProtoTask（可能不被采纳）
 
 V12: plan-generator 从 ProtoTask 生成 PlanDocument:
      typical_phases → PlanPhase[] (含 subtasks, entry_criteria, exit_criteria)
@@ -77,7 +77,7 @@ V12: plan-generator 从 ProtoTask 生成 PlanDocument:
      key_scenarios → relevant_structures (注入到每个 phase 的 LLM 上下文)
      
      不是"建议"LLM 怎么做——而是直接生成计划结构。
-     LLM 仍然做具体的代码/内容工作，但计划的骨架来自 AgentOS 的学习。
+     LLM 仍然做具体的代码/内容工作，但计划的骨架来自 Praxis 的学习。
 ```
 
 ### 命题 3：verifier — 五种验收标准
@@ -123,9 +123,9 @@ V12: planning-with-files = 文件持久化工具
   ✅ SHA-256 计划完整性验证（attestation）
 
 变化:
-  ❌ 不再提供"空模板让 LLM 填" → AgentOS 的 plan-generator 生成内容
-  ❌ 不再做"任务分解" → AgentOS 的 ProtoTask 驱动分解
-  ❌ 不再做"进度跟踪" → AgentOS 的 progress-tracker 管理状态
+  ❌ 不再提供"空模板让 LLM 填" → Praxis 的 plan-generator 生成内容
+  ❌ 不再做"任务分解" → Praxis 的 ProtoTask 驱动分解
+  ❌ 不再做"进度跟踪" → Praxis 的 progress-tracker 管理状态
 ```
 
 ### 命题 6：V13 就绪架构
@@ -153,7 +153,7 @@ V12 的状态机 transitions 与驱动方式完全解耦:
 
 | Is | Is-not |
 |----|--------|
-| AgentOS 直接分解任务（ProtoTask 驱动） | AgentOS 替代 LLM 推理 |
+| Praxis 直接分解任务（ProtoTask 驱动） | Praxis 替代 LLM 推理 |
 | planning-with-files 降格为文件工具 | 移除 planning-with-files |
 | 两个嵌套 while() 循环（Hook 驱动状态机） | 阻塞式 while() 循环 |
 | V11 的三个接口内部化（更简单） | 功能降级（更强：+任务分解 +验收 +陷阱） |
@@ -169,7 +169,7 @@ V12 的状态机 transitions 与驱动方式完全解耦:
 
 | 维度 | V11 | V12 | 变化 |
 |------|-----|-----|------|
-| 架构哲学 | 四个结构化接口连接两层 | **AgentOS 直接做任务分解** | 边界修正 |
+| 架构哲学 | 四个结构化接口连接两层 | **Praxis 直接做任务分解** | 边界修正 |
 | planning-with-files 角色 | 执行层（知识消费者） | **文件持久化工具** | 降格 |
 | 任务分解 | planning-with-files 查询 ProtoTask | **plan-generator 从 ProtoTask 生成** | 内部化 |
 | 外部接口数 | 4（KQ + GS + OF + MSL） | **1（仅 MSL）** | -3 |
@@ -183,7 +183,7 @@ V12 的状态机 transitions 与驱动方式完全解耦:
 
 ## 兄弟文件
 
-- [Why AgentOS V12?](why.md) — 第一性原理：为什么 V11 的边界是错的
+- [Why Praxis V12?](why.md) — 第一性原理：为什么 V11 的边界是错的
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — 六个模块的完整实现
 - [When does it operate?](when.md) — 6 Phase 实现路线图

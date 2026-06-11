@@ -1,4 +1,4 @@
-# AgentOS V7 Architecture Design
+# Praxis V7 Architecture Design
 
 > 版本：v7 (Engineering Implementation)
 > 状态：设计阶段
@@ -23,7 +23,7 @@ Meta Layer (V5)          →      analysis/architecture-auditor.ts
 Proto-Cognitive (V6)     →      analysis/proto-constructor.ts + hooks/
 ```
 
-**推论**：V6 的"修改层定义"（Level 4）在工程上的等价物不是"修改一个叫 L3.ts 的文件"（不存在），而是"修改散布在多个模块中的行为约定"。当这些行为约定是数据驱动的（prompt 模板在 AgentMemory 中、信号检测规则可配置、流程类型是 type field 的 switch），那么"修改层"就自动降级为修改数据——这正是 Level 1-3 已经覆盖的操作。需要改动代码的极端情况才构成真正的架构变更，此时 AgentOS 的角色是"提出建议"，人类开发者决定是否实施。
+**推论**：V6 的"修改层定义"（Level 4）在工程上的等价物不是"修改一个叫 L3.ts 的文件"（不存在），而是"修改散布在多个模块中的行为约定"。当这些行为约定是数据驱动的（prompt 模板在 AgentMemory 中、信号检测规则可配置、流程类型是 type field 的 switch），那么"修改层"就自动降级为修改数据——这正是 Level 1-3 已经覆盖的操作。需要改动代码的极端情况才构成真正的架构变更，此时 Praxis 的角色是"提出建议"，人类开发者决定是否实施。
 
 ---
 
@@ -321,7 +321,7 @@ agent_end (可选轻量操作):
 ```typescript
 // config.ts
 
-interface AgentOSConfig {
+interface PraxisConfig {
   // ── 核心开关 ──
   enabled: boolean;                          // 默认 true
   proto_cognitive_enabled: boolean;          // 默认 true（Phase 1 设为 false）
@@ -379,43 +379,43 @@ interface AgentOSConfig {
 ```typescript
 // 命令处理函数签名
 
-// /agentos perceive [scenario_id?]
+// /praxis perceive [scenario_id?]
 async function handlePerceive(
   scenarioId?: string
 ): Promise<PerceptionReport>;
 
-// /agentos proto <proto_id>
+// /praxis proto <proto_id>
 async function handleProtoDetail(
   protoId: string
 ): Promise<ProtoDetail>;
 
-// /agentos proto <proto_id> correct <description>
+// /praxis proto <proto_id> correct <description>
 async function handleProtoCorrect(
   protoId: string,
   correction: string
 ): Promise<CorrectionResult>;
 
-// /agentos crystallize
+// /praxis crystallize
 async function handleCrystallizeList(): Promise<CrystallizationProposal[]>;
 
-// /agentos crystallize approve <proposal_id>
+// /praxis crystallize approve <proposal_id>
 async function handleCrystallizeApprove(
   proposalId: string
 ): Promise<ApprovalResult>;
 
-// /agentos crystallize reject <proposal_id> [reason]
+// /praxis crystallize reject <proposal_id> [reason]
 async function handleCrystallizeReject(
   proposalId: string,
   reason?: string
 ): Promise<ApprovalResult>;
 
-// /agentos architecture status
+// /praxis architecture status
 async function handleArchitectureStatus(): Promise<ArchitectureStatus>;
 
-// /agentos architecture freeze
+// /praxis architecture freeze
 async function handleArchitectureFreeze(): Promise<FreezeResult>;
 
-// /agentos architecture unfreeze
+// /praxis architecture unfreeze
 async function handleArchitectureUnfreeze(): Promise<FreezeResult>;
 ```
 
@@ -427,7 +427,7 @@ async function handleArchitectureUnfreeze(): Promise<FreezeResult>;
 function buildSystemPromptSupplement(
   scene: SceneContext,
   structures: (CognitiveStructure | ProtoStructure)[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): string;
 // 返回值: 不超过 config.performanceBudgets.system_prompt_max_tokens 的 prompt 文本
 
@@ -588,7 +588,7 @@ async function constructProtoStructuresWithTimeout(
   ]);
   
   if (result === null) {
-    console.warn('[AgentOS] Proto construction timed out. Using cached structures.');
+    console.warn('[Praxis] Proto construction timed out. Using cached structures.');
     return [];  // 返回空，不更新——保留上次的结果
   }
   
@@ -601,13 +601,13 @@ async function constructProtoStructuresWithTimeout(
 ## 六、监控指标
 
 ```typescript
-// AgentOS 自监控（通过 memory_save(type="agentos_telemetry") 记录）
+// Praxis 自监控（通过 memory_save(type="praxis_telemetry") 记录）
 
-interface AgentOSTelemetry {
+interface PraxisTelemetry {
   timestamp: number;
   
   // 使用指标
-  sessions_with_agentos: number;
+  sessions_with_praxis: number;
   sessions_with_proto_cognitive: number; // 触发了零先验模式的会话数
   total_proto_structures: number;
   total_crystallized_structures: number;
@@ -668,8 +668,8 @@ interface AgentOSTelemetry {
 
 ## 八、兄弟文件
 
-- [What is AgentOS V7?](what-is.md) — V7 的工程定义
-- [Why AgentOS V7?](why.md) — 第一性原理工程可行性分析
+- [What is Praxis V7?](what-is.md) — V7 的工程定义
+- [Why Praxis V7?](why.md) — 第一性原理工程可行性分析
 - [Who is it for?](who.md) — 开发者、运维者、用户三角色
 - [How does it work?](how.md) — Hook 编排、Prompt 工程、数据流详解
 - [When does it operate?](when.md) — 实现路线图与分阶段交付

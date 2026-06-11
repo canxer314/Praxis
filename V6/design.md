@@ -1,4 +1,4 @@
-# AgentOS V6 Architecture Design
+# Praxis V6 Architecture Design
 
 > 版本：v6 (Proto-Cognitive Engine + Layer Self-Modification)
 > 状态：设计阶段
@@ -134,7 +134,7 @@ ProtoConcept:
         confidence: 0.60
       - label: "公共服务机构"
         confidence: 0.50
-    # 多个假设可以共存——AgentOS 还没确定
+    # 多个假设可以共存——Praxis 还没确定
   
   differentiating_from:              # 与类似概念的区别
     - similar_concept: "体检中心"
@@ -311,7 +311,7 @@ ArchitectureStability:
   
   # 退化护栏
   regression_guardrails:
-    core_metrics:                    # 由人类定义, 不可被 AgentOS 修改
+    core_metrics:                    # 由人类定义, 不可被 Praxis 修改
       - task_success_rate
       - user_satisfaction
       - action_reliability
@@ -376,9 +376,9 @@ ArchitectureStability:
 
 ## 六、兄弟文件
 
-- [What is AgentOS V6?](what-is.md) — 它是什么
+- [What is Praxis V6?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 人类作为递归终止条件
-- [Why AgentOS V6?](why.md) — 为什么需要 Proto-Cognitive Engine
+- [Why Praxis V6?](why.md) — 为什么需要 Proto-Cognitive Engine
 - [How does it work?](how.md) — Proto-Cognitive Engine 四阶段详解
 - [When does it operate?](when.md) — 零先验场景生命周期
 - [Where does it sit?](where.md) — 原型→固化的演化路径

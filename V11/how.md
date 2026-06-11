@@ -1,4 +1,4 @@
-# How does AgentOS V11 work?
+# How does Praxis V11 work?
 
 > V11 的核心实现：知识查询 API、认知指导信号生成、任务结果反馈处理、会话中实时矛盾检测、ProtoTask Phase 1 核心（含 bootstrap）。
 
@@ -383,7 +383,7 @@ function formatGuidanceSignalsForPrompt(signals: GuidanceSignal[]): string {
   if (signals.length === 0) return '';
 
   const lines: string[] = [];
-  lines.push('## ⚠ 认知指导 [AgentOS V11]');
+  lines.push('## ⚠ 认知指导 [Praxis V11]');
 
   for (const signal of signals) {
     const severityMarker = signal.severity === 'critical' ? '🔴' :
@@ -475,7 +475,7 @@ async function processOutcomeFeedback(
   outcome: SubtaskOutcome,
   allStructures: (ProtoStructure | CognitiveStructure)[],
   protoTask: ProtoTask | null,
-  config: AgentOSConfig
+  config: PraxisConfig
 ): Promise<OutcomeFeedbackResult> {
   const adjustments: OutcomeFeedbackResult['confidence_adjustments'] = [];
   const cfg = config.outcomeFeedback;
@@ -579,7 +579,7 @@ async function processSessionOutcomes(
   sessionId: string,
   allStructures: (ProtoStructure | CognitiveStructure)[],
   protoTask: ProtoTask | null,
-  config: AgentOSConfig
+  config: PraxisConfig
 ): Promise<OutcomeFeedbackResult[]> {
   // 从 AgentMemory 查询本次会话中积累的所有 SubtaskOutcome
   const outcomes = await memorySmartSearch(sessionId, {
@@ -718,7 +718,7 @@ function detectToolPatternViolation(
 function applyImmediateConfidenceAdjustment(
   contradiction: MidSessionContradiction,
   structure: ProtoStructure | CognitiveStructure,
-  config: AgentOSConfig
+  config: PraxisConfig
 ): number {
   const cfg = config.midSessionLearning;
   const count = sessionContradictionCount.get(contradiction.proto_id) ?? 0;
@@ -812,7 +812,7 @@ interface ProtoTask {
 
 async function bootstrapProtoTask(taskType: string): Promise<ProtoTask> {
   const prompt = `
-你是 AgentOS 的任务模式分析模块。用户即将开始一个类型为 "${taskType}" 的新任务。
+你是 Praxis 的任务模式分析模块。用户即将开始一个类型为 "${taskType}" 的新任务。
 
 你没有任何已完成同类项目的数据。请基于你的通用知识，为这类任务构建一个初始的、
 带低置信度的 ProtoTask 结构。
@@ -878,7 +878,7 @@ async function constructProtoTask(
   taskType: string,
   completedTasks: TaskContext[],
   existingProtoTask: ProtoTask | null,
-  config: AgentOSConfig
+  config: PraxisConfig
 ): Promise<ProtoTask | null> {
   if (completedTasks.length < config.protoTask.minObservationsForUpdate) return null;
 
@@ -886,7 +886,7 @@ async function constructProtoTask(
   const existingPitfalls = existingProtoTask?.common_pitfalls ?? [];
 
   const prompt = `
-你是 AgentOS 的任务模式分析模块。以下是 ${completedTasks.length} 个已完成的
+你是 Praxis 的任务模式分析模块。以下是 ${completedTasks.length} 个已完成的
 "${taskType}" 类型项目的记录。请从中归纳团队特定的任务推进模式。
 
 ## 已完成项目记录
@@ -975,17 +975,17 @@ function calculateProtoTaskConfidence(observationsCount: number): number {
 ## 六、用户命令（V11 新增）
 
 ```typescript
-// /agentos knowledge *
-// /agentos task feedback *
+// /praxis knowledge *
+// /praxis task feedback *
 
 async function handleKnowledgeCommand(args: string[], context: SessionContext) {
   const subcommand = args[0];
 
   switch (subcommand) {
     case 'status':
-      // /agentos knowledge status
+      // /praxis knowledge status
       const protoTask = await memorySlotGet('proto_task').catch(() => null);
-      if (!protoTask) return '没有 ProtoTask 数据。用 /agentos task start 开始一个任务。';
+      if (!protoTask) return '没有 ProtoTask 数据。用 /praxis task start 开始一个任务。';
 
       return `
 ## ProtoTask: ${protoTask.tentative_name}
@@ -1016,7 +1016,7 @@ ${protoTask.confidence_trend.map((t: any) =>
 `.trim();
 
     case 'query':
-      // /agentos knowledge query --type "proto_task" --task_type "software_project"
+      // /praxis knowledge query --type "proto_task" --task_type "software_project"
       const queryType = args.includes('--type') ? args[args.indexOf('--type') + 1] : 'proto_task';
       const taskType = args.includes('--task_type') ? args[args.indexOf('--task_type') + 1] : undefined;
       const result = await queryKnowledge({
@@ -1026,19 +1026,19 @@ ${protoTask.confidence_trend.map((t: any) =>
       return JSON.stringify(result, null, 2);
 
     default:
-      return '用法: /agentos knowledge status | query';
+      return '用法: /praxis knowledge status | query';
   }
 }
 
 async function handleTaskFeedbackCommand(args: string[], context: SessionContext) {
-  // /agentos task feedback --subtask "预约挂号 API" --outcome "partial_success"
+  // /praxis task feedback --subtask "预约挂号 API" --outcome "partial_success"
   //   --note "功能正确但响应时间不达标"
   const subtaskName = args.includes('--subtask') ? args[args.indexOf('--subtask') + 1] : null;
   const outcome = args.includes('--outcome') ? args[args.indexOf('--outcome') + 1] : null;
   const note = args.includes('--note') ? args[args.indexOf('--note') + 1] : null;
 
   if (!subtaskName || !outcome) {
-    return '用法: /agentos task feedback --subtask "名称" --outcome "success|partial_success|failure|abandoned" [--note "备注"]';
+    return '用法: /praxis task feedback --subtask "名称" --outcome "success|partial_success|failure|abandoned" [--note "备注"]';
   }
 
   const validOutcomes = ['success', 'partial_success', 'failure', 'abandoned'];
@@ -1063,7 +1063,7 @@ async function handleTaskFeedbackCommand(args: string[], context: SessionContext
   };
 
   await memorySave('task_outcomes', subtaskOutcome);
-  return `已记录子任务 "${subtaskName}" 的反馈 (${outcome})。AgentOS 将在下次分析中调整相关认知结构的置信度。`;
+  return `已记录子任务 "${subtaskName}" 的反馈 (${outcome})。Praxis 将在下次分析中调整相关认知结构的置信度。`;
 }
 ```
 
@@ -1071,8 +1071,8 @@ async function handleTaskFeedbackCommand(args: string[], context: SessionContext
 
 ## 兄弟文件
 
-- [What is AgentOS V11?](what-is.md) — V11 的工程定义
-- [Why AgentOS V11?](why.md) — 第一性原理：为什么需要知行合一闭环
+- [What is Praxis V11?](what-is.md) — V11 的工程定义
+- [Why Praxis V11?](why.md) — 第一性原理：为什么需要知行合一闭环
 - [Who is it for?](who.md) — 三角色职责变化
 - [When does it operate?](when.md) — 2 Phase 实现路线图
 - [Where does it sit?](where.md) — 模块树（V10 基础 + 5 新增）

@@ -1,4 +1,4 @@
-# Who is AgentOS V8 for?
+# Who is Praxis V8 for?
 
 > V8 的三角色模型与 V7 相同（开发者、运维者、用户），但职责边界因架构简化而移动。
 
@@ -11,8 +11,8 @@
               │  用户     │
               │ (User)    │
               └─────┬─────┘
-                    │ 使用 AgentOS 完成工作
-                    │ 教 AgentOS 业务知识
+                    │ 使用 Praxis 完成工作
+                    │ 教 Praxis 业务知识
                     │ 审核认知结构提案（可事后）
                     │ 纠正错误认知
                     │
@@ -20,7 +20,7 @@
     │               │               │
     ▼               ▼               ▼
 ┌──────────┐  ┌──────────┐  ┌──────────┐
-│  开发者   │  │  运维者   │  │  AgentOS │
+│  开发者   │  │  运维者   │  │  Praxis │
 │(Developer)│  │(Operator) │  │  自身     │
 └──────────┘  └──────────┘  └──────────┘
  删除更多代码   配置风险偏好   更多自主权
@@ -74,7 +74,7 @@
 
 ### 新增职责：风险偏好配置
 
-V7 运维者主要做"审批"和"紧急干预"。V8 运维者新增一个关键职责：**配置 AgentOS 的自主权程度**。
+V7 运维者主要做"审批"和"紧急干预"。V8 运维者新增一个关键职责：**配置 Praxis 的自主权程度**。
 
 ```
 GovernancePolicy 新增配置项:
@@ -110,7 +110,7 @@ V7 vs V8 审批矩阵变化:
 
   变更级别        V7                   V8
   ─────────────────────────────────────────────────
-  Level 1        AgentOS 自主          AgentOS 自主（不变）
+  Level 1        Praxis 自主          Praxis 自主（不变）
   Level 2        用户审核             用户审核 / 自动（置信度 > 0.95）
   Level 3        运维者 + 用户        运维者 + 用户（不变）
   Level 4        运维者主导           运维者主导（不变）
@@ -131,7 +131,7 @@ V7 vs V8 审批矩阵变化:
 
 ```
 V7 的固化审批路径（必须用户主动操作）:
-  ProtoStructure 达标 → notification → 用户看到 → 输入 /agentos crystallize approve
+  ProtoStructure 达标 → notification → 用户看到 → 输入 /praxis crystallize approve
   → 用户不操作 = 永远停滞
 
 V8 的固化审批路径（用户可选择被动）:
@@ -149,26 +149,26 @@ V8 的固化审批路径（用户可选择被动）:
 V7 中没有的用户能力:
 
 1. 一句话回滚固化结构:
-   "这个门诊流程不对" → AgentOS 识别为纠正信号
+   "这个门诊流程不对" → Praxis 识别为纠正信号
    → 如果是 auto_crystallized → 立即回滚 + 置信度重置为 0.5
    → 如果是 人工审批的 → 标记 degradation_suspected
 
-2. 查看 AgentOS 的"证据":
-   /agentos evidence <proto_id>
+2. 查看 Praxis 的"证据":
+   /praxis evidence <proto_id>
    → 显示支撑该 ProtoStructure 的具体对话摘录
    → 用户可以逐条标记 "这条证据不对"
 
 3. 设置个人偏好:
-   "以后不要自动固化，都问我" → AgentOS 在 GovernancePolicy 中记录用户偏好
-   "这个领域可以自动固化" → AgentOS 对该场景放宽阈值
+   "以后不要自动固化，都问我" → Praxis 在 GovernancePolicy 中记录用户偏好
+   "这个领域可以自动固化" → Praxis 对该场景放宽阈值
 ```
 
 ---
 
-## 五、AgentOS 自身的"自主权边界"（修订）
+## 五、Praxis 自身的"自主权边界"（修订）
 
 ```
-V7 中 AgentOS 不能做的事 → V8 中的变化:
+V7 中 Praxis 不能做的事 → V8 中的变化:
 
 ❌ V7: 不能将 ProtoStructure 固化为 CognitiveStructure
 ✅ V8: 可以在置信度 > 0.9 + 零纠正的条件下自动固化（可事后回滚）
@@ -193,8 +193,8 @@ V7 中 AgentOS 不能做的事 → V8 中的变化:
 
 ## 兄弟文件
 
-- [What is AgentOS V8?](what-is.md) — V8 的工程定义
-- [Why AgentOS V8?](why.md) — 第一性原理：为什么 1M 上下文改变了架构
+- [What is Praxis V8?](what-is.md) — V8 的工程定义
+- [Why Praxis V8?](why.md) — 第一性原理：为什么 1M 上下文改变了架构
 - [How does it work?](how.md) — 层级化组织、统计验证、双信号融合
 - [When does it operate?](when.md) — 简化的实现路线图
 - [Where does it sit?](where.md) — 模块树（删除 + 新增 + 修改）

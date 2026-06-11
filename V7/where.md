@@ -1,19 +1,19 @@
-# Where does AgentOS V7 sit?
+# Where does Praxis V7 sit?
 
-> V7 定义 AgentOS 在 OpenClaw 插件系统中的工程位置：模块划分、Hook 回调映射、数据流向、文件结构。
+> V7 定义 Praxis 在 OpenClaw 插件系统中的工程位置：模块划分、Hook 回调映射、数据流向、文件结构。
 
 ---
 
-## 一、AgentOS 在 OpenClaw 中的位置
+## 一、Praxis 在 OpenClaw 中的位置
 
 ```
-D:\WorkSpace\AgentOS\openclaw\src\plugins\
+D:\WorkSpace\Praxis\openclaw\src\plugins\
 ├── hook-types.ts                    # OpenClaw Hook 定义（已有）
 ├── hook-message.types.ts            # message_received 事件类型（已有）
 │
-└── agentos-plugin/                  # ← AgentOS V7 插件目录
+└── praxis-plugin/                  # ← Praxis V7 插件目录
     ├── index.ts                     # 插件入口，注册所有 Hook 处理器
-    ├── config.ts                    # AgentOS 配置（阈值、开关、AgentMemory 连接）
+    ├── config.ts                    # Praxis 配置（阈值、开关、AgentMemory 连接）
     │
     ├── hooks/                       # Hook 回调处理器
     │   ├── session-start.ts         # session_start: 加载结构、场景匹配、构造系统提示
@@ -38,7 +38,7 @@ D:\WorkSpace\AgentOS\openclaw\src\plugins\
     │
     ├── memory/                      # AgentMemory 集成层
     │   ├── client.ts                # AgentMemory MCP 客户端封装
-    │   ├── schemas.ts               # AgentOS 数据类型的 AgentMemory 存储格式
+    │   ├── schemas.ts               # Praxis 数据类型的 AgentMemory 存储格式
     │   ├── slots.ts                 # Slot 读写操作
     │   └── queries.ts               # 常用查询封装
     │
@@ -97,7 +97,7 @@ D:\WorkSpace\AgentOS\openclaw\src\plugins\
                    │  读               │  写              │
                    ▼                  ▼                  ▼
 ┌──────────────────────────────────────────────────────────────┐
-│                    AgentOS Plugin (V7)                        │
+│                    Praxis Plugin (V7)                        │
 │                                                               │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
 │  │session_start │  │   agent_    │  │session_end  │         │
@@ -139,7 +139,7 @@ D:\WorkSpace\AgentOS\openclaw\src\plugins\
 ```
 session_start(sessionKey, context):
   
-  1. 加载 AgentOS 状态:
+  1. 加载 Praxis 状态:
      ├─ memory_slot_get("active_proto_structures")
      ├─ memory_slot_get("structure_registry")
      └─ memory_slot_get("governance_policy")
@@ -251,7 +251,7 @@ agent_end(runId, result, context):
 ```
 session_end(sessionKey, context):
   
-  ⚠️ 这是 AgentOS V7 中最重的 Hook 回调。用户可以接受这里的延迟（会话已结束）。
+  ⚠️ 这是 Praxis V7 中最重的 Hook 回调。用户可以接受这里的延迟（会话已结束）。
   
   1. 汇总本会话数据:
      ├─ 收集所有 memory buffer 中的候选 SalientElement
@@ -384,8 +384,8 @@ cron: "0 4 1 * *" (每月 1 号凌晨 4 点)
 
 ## 兄弟文件
 
-- [What is AgentOS V7?](what-is.md) — V7 的工程定义
-- [Why AgentOS V7?](why.md) — 第一性原理工程可行性分析
+- [What is Praxis V7?](what-is.md) — V7 的工程定义
+- [Why Praxis V7?](why.md) — 第一性原理工程可行性分析
 - [Who is it for?](who.md) — 开发者、运维者、用户三角色
 - [How does it work?](how.md) — Hook 编排、Prompt 工程、数据流详解
 - [When does it operate?](when.md) — 实现路线图与分阶段交付

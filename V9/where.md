@@ -1,4 +1,4 @@
-# Where does AgentOS V9 sit?
+# Where does Praxis V9 sit?
 
 > V9 在 V8 基础上的模块扩展：7 个新增模块、3 个增强模块。V8 的所有模块保持不变，V9 在其上叠加。
 
@@ -7,7 +7,7 @@
 ## 一、完整模块树
 
 ```
-openclaw/src/plugins/agentos-plugin/
+openclaw/src/plugins/praxis-plugin/
 ├── index.ts
 ├── config.ts                              # [增强] 新增压力阈值 + 自适应配置
 │
@@ -114,7 +114,7 @@ openclaw/src/plugins/agentos-plugin/
               ┌──────────────────┼──────────────────┐
               ▼                  ▼                   ▼
 ┌──────────────────────────────────────────────────────────────┐
-│                    AgentOS Plugin (V9)                        │
+│                    Praxis Plugin (V9)                        │
 │                                                               │
 │  session_start:                                               │
 │    1. 全量加载结构到内存                                       │
@@ -123,7 +123,7 @@ openclaw/src/plugins/agentos-plugin/
 │       ├─ 估算各部分 token 消耗                                 │
 │       ├─ 计算使用率 + 剩余空间                                 │
 │       ├─ 判定压力等级: Normal / Elevated / High / Critical     │
-│       └─ 分配 AgentOS 注入预算                                 │
+│       └─ 分配 Praxis 注入预算                                 │
 │    4. 【增强】自适应注入 (context-organizer):                  │
 │       ├─ Normal:  全量注入 (~30K tokens)                      │
 │       ├─ Elevated: 压缩注入 (~16K tokens)                     │
@@ -160,8 +160,8 @@ openclaw/src/plugins/agentos-plugin/
 
 ## 四、兄弟文件
 
-- [What is AgentOS V9?](what-is.md) — V9 的工程定义
-- [Why AgentOS V9?](why.md) — 第一性原理：为什么 token 爆炸需要压力感知
+- [What is Praxis V9?](what-is.md) — V9 的工程定义
+- [Why Praxis V9?](why.md) — 第一性原理：为什么 token 爆炸需要压力感知
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — 压力监测器、四级压缩、按需检索等
 - [When does it operate?](when.md) — 4 Phase 实现路线图

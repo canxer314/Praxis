@@ -1,4 +1,4 @@
-# AgentOS V8 Architecture Design
+# Praxis V8 Architecture Design
 
 > 版本：v8 (1M Context Engineering)
 > 状态：设计阶段
@@ -256,10 +256,10 @@ V8: 注入 token 数可以到 50000+，但需要管理注意力分布
 
 ---
 
-## 四、AgentOSConfig 完整接口（修订）
+## 四、PraxisConfig 完整接口（修订）
 
 ```typescript
-interface AgentOSConfig {
+interface PraxisConfig {
   // ── 核心开关 ──
   enabled: boolean;                           // 默认 true
   proto_cognitive_enabled: boolean;           // 默认 true
@@ -403,11 +403,11 @@ async function sessionStartHandler(sessionKey: string, context: SessionContext) 
     return await loadAndOrganizeContext(context);
   } catch (memoryError) {
     if (config.localCache.enabled) {
-      console.warn('[AgentOS] AgentMemory unavailable, using local cache');
+      console.warn('[Praxis] AgentMemory unavailable, using local cache');
       return await loadFromLocalCache(context);
     }
     // 降级: 零先验模式（无任何结构注入）
-    console.warn('[AgentOS] No memory available, starting in zero-prior mode');
+    console.warn('[Praxis] No memory available, starting in zero-prior mode');
     return buildZeroPriorContext();
   }
 }
@@ -438,8 +438,8 @@ async function sessionStartHandler(sessionKey: string, context: SessionContext) 
 
 ## 七、兄弟文件
 
-- [What is AgentOS V8?](what-is.md) — V8 的工程定义
-- [Why AgentOS V8?](why.md) — 第一性原理：为什么 1M 上下文改变了架构
+- [What is Praxis V8?](what-is.md) — V8 的工程定义
+- [Why Praxis V8?](why.md) — 第一性原理：为什么 1M 上下文改变了架构
 - [Who is it for?](who.md) — 角色职责的变化
 - [How does it work?](how.md) — 层级化组织、统计验证、双信号融合
 - [When does it operate?](when.md) — 简化的实现路线图

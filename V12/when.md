@@ -1,4 +1,4 @@
-# When does AgentOS V12 operate?
+# When does Praxis V12 operate?
 
 > V12 的增量比 V11 略小（净 +2 模块 vs +5），但功能变化更大（从"加接口"到"接管任务分解"）。6 Phase，~9 周。
 
@@ -192,7 +192,7 @@ Phase 0: 基础 (周 1-2)
 | 边界情况 | 放弃任务、阶段全部失败、验证无限重试、空计划 | P0 | 中 (~30 行) |
 | GovernancePolicy | 所有新增配置段的集成 + 默认值 | P0 | 小 (~20 行) |
 | 端到端测试 | 3 阶段任务完整生命周期 | P0 | 中 |
-| 用户命令 | /agentos task status/plan/verify/abandon/replan | P1 | 中 (~50 行) |
+| 用户命令 | /praxis task status/plan/verify/abandon/replan | P1 | 中 (~50 行) |
 
 **验证标准**:
 ```
@@ -200,7 +200,7 @@ Phase 0: 基础 (周 1-2)
 ✅ Phase 转换: 当前 Phase 所有子任务 VERIFIED → 自动推进到下一 Phase
 ✅ TASK_ITERATING: verifier 发现 gap → 创建补救子任务 → 回到 TASK_IN_PROGRESS
 ✅ 中断恢复: 任务在 Phase 2 中断 → session_start 正确恢复到 Phase 2 的子任务
-✅ TASK_ABANDONED: /agentos task abandon → 状态正确标记 + 数据保留
+✅ TASK_ABANDONED: /praxis task abandon → 状态正确标记 + 数据保留
 ✅ 所有 GovernancePolicy 字段被正确读取和遵循
 ```
 
@@ -245,8 +245,8 @@ Phase 0: 基础 (周 1-2)
 
 ## 兄弟文件
 
-- [What is AgentOS V12?](what-is.md) — V12 的工程定义
-- [Why AgentOS V12?](why.md) — 第一性原理：为什么 V11 的边界是错的
+- [What is Praxis V12?](what-is.md) — V12 的工程定义
+- [Why Praxis V12?](why.md) — 第一性原理：为什么 V11 的边界是错的
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — 六个模块的完整实现
 - [Where does it sit?](where.md) — 模块树（V11 基础 + 6 新增 - 3 移除）

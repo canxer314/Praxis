@@ -1,4 +1,4 @@
-# How does AgentOS V10 work?
+# How does Praxis V10 work?
 
 > V10 的核心实现：TaskContext 注入与更新、任务感知优先级排序、ProtoTask 构造（Phase 2+）。
 
@@ -36,7 +36,7 @@ function formatTaskContextForInjection(ctx: TaskContext): string {
   if (ctx.current_phase) lines.push(`阶段: ${ctx.current_phase}`);
   if (ctx.progress_summary) lines.push(`进度: ${ctx.progress_summary}`);
   if (ctx.active_subtask) lines.push(`活跃子任务: ${ctx.active_subtask}`);
-  if (ctx.auto_updated) lines.push('(进度由 AgentOS 自动推断，可能有误)');
+  if (ctx.auto_updated) lines.push('(进度由 Praxis 自动推断，可能有误)');
   return lines.join('\n');
   // 总计 ~150-250 tokens
 }
@@ -46,7 +46,7 @@ function formatTaskContextForInjection(ctx: TaskContext): string {
 async function inferAndUpdateProgress(
   sessionTranscript: string,
   currentTaskContext: TaskContext | null,
-  config: AgentOSConfig
+  config: PraxisConfig
 ): Promise<TaskContext | null> {
 
   if (!config.taskContext.auto_update || !currentTaskContext) return null;
@@ -225,13 +225,13 @@ async function constructProtoTask(
   taskType: string,
   completedTasks: TaskContext[],      // 已完成的同类任务
   relatedStructures: ProtoStructure[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): Promise<ProtoTask | null> {
 
   if (completedTasks.length < config.protoTask.minObservations) return null;
 
   const prompt = `
-你是 AgentOS 的任务模式分析模块。以下是 ${completedTasks.length} 个已完成
+你是 Praxis 的任务模式分析模块。以下是 ${completedTasks.length} 个已完成
 的"${taskType}"类型项目的记录。请从中归纳通用的任务推进模式。
 
 ## 已完成项目记录
@@ -271,14 +271,14 @@ ${relatedStructures.map(s =>
 ## 四、用户命令
 
 ```typescript
-// /agentos task *
+// /praxis task *
 
 async function handleTaskCommand(args: string[], context: SessionContext) {
   const subcommand = args[0];
 
   switch (subcommand) {
     case 'start':
-      // /agentos task start "构建医院管理系统" --type "software_project"
+      // /praxis task start "构建医院管理系统" --type "software_project"
       const taskContext: TaskContext = {
         task_id: `task_${Date.now()}`,
         task_name: args[1],
@@ -295,7 +295,7 @@ async function handleTaskCommand(args: string[], context: SessionContext) {
       return `任务 "${taskContext.task_name}" 已创建。`;
 
     case 'update':
-      // /agentos task update --phase "Phase 3: UI" --progress "API 完成"
+      // /praxis task update --phase "Phase 3: UI" --progress "API 完成"
       const current = await loadTaskContext();
       if (!current) return '没有活跃任务。';
       const updated = { ...current };
@@ -325,8 +325,8 @@ async function handleTaskCommand(args: string[], context: SessionContext) {
 
 ## 兄弟文件
 
-- [What is AgentOS V10?](what-is.md) — V10 的工程定义
-- [Why AgentOS V10?](why.md) — 第一性原理：为什么需要任务级认知
+- [What is Praxis V10?](what-is.md) — V10 的工程定义
+- [Why Praxis V10?](why.md) — 第一性原理：为什么需要任务级认知
 - [Who is it for?](who.md) — 三角色职责变化
 - [When does it operate?](when.md) — 2 Phase 实现路线图
 - [Where does it sit?](where.md) — 模块树（V9 基础 + 1 新增）

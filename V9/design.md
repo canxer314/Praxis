@@ -1,4 +1,4 @@
-# AgentOS V9 Architecture Design
+# Praxis V9 Architecture Design
 
 > 版本：v9 (Context-Pressure-Adaptive Engineering)
 > 状态：设计阶段
@@ -9,13 +9,13 @@
 ## 零、架构哲学：从"全量公民"到"自适应公民"
 
 ```
-V8: AgentOS 是上下文空间的固定租户 — 每次注入 ~30K, 不关心上下文还剩下多少空间
-V9: AgentOS 是自适应公民 — 空间充裕时充分利用, 空间紧张时主动压缩, 空间枯竭时退化为索引服务
+V8: Praxis 是上下文空间的固定租户 — 每次注入 ~30K, 不关心上下文还剩下多少空间
+V9: Praxis 是自适应公民 — 空间充裕时充分利用, 空间紧张时主动压缩, 空间枯竭时退化为索引服务
 
 核心洞察: 
   "全量注入"在 90% 场景中是最优策略。
   但一个在 10% 场景中会崩溃的系统, 用户感知 = 不稳定。
-  V9 保证 AgentOS 在这 10% 中优雅降级而非崩溃。
+  V9 保证 Praxis 在这 10% 中优雅降级而非崩溃。
 ```
 
 ---
@@ -39,12 +39,12 @@ interface ContextPressure {
   usageRatio: number;          // 0.0 - 1.0
   totalEstimated: number;      // 估算的总 token 消耗
   availableTokens: number;     // 剩余可用
-  agentOSBudget: number;       // 分配给 AgentOS 注入的预算
+  praxisBudget: number;       // 分配给 Praxis 注入的预算
   breakdown: {
     systemAndTools: number;
     conversationHistory: number;
     userData: number;
-    agentOSPrevious: number;
+    praxisPrevious: number;
     outputBuffer: number;
   };
 }
@@ -242,16 +242,16 @@ session_end Hook:
 
 ```
 Normal (< 60% 使用率):
-  AgentOS 注入: ~30K tokens (同 V8)
+  Praxis 注入: ~30K tokens (同 V8)
 
 Elevated (60-75%):
-  AgentOS 注入: ~16K tokens (Tier A 完整 + Tier B 压缩 + Tier C 移除)
+  Praxis 注入: ~16K tokens (Tier A 完整 + Tier B 压缩 + Tier C 移除)
 
 High (75-90%):
-  AgentOS 注入: ~3.5K tokens (Tier A 摘要, 其他移除)
+  Praxis 注入: ~3.5K tokens (Tier A 摘要, 其他移除)
 
 Critical (> 90%):
-  AgentOS 注入: ~1K tokens (索引 + recall_structure tool)
+  Praxis 注入: ~1K tokens (索引 + recall_structure tool)
   + LLM 按需拉取: 每次 recall_structure < 2K tokens
 ```
 
@@ -292,14 +292,14 @@ async function sessionStartHandler(sessionKey, context, config) {
       pressure = measureContextPressure(context, config);
     } catch (pressureError) {
       // 降级: 测量失败 → 默认 Normal (不做压缩)
-      console.warn('[AgentOS] Pressure measurement failed, defaulting to Normal');
+      console.warn('[Praxis] Pressure measurement failed, defaulting to Normal');
       pressure = {
         level: PressureLevel.Normal,
         usageRatio: 0, totalEstimated: 0,
         availableTokens: config.contextWindow,
-        agentOSBudget: 80000,
+        praxisBudget: 80000,
         breakdown: { systemAndTools: 0, conversationHistory: 0,
-                     userData: 0, agentOSPrevious: 0, outputBuffer: 0 },
+                     userData: 0, praxisPrevious: 0, outputBuffer: 0 },
       };
     }
 
@@ -349,8 +349,8 @@ async function sessionStartHandler(sessionKey, context, config) {
 
 ## 兄弟文件
 
-- [What is AgentOS V9?](what-is.md) — V9 的工程定义
-- [Why AgentOS V9?](why.md) — 第一性原理：为什么 token 爆炸需要压力感知
+- [What is Praxis V9?](what-is.md) — V9 的工程定义
+- [Why Praxis V9?](why.md) — 第一性原理：为什么 token 爆炸需要压力感知
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — 压力监测器、四级压缩、按需检索等
 - [When does it operate?](when.md) — 4 Phase 实现路线图

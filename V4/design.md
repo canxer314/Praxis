@@ -1,4 +1,4 @@
-# AgentOS V4 Architecture Design
+# Praxis V4 Architecture Design
 
 > 版本：v4 (Process Model + Role Coordination + Momentum Engine)
 > 状态：设计阶段
@@ -10,9 +10,9 @@
 
 ### V4 核心命题
 
-**V3 让 AgentOS 知道了"学什么"和"自己缺什么"。
+**V3 让 Praxis 知道了"学什么"和"自己缺什么"。
 
-V4 让 AgentOS 知道"下一步该干什么"——不是下一步该调哪个工具，而是下一步该推动什么、找谁推动、怎么推动、卡住了怎么办。**
+V4 让 Praxis 知道"下一步该干什么"——不是下一步该调哪个工具，而是下一步该推动什么、找谁推动、怎么推动、卡住了怎么办。**
 
 ### V4 集成架构图
 
@@ -30,7 +30,7 @@ V4 让 AgentOS 知道"下一步该干什么"——不是下一步该调哪个工
 │  │                    OpenClaw Agent Runtime                       │  │
 │  │                                                                  │  │
 │  │  ┌──────────────────────────────────────────────────────────┐  │  │
-│  │  │               AgentOS Memory Plugin (V4)                   │  │  │
+│  │  │               Praxis Memory Plugin (V4)                   │  │  │
 │  │  │                                                             │  │  │
 │  │  │  ┌─────────────────────────────────────────────────────┐  │  │  │
 │  │  │  │ Hook Handlers (7 hooks)                              │  │  │  │
@@ -45,7 +45,7 @@ V4 让 AgentOS 知道"下一步该干什么"——不是下一步该调哪个工
 │  │  │  └──────────────────────┬──────────────────────────────┘  │  │  │
 │  │  │                         │                                  │  │  │
 │  │  │  ┌──────────────────────┴──────────────────────────────┐  │  │  │
-│  │  │  │              AgentOS Core Engine (V4)                │  │  │  │
+│  │  │  │              Praxis Core Engine (V4)                │  │  │  │
 │  │  │  │                                                      │  │  │  │
 │  │  │  │  ┌────────────────────────────────────────────┐     │  │  │  │
 │  │  │  │  │ V4 NEW: Process Engine                     │     │  │  │  │
@@ -625,7 +625,7 @@ MomentumEngine.generateMessage():
   
   Prompt to LLM:
     """
-    你需要以 AgentOS 的身份向 {assignee.name} 发送一条关于 {step.name} 的 {action} 消息。
+    你需要以 Praxis 的身份向 {assignee.name} 发送一条关于 {step.name} 的 {action} 消息。
     
     上下文:
     - 你在推进 {process.goal}
@@ -655,7 +655,7 @@ MomentumEngine.generateMessage():
 
 ### 5.1 Slot 存储（V4 新增）
 
-| AgentOS 数据 | AgentMemory 调用 | 频率 |
+| Praxis 数据 | AgentMemory 调用 | 频率 |
 |-------------|-----------------|------|
 | Active ProcessInstances | `memory_slot_get/set "active_processes"` | session_start 读, 状态变更时写 |
 | ProcessTemplates | `memory_slot_get/set "process_templates"` | session_start 读, 模板更新时写 |
@@ -665,7 +665,7 @@ MomentumEngine.generateMessage():
 
 ### 5.2 Memory 存储（V4 新增类型）
 
-| AgentOS 数据 | AgentMemory type | 频率 |
+| Praxis 数据 | AgentMemory type | 频率 |
 |-------------|-----------------|------|
 | ProcessInstance (archived) | `memory_save(type="process_instance")` | 流程完成后归档 |
 | ProcessTemplate (versioned) | `memory_save(type="process_template", supersedes=...)` | 模板优化时 |
@@ -705,7 +705,7 @@ function registerHooks(): PluginHookRegistration[] {
 function registerCronJobs(): CronJobRegistration[] {
   return [
     {
-      name: "agentos_process_scanner",
+      name: "praxis_process_scanner",
       schedule: { kind: "every", everyMs: 4 * 3600 * 1000 },  // 每 4 小时
       handler: onCronTick,
     },
@@ -769,7 +769,7 @@ session_end:
 | Action Verification Loop | P0 | 五种新 LearningEvent 类型 |
 | cron_tick 定期扫描 | P1 | 时间驱动的流程阻塞检测 |
 | MomentumConfig + 治理 | P1 | 频率/时机/角色容忍度/升级路径 |
-| `/agentos processes/roles/momentum/templates` | P1 | 新增用户命令 |
+| `/praxis processes/roles/momentum/templates` | P1 | 新增用户命令 |
 | 流程效率统计 | P2 | 跨实例对比 + 瓶颈分析 |
 | ProcessTemplate 自主优化 | P2 | 从 ActionVerification 中学习模板优化 |
 
@@ -783,7 +783,7 @@ session_end:
 | 自然语言流程挖掘 | 从用户描述中自动提取完整流程模板 | V5 |
 | 自动发现新角色 | 从通信中自动识别和创建角色画像 | V5 |
 | 外部日历集成 | 从协作者日历中自动感知可用性 | V6 |
-| 多用户协作冲突 | 两个用户通过各自的 AgentOS 实例协调同一个项目 | V6 |
+| 多用户协作冲突 | 两个用户通过各自的 Praxis 实例协调同一个项目 | V6 |
 
 ### V1 → V2 → V3 → V4 完整差异
 
@@ -803,9 +803,9 @@ session_end:
 
 ## 九、兄弟文件
 
-- [What is AgentOS V4?](what-is.md) — 它是什么
+- [What is Praxis V4?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 角色扩展
-- [Why AgentOS V4?](why.md) — 为什么需要过程模型
+- [Why Praxis V4?](why.md) — 为什么需要过程模型
 - [How does it work?](how.md) — 四个新子系统详解
 - [When does it operate?](when.md) — 过程生命周期
 - [Where does it sit?](where.md) — 架构定位

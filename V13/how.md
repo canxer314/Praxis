@@ -1,4 +1,4 @@
-# How does AgentOS V13 work?
+# How does Praxis V13 work?
 
 > V13 在 V12 基础上添加 3 个新模块（~370 行）+ 修改 5 个模块（~110 行）。V12 的状态机代码完全不变——V13 只在 trigger 层和 session hook 中添加代码。总增量 < 500 行。
 
@@ -202,7 +202,7 @@ export async function executeTrigger(
     const triggerCount = countTaskTriggers(state.task_id);
     if (triggerCount === 0) {
       // TODO: 发送确认请求给用户，等待确认后再触发
-      // 暂时返回 null，等待用户通过 /agentos task auto confirm 确认
+      // 暂时返回 null，等待用户通过 /praxis task auto confirm 确认
       return null;
     }
   }
@@ -221,10 +221,10 @@ export async function executeTrigger(
     if (decision.mechanism === 'scheduleSessionTurn') {
       const result = await adapter.scheduleTurn({
         sessionKey,
-        message: `[AgentOS V13 自动触发] ${decision.reason}`,
+        message: `[Praxis V13 自动触发] ${decision.reason}`,
         at: decision.at_time,
         delayMs: decision.delay_ms,
-        tag: `agentos:task:${state.task_id}`,
+        tag: `praxis:task:${state.task_id}`,
       });
       if (result) {
         trigger.cron_job_id = result.jobId;
@@ -233,9 +233,9 @@ export async function executeTrigger(
       // 使用 cron 表达式进行定期检查
       const result = await adapter.scheduleTurn({
         sessionKey,
-        message: `[AgentOS V13 定期检查] ${decision.reason}`,
+        message: `[Praxis V13 定期检查] ${decision.reason}`,
         cron: '*/30 * * * *',  // 每 30 分钟检查一次
-        tag: `agentos:task:${state.task_id}:heartbeat`,
+        tag: `praxis:task:${state.task_id}:heartbeat`,
       });
       if (result) {
         trigger.cron_job_id = result.jobId;
@@ -415,7 +415,7 @@ export class SubagentManager {
 
     try {
       const result = await api.subagent.run({
-        sessionKey: `agentos:subtask:${subtask.subtask_id}`,
+        sessionKey: `praxis:subtask:${subtask.subtask_id}`,
         message: `执行子任务: ${subtask.subtask_name}\n\n${subtask.description}`,
         extraSystemPrompt: systemPrompt,
         deliver: false,  // 子 Agent 结果不直接发送给用户
@@ -536,7 +536,7 @@ export class SubagentManager {
   ): string {
     const lines: string[] = [];
 
-    lines.push('[AgentOS V13 子 Agent 上下文]');
+    lines.push('[Praxis V13 子 Agent 上下文]');
     lines.push('');
     lines.push(`## 任务: ${orchState.plan?.task_name || '未命名'}`);
     lines.push(`阶段: Phase ${subtask.phase_index + 1} — ${subtask.phase_name}`);
@@ -622,13 +622,13 @@ interface HeartbeatIntervention {
 // ── OpenClaw Service 定义 ──
 
 export const heartbeatMonitorService = {
-  id: 'agentos-heartbeat-monitor',
+  id: 'praxis-heartbeat-monitor',
 
   async start(ctx: {
-    config: { agentos?: GovernancePolicy };
+    config: { praxis?: GovernancePolicy };
     logger: { info: Function; warn: Function; error: Function };
   }): Promise<void> {
-    const policy = ctx.config?.agentos;
+    const policy = ctx.config?.praxis;
     if (!policy?.active_triggering?.allow_heartbeat_monitor) {
       ctx.logger.info('[heartbeat-monitor] 心跳监控未启用，跳过');
       return;
@@ -727,7 +727,7 @@ async function handleStall(
   if (hasActiveSession) {
     // 在下一次 prompt 构建时注入提醒
     enqueueSystemEvent(
-      `⚠️ [AgentOS V13] 子任务 "${subtask.subtask_name}" 运行时间超过预期。` +
+      `⚠️ [Praxis V13] 子任务 "${subtask.subtask_name}" 运行时间超过预期。` +
       `已运行 ${Math.round(elapsed / 3600000)}h，估计 ${Math.round(estimated / 3600000)}h。` +
       `建议: 检查进展，或标记为 BLOCKED。`,
       { sessionKey: task.active_session_id!, contextKey: 'heartbeat_nudge' }
@@ -982,14 +982,14 @@ async function onSessionStartV13(ctx: SessionStartContext): Promise<void> {
 // ── 辅助函数 ──
 
 function detectTriggerSource(ctx: SessionStartContext): TriggerSource {
-  // 检查 system events 中是否有 AgentOS 自动触发的标记
+  // 检查 system events 中是否有 Praxis 自动触发的标记
   const hasAutoTrigger = ctx.systemEvents?.some(
-    e => e.includes('[AgentOS V13 自动触发]')
+    e => e.includes('[Praxis V13 自动触发]')
   );
   if (hasAutoTrigger) return 'cron:scheduled';
 
   const hasHeartbeatWake = ctx.systemEvents?.some(
-    e => e.includes('[AgentOS V13 停滞检测]')
+    e => e.includes('[Praxis V13 停滞检测]')
   );
   if (hasHeartbeatWake) return 'heartbeat:wake';
 
@@ -1000,9 +1000,9 @@ function detectTriggerSource(ctx: SessionStartContext): TriggerSource {
 function buildAutoTriggerNotice(ctx: SessionStartContext): string {
   return [
     '',
-    '> 📅 [AgentOS V13] 此会话由自动驾驶模式自动触发。',
+    '> 📅 [Praxis V13] 此会话由自动驾驶模式自动触发。',
     '> 上一个子任务已完成，当前子任务已准备好上下文。',
-    '> 使用 /agentos task auto off 关闭自动驾驶。',
+    '> 使用 /praxis task auto off 关闭自动驾驶。',
     '',
   ].join('\n');
 }
@@ -1010,7 +1010,7 @@ function buildAutoTriggerNotice(ctx: SessionStartContext): string {
 function buildHeartbeatWakeNotice(ctx: SessionStartContext): string {
   return [
     '',
-    '> ⚠️ [AgentOS V13] 此会话由停滞检测触发。',
+    '> ⚠️ [Praxis V13] 此会话由停滞检测触发。',
     '> 检测到活跃子任务可能停滞——运行时间超过预期。',
     '> 请检查当前子任务的状态，必要时标记为 BLOCKED 或重新计划。',
     '',
@@ -1175,7 +1175,7 @@ export class CronTriggerAdapter implements TriggerAdapter {
     cron?: string;
     tag: string;
   }): Promise<{ jobId: string } | null> {
-    const jobName = `agentos:trigger:${params.tag}:${Date.now()}`;
+    const jobName = `praxis:trigger:${params.tag}:${Date.now()}`;
 
     let schedule: { kind: string; at?: string; everyMs?: number; expr?: string };
 
@@ -1456,8 +1456,8 @@ V13 净增量:             ~530 行
 
 ## 兄弟文件
 
-- [What is AgentOS V13?](what-is.md) — V13 定义 + 四个核心职能
-- [Why AgentOS V13?](why.md) — 第一性原理：为什么被动响应不够
+- [What is Praxis V13?](what-is.md) — V13 定义 + 四个核心职能
+- [Why Praxis V13?](why.md) — 第一性原理：为什么被动响应不够
 - [Who is it for?](who.md) — 三角色职责变化
 - [When does it operate?](when.md) — Phase 7-9 路线图（+5 周）
 - [Where does it sit?](where.md) — 完整模块树（V12 基础 + 3 新增 + services/ 目录）

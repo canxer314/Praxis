@@ -1,4 +1,4 @@
-# AgentOS V12 Architecture Design
+# Praxis V12 Architecture Design
 
 > 版本：v12 (Active Cognitive Engine)
 > 状态：设计阶段
@@ -9,10 +9,10 @@
 ## 零、架构哲学：从"边界修正"到"认知引擎"
 
 ```
-V11: AgentOS 的知识通过四个结构化接口进入执行层
-     → 问题: 其中三个接口存在是因为画错了 AgentOS 和 planning-with-files 的边界
+V11: Praxis 的知识通过四个结构化接口进入执行层
+     → 问题: 其中三个接口存在是因为画错了 Praxis 和 planning-with-files 的边界
 
-V12: 拆除不必要的边界，AgentOS 直接做任务分解和编排
+V12: 拆除不必要的边界，Praxis 直接做任务分解和编排
      → planning-with-files 降格为文件持久化工具
      → 三个外部接口变为内部函数调用
      → 架构更简单，功能更强
@@ -21,7 +21,7 @@ V12: 拆除不必要的边界，AgentOS 直接做任务分解和编排
   V11 解决了 "知行之间怎么通信"（建立接口）
   V12 解决了 "知行本来就在同一个系统里"（拆除边界）
   
-  AgentOS 不做执行 — 但它现在管理任务的结构。
+  Praxis 不做执行 — 但它现在管理任务的结构。
   就像项目经理管理任务结构（阶段、子任务、验收标准），
   工程师做具体的执行工作（写代码、运行测试）。
 ```
@@ -430,7 +430,7 @@ SUBTASK_VERIFIED    | (终态)                        | -                   | -
 
 ```
 V11 Layer 1:
-  # AgentOS 认知状态
+  # Praxis 认知状态
   ## 当前任务
   任务: 构建医院管理系统
   阶段: Phase 2 — API 开发
@@ -440,7 +440,7 @@ V11 Layer 1:
   [陷阱预警] ⚠ 医保对接模块容易被低估工作量 (置信度 0.65)
 
 V12 Layer 1 (任务编排状态):
-  # AgentOS 任务编排 [V12]
+  # Praxis 任务编排 [V12]
 
   ## 任务: 构建医院管理系统
   来源: ProtoTask "医院系统开发" (置信度 0.65, 5 次观察, 累积模式)
@@ -469,7 +469,7 @@ V12 Layer 1 (任务编排状态):
   - api_design: REST API 设计模式 (原型: 2, 固化: 1)
 
 与 V11 的关键区别:
-  1. 不再是"AgentOS 认知状态" + "认知指导"两个独立段
+  1. 不再是"Praxis 认知状态" + "认知指导"两个独立段
      → 统一的"任务编排状态"段，包含所有信息
   2. 指导信息（陷阱预警、阶段建议）嵌入在计划和子任务定义中
      → 不是外部"发送的信号"，而是计划的组成部分
@@ -485,7 +485,7 @@ V12 Layer 1 (任务编排状态):
 
 | 维度 | V10 | V11 | V12 |
 |------|-----|-----|-----|
-| 架构哲学 | 开环 prompt 注入 | 四个结构化接口 | **AgentOS 直接做任务分解** |
+| 架构哲学 | 开环 prompt 注入 | 四个结构化接口 | **Praxis 直接做任务分解** |
 | planning-with-files | 任务规划者 | 知识消费者 | **文件持久化工具** |
 | 知行关系 | 知↛行 | 知⇄行（通过接口） | **知=行（同一系统内）** |
 | 任务分解 | planning-with-files (空模板 + LLM) | planning-with-files (查询 ProtoTask + LLM) | **plan-generator (ProtoTask → PlanDocument)** |
@@ -553,7 +553,7 @@ const FUSION_WEIGHTS_V12 = {
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                     AgentOS V12 (认知引擎)                    │
+│                     Praxis V12 (认知引擎)                    │
 │                                                               │
 │  orchestration/task-orchestrator.ts:                         │
 │    两个嵌套 while() 循环状态机                                │
@@ -586,7 +586,7 @@ const FUSION_WEIGHTS_V12 = {
 │    (兼容 planning-with-files hook 脚本)                       │
 └─────────────────────────────────────────────────────────────┘
                               │
-                    文件写入 (内容由 AgentOS 生成)
+                    文件写入 (内容由 Praxis 生成)
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
@@ -594,7 +594,7 @@ const FUSION_WEIGHTS_V12 = {
 │                                                               │
 │  保留功能:                                                    │
 │  • 创建 task_plan.md / findings.md / progress.md             │
-│  • PreToolUse hook: 重读计划（内容由 AgentOS 写入）          │
+│  • PreToolUse hook: 重读计划（内容由 Praxis 写入）          │
 │  • PostToolUse hook: 提醒更新进度                            │
 │  • Stop hook: 检查完成状态                                   │
 │  • SHA-256 计划完整性验证 (attestation)                      │
@@ -629,7 +629,7 @@ analysis/outcome-feedback.ts   → task-orchestrator.processSubtaskOutcome()
                                  (置信度调整由 confidence-fuser 直接调用)
 
 analysis/mid-session-          → analysis/mid-session-learner.ts [保留]
-  learner.ts                     LLM 交互在 AgentOS 外部, Hook 是必要的
+  learner.ts                     LLM 交互在 Praxis 外部, Hook 是必要的
   detectUserCorrection()         增强: +detectSubtaskCompletionSignal()
                                  增强: +orchestrator 事件订阅
 ```
@@ -664,8 +664,8 @@ V12 增强:
 
 ## 十、兄弟文件
 
-- [What is AgentOS V12?](what-is.md) — V12 的工程定义
-- [Why AgentOS V12?](why.md) — 第一性原理：为什么 V11 的边界是错的
+- [What is Praxis V12?](what-is.md) — V12 的工程定义
+- [Why Praxis V12?](why.md) — 第一性原理：为什么 V11 的边界是错的
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — 六个模块的完整实现
 - [When does it operate?](when.md) — 6 Phase 实现路线图

@@ -1,4 +1,4 @@
-# When does AgentOS V4 operate?
+# When does Praxis V4 operate?
 
 ## V4 触发模型：事件驱动 + 时间驱动 + 过程驱动
 
@@ -19,7 +19,7 @@ Hook (事件驱动)       session_end                         ✅    ✅
 过程事件 (过程驱动)    步骤超时 → Momentum Engine           ❌    ✅ 新增
 过程事件 (过程驱动)    依赖角色回复 → 更新步骤状态          ❌    ✅ 新增
 主动检测               Curiosity Engine 缺口扫描           ✅    ✅
-用户命令               /agentos *                         ✅    ✅（扩展）
+用户命令               /praxis *                         ✅    ✅（扩展）
 ```
 
 ---
@@ -28,7 +28,7 @@ Hook (事件驱动)       session_end                         ✅    ✅
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│                  AgentOS V4 Lifecycle                        │
+│                  Praxis V4 Lifecycle                        │
 │                                                              │
 │  OPENCLAW SESSION START ──────────────────────────────────▶ │
 │    │                                                         │
@@ -37,7 +37,7 @@ Hook (事件驱动)       session_end                         ✅    ✅
 │    │   ├─ 加载活跃 ProcessInstance[]  ← V4 新增             │
 │    │   ├─ 加载 RoleRegistry             ← V4 新增           │
 │    │   ├─ 加载 CuriosityConfig + MomentumConfig ← V4 新增   │
-│    │   └─ 注入 AgentOS Context (含活跃流程摘要)              │
+│    │   └─ 注入 Praxis Context (含活跃流程摘要)              │
 │    │                                                         │
 │    │   ┌─── WORK PHASE ────────────────────────────────┐    │
 │    │   │                                                │    │
@@ -220,7 +220,7 @@ V4 的 Momentum Engine 和 V3 的 Curiosity Engine 共享"不烦人"原则，但
 | 静默时段 | quiet_hours | 协作者 dead_zones 内不催 |
 | 首次确认 | Level 0→2 需用户手动 | 首次催办某协作者 → 告知用户 |
 | 降级策略 | 被忽略 3 天降级 | 催了 max_nudges 次 → 升级 |
-| 关闭机制 | `/agentos curiosity off` | `/agentos momentum off [role]` |
+| 关闭机制 | `/praxis curiosity off` | `/praxis momentum off [role]` |
 | 学习能力 | 从用户回应中学习 | 从协作者响应模式中学习 |
 
 ### MomentumConfig（V4 新增）
@@ -255,17 +255,17 @@ MomentumConfig:
 
 | 命令 | 功能 | V3 | V4 |
 |------|------|----|----|
-| `/agentos processes` | 查看所有活跃流程及状态 | ❌ | ✅ |
-| `/agentos process <id>` | 查看某个流程的详细信息 | ❌ | ✅ |
-| `/agentos process <id> skip <step>` | 跳过某个步骤 | ❌ | ✅ |
-| `/agentos process <id> reassign <step> <role>` | 重新分配步骤给另一个角色 | ❌ | ✅ |
-| `/agentos roles` | 查看角色注册表 | ❌ | ✅ |
-| `/agentos role <id>` | 查看角色详细画像 | ❌ | ✅ |
-| `/agentos role <id> update` | 更新角色信息 | ❌ | ✅ |
-| `/agentos momentum` | 查看 Momentum 配置 | ❌ | ✅ |
-| `/agentos momentum off [role]` | 暂停催办（全局/某角色） | ❌ | ✅ |
-| `/agentos templates` | 查看流程模板 | ❌ | ✅ |
-| `/agentos template <name> edit` | 编辑流程模板 | ❌ | ✅ |
+| `/praxis processes` | 查看所有活跃流程及状态 | ❌ | ✅ |
+| `/praxis process <id>` | 查看某个流程的详细信息 | ❌ | ✅ |
+| `/praxis process <id> skip <step>` | 跳过某个步骤 | ❌ | ✅ |
+| `/praxis process <id> reassign <step> <role>` | 重新分配步骤给另一个角色 | ❌ | ✅ |
+| `/praxis roles` | 查看角色注册表 | ❌ | ✅ |
+| `/praxis role <id>` | 查看角色详细画像 | ❌ | ✅ |
+| `/praxis role <id> update` | 更新角色信息 | ❌ | ✅ |
+| `/praxis momentum` | 查看 Momentum 配置 | ❌ | ✅ |
+| `/praxis momentum off [role]` | 暂停催办（全局/某角色） | ❌ | ✅ |
+| `/praxis templates` | 查看流程模板 | ❌ | ✅ |
+| `/praxis template <name> edit` | 编辑流程模板 | ❌ | ✅ |
 
 ---
 
@@ -284,9 +284,9 @@ MomentumConfig:
 
 ## 兄弟文件
 
-- [What is AgentOS V4?](what-is.md) — 它是什么
+- [What is Praxis V4?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 角色扩展
-- [Why AgentOS V4?](why.md) — 为什么需要过程模型
+- [Why Praxis V4?](why.md) — 为什么需要过程模型
 - [How does it work?](how.md) — 四个新子系统详解
 - [Where does it sit?](where.md) — 架构定位
 - [Architecture Design](design.md) — V4 架构设计文档

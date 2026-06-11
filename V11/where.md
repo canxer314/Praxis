@@ -1,4 +1,4 @@
-# Where does AgentOS V11 sit?
+# Where does Praxis V11 sit?
 
 > V11 在 V10 基础上的扩展：5 个新模块、1 个新 slot、7 个模块微调。新增 `api/` 目录（知识查询端点）和 `analysis/proto-task.ts`（从 V10 Phase 2+ 拉入 Phase 1）。
 
@@ -7,7 +7,7 @@
 ## 一、完整模块树
 
 ```
-openclaw/src/plugins/agentos-plugin/
+openclaw/src/plugins/praxis-plugin/
 ├── index.ts
 ├── config.ts                              # [增强] +4 个新配置段
 │
@@ -184,7 +184,7 @@ session_end (V11 增强):
 知识查询（新 V11 数据流）:
   planning-with-files 调用:
     → queryKnowledge({query_type: "proto_task", task_type: "software_project"})
-    → AgentOS 从 memory_slot_get("proto_task") 读取
+    → Praxis 从 memory_slot_get("proto_task") 读取
     → 如无 → bootstrapProtoTask() 生成
     → 返回 KnowledgeQueryResult (含 ProtoTask + 置信度 + 来源标记)
     → planning-with-files 将结果纳入任务计划文件
@@ -195,7 +195,7 @@ session_end (V11 增强):
 ## 四、接口时序图
 
 ```
-planning-with-files          AgentOS               OpenClaw/LLM
+planning-with-files          Praxis               OpenClaw/LLM
       │                         │                      │
       │──queryKnowledge()──────→│                      │
       │←──ProtoTask template───│                      │
@@ -229,8 +229,8 @@ planning-with-files          AgentOS               OpenClaw/LLM
 
 ## 五、兄弟文件
 
-- [What is AgentOS V11?](what-is.md) — V11 的工程定义
-- [Why AgentOS V11?](why.md) — 第一性原理：为什么需要知行合一闭环
+- [What is Praxis V11?](what-is.md) — V11 的工程定义
+- [Why Praxis V11?](why.md) — 第一性原理：为什么需要知行合一闭环
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — 四个接口的完整实现
 - [When does it operate?](when.md) — 2 Phase 实现路线图

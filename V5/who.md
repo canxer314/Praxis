@@ -1,8 +1,8 @@
-# Who is AgentOS V5 for?
+# Who is Praxis V5 for?
 
 ## 角色全景（V5 核心变化：人类角色的根本转变）
 
-V1-V4 的进化中，人类的角色越来越轻：从 V1 的"一切由人类设计"，到 V4 的"人类设计模板 + AgentOS 执行"。但**人类始终是设计者**。
+V1-V4 的进化中，人类的角色越来越轻：从 V1 的"一切由人类设计"，到 V4 的"人类设计模板 + Praxis 执行"。但**人类始终是设计者**。
 
 V5 改变了这个根本关系：**人类不再是设计者，而是治理者**。
 
@@ -11,32 +11,32 @@ V1-V4:                   V5:
                          
 人类设计架构             人类设定边界
     ↓                       ↓
-AgentOS 执行            AgentOS 发现结构不足
+Praxis 执行            Praxis 发现结构不足
     ↓                       ↓
-人类反馈                AgentOS 提出候选方案
+人类反馈                Praxis 提出候选方案
     ↓                       ↓
 人类重新设计            人类审核批准/拒绝/修改
     ↓                       ↓
-新版本发布              AgentOS 在限定范围内实验
+新版本发布              Praxis 在限定范围内实验
                             ↓
-                        AgentOS 收集效果数据
+                        Praxis 收集效果数据
                             ↓
                         人类最终审批 → 固化
                             ↓
-                        AgentOS 持续监控退化
+                        Praxis 持续监控退化
 ```
 
 ---
 
 ## 一、最终用户（End User）— V5 的新体验
 
-### 用户第一次遇到 AgentOS 处理不好的场景
+### 用户第一次遇到 Praxis 处理不好的场景
 
 **V4 的体验**：
-> AgentOS 默默挣扎，强行套用不适配的模板，反复失败或频繁升级 → 用户感到沮丧："它怎么就是不明白"
+> Praxis 默默挣扎，强行套用不适配的模板，反复失败或频繁升级 → 用户感到沮丧："它怎么就是不明白"
 
 **V5 的体验**：
-> AgentOS 在第二次失败后主动说：
+> Praxis 在第二次失败后主动说：
 > "我注意到这类场景（谈判协商）我用现有的方式处理不好。问题不是我缺什么知识——是我处理它的思路本身不对。你给我几分钟，我分析一下问题出在哪里？"
 >
 > （分析）
@@ -47,10 +47,10 @@ AgentOS 执行            AgentOS 发现结构不足
 
 | 用户操作 | V4 | V5 |
 |---------|----|----|
-| 发现 AgentOS 处理不好某类场景 | 用户自己诊断 → 联系运维 → 等新模板 | AgentOS 主动告知 + 分析报告 + 候选方案 |
-| 改善 AgentOS 的能力 | 用户教具体知识或流程 | 用户审核 AgentOS 提出的新认知结构 |
-| 纠正 AgentOS 走偏 | 一次一次纠正具体行为 | 用户可以说"这个结构本身有问题，回滚" |
-| 查看 AgentOS 的能力边界 | `/agentos status` → 六维雷达 | `/agentos structures` → 认知结构注册表 + 每个结构的验证状态 |
+| 发现 Praxis 处理不好某类场景 | 用户自己诊断 → 联系运维 → 等新模板 | Praxis 主动告知 + 分析报告 + 候选方案 |
+| 改善 Praxis 的能力 | 用户教具体知识或流程 | 用户审核 Praxis 提出的新认知结构 |
+| 纠正 Praxis 走偏 | 一次一次纠正具体行为 | 用户可以说"这个结构本身有问题，回滚" |
+| 查看 Praxis 的能力边界 | `/praxis status` → 六维雷达 | `/praxis structures` → 认知结构注册表 + 每个结构的验证状态 |
 
 ---
 
@@ -61,10 +61,10 @@ V5 的运维者多了一个全新的职责维度：**结构治理（Structure Go
 | 职责 | 说明 |
 |------|------|
 | 设定自进化边界 | 在 `governance_policy` 中定义：哪些层可以自主修改、哪些必须人类审批、什么条件下可以自动实验 |
-| 审批结构提案 | AgentOS 提出新的 CognitiveStructure 时，运维者审核其安全性、范围、回滚计划 |
+| 审批结构提案 | Praxis 提出新的 CognitiveStructure 时，运维者审核其安全性、范围、回滚计划 |
 | 监控结构退化 | 新结构固化后，监控是否在已有场景上导致性能退化 |
 | 管理结构版本 | 每个 CognitiveStructure 有版本链（supersedes），运维者管理历史版本和回滚 |
-| 紧急刹车 | 如果 AgentOS 的自进化出现失控迹象 → 一键冻结 Meta Layer |
+| 紧急刹车 | 如果 Praxis 的自进化出现失控迹象 → 一键冻结 Meta Layer |
 
 ### 治理策略示例
 
@@ -136,7 +136,7 @@ who_am_i_v5:
 
 ### V5 的"自我"能做的事
 
-> `/agentos structures`
+> `/praxis structures`
 >
 > **已固化结构 (6):**
 > • ProcessEngine v3.2 — 处理"多步骤协调"场景 — 验证: 47 次 — 有效
@@ -160,17 +160,17 @@ who_am_i_v5:
 | 问题 | V4 答案 | V5 答案 |
 |------|---------|---------|
 | **人类是什么角色？** | 设计者（设计模板/流程/角色） | **治理者**（审核提案/设定边界/紧急刹车） |
-| **AgentOS 怎么应对新场景？** | 强行匹配最接近的模板 | **检测结构不足 → 提出新结构 → 人类审核 → 实验固化** |
+| **Praxis 怎么应对新场景？** | 强行匹配最接近的模板 | **检测结构不足 → 提出新结构 → 人类审核 → 实验固化** |
 | **架构会变吗？** | 不会（V4 是固定的 6 层 + 4 子系统） | **会**（Cognitive Structure Registry 动态增长） |
-| **谁发现问题？** | 人类 | **AgentOS（Structural Inadequacy Detector）** |
-| **谁设计方案？** | 人类 | **AgentOS 候选 + 人类审核** |
+| **谁发现问题？** | 人类 | **Praxis（Structural Inadequacy Detector）** |
+| **谁设计方案？** | 人类 | **Praxis 候选 + 人类审核** |
 
 ---
 
 ## 兄弟文件
 
-- [What is AgentOS V5?](what-is.md) — 它是什么
-- [Why AgentOS V5?](why.md) — 为什么需要 Meta Layer
+- [What is Praxis V5?](what-is.md) — 它是什么
+- [Why Praxis V5?](why.md) — 为什么需要 Meta Layer
 - [How does it work?](how.md) — Meta Layer 三个子系统详解
 - [When does it operate?](when.md) — 结构进化生命周期
 - [Where does it sit?](where.md) — Meta Layer 的位置

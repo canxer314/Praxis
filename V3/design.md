@@ -1,4 +1,4 @@
-# AgentOS V3 Architecture Design
+# Praxis V3 Architecture Design
 
 > 版本：v3 (Multi-Dimensional Learning + Proactive Curiosity)
 > 状态：设计阶段
@@ -23,7 +23,7 @@
 │  Channels: Telegram · Discord · Slack · WhatsApp · Signal · CLI ... │
 │       ▲                                                              │
 │       │ 用户消息（教导/纠正/分配任务）                                │
-│       │ AgentOS 主动提问（择机/批量/治理） ← V3 新增                │
+│       │ Praxis 主动提问（择机/批量/治理） ← V3 新增                │
 │       ▼                                                              │
 │  ┌───────────────────────────────────────────────────────────────┐  │
 │  │                    OpenClaw Agent Runtime                       │  │
@@ -33,7 +33,7 @@
 │  │       │               │              │            │              │  │
 │  │       ▼               ▼              ▼            ▼              │  │
 │  │  ┌──────────────────────────────────────────────────────────┐  │  │
-│  │  │               AgentOS Memory Plugin (V3)                   │  │  │
+│  │  │               Praxis Memory Plugin (V3)                   │  │  │
 │  │  │                                                             │  │  │
 │  │  │  ┌─────────────────────────────────────────────────────┐  │  │  │
 │  │  │  │ Hook Handlers (6 core hooks)                         │  │  │  │
@@ -47,7 +47,7 @@
 │  │  │  └──────────────────────┬──────────────────────────────┘  │  │  │
 │  │  │                         │                                  │  │  │
 │  │  │  ┌──────────────────────┴──────────────────────────────┐  │  │  │
-│  │  │  │              AgentOS Core Engine (V3)                │  │  │  │
+│  │  │  │              Praxis Core Engine (V3)                │  │  │  │
 │  │  │  │                                                      │  │  │  │
 │  │  │  │  L6  AutonomyEngine     • tool autonomy + question   │  │  │  │
 │  │  │  │                           autonomy ← V3 扩展         │  │  │  │
@@ -560,7 +560,7 @@ AutonomyPolicy:
         gap_detection: true
         auto_question: false
         auto_research: false
-        user_visible: "/agentos gaps"
+        user_visible: "/praxis gaps"
       
       "2_ask_when_confident":
         description: "高优先级缺口择机提问"
@@ -679,7 +679,7 @@ L3 KnowledgeManager
 │                                                               │
 │  priority 0.3-0.6:                                            │
 │    action: "mark_visible"                                     │
-│    → 标记为 open，用户可通过 /agentos gaps 看到               │
+│    → 标记为 open，用户可通过 /praxis gaps 看到               │
 │    → curiosity.level >= 3 时尝试自主检索                      │
 │                                                               │
 │  priority 0.6-0.8:                                            │
@@ -742,7 +742,7 @@ User (via Telegram): "帮我做膜力云的周报"
           ▼
 ┌─────────────────────────────────────────────┐
 │ [Hook: message_received]  ← V3 新增         │
-│ AgentOS:                                     │
+│ Praxis:                                     │
 │ • 意图分类: "任务分配"                        │
 │ • 检测术语: "膜力云", "周报"                 │
 │ • "膜力云" → domain_familiarity 中有        │
@@ -755,7 +755,7 @@ User (via Telegram): "帮我做膜力云的周报"
                    ▼
 ┌─────────────────────────────────────────────┐
 │ [Hook: before_tool_call × N]                 │
-│ AgentOS:                                     │
+│ Praxis:                                     │
 │ • 每次工具调用前:                              │
 │   ├─ 查询 tool_skills[tool_id].proficiency   │
 │   ├─ 查询 domain_familiarity 中的约束        │
@@ -772,7 +772,7 @@ User (via Telegram): "帮我做膜力云的周报"
                    ▼
 ┌─────────────────────────────────────────────┐
 │ [Hook: after_tool_call × N]                  │
-│ AgentOS:                                     │
+│ Praxis:                                     │
 │ • data_fetcher: success                      │
 │   → 但发现采样了 3 个数据源，其中 1 个超时   │
 │   → 暂存 procedural_optimization 事件        │
@@ -783,7 +783,7 @@ User (via Telegram): "帮我做膜力云的周报"
                    ▼
 ┌─────────────────────────────────────────────┐
 │ [Hook: agent_end]  ← V3 扩展                 │
-│ AgentOS:                                     │
+│ Praxis:                                     │
 │                                              │
 │ [工具级处理]                                  │
 │ • data_fetcher 超时 → known_failure_mode     │
@@ -815,7 +815,7 @@ User (via Telegram): "帮我做膜力云的周报"
                    ▼
 ┌─────────────────────────────────────────────┐
 │ [Hook: message_received]  ← V3 新增         │
-│ AgentOS:                                     │
+│ Praxis:                                     │
 │ • 意图分类: "任务评价" (positive)             │
 │ • 关联到刚刚的 agent_end 任务                │
 │ • 更新 task_type_proficiency["周报"] +0.03   │
@@ -956,7 +956,7 @@ function registerHooks(): PluginHookRegistration[] {
 
 ### 6.1 Slot 存储（高频读写，当前状态）
 
-| AgentOS 数据 | AgentMemory 调用 | V2 | V3 |
+| Praxis 数据 | AgentMemory 调用 | V2 | V3 |
 |-------------|-----------------|----|----|
 | CompetencyModel (四维) | `memory_slot_get/set "competency_model"` | ✅ | ✅（扩展） |
 | Tool Registry | `memory_slot_get/set "tool_registry"` | ✅ | ✅ |
@@ -966,7 +966,7 @@ function registerHooks(): PluginHookRegistration[] {
 
 ### 6.2 Memory 存储（类型化知识，按需检索）
 
-| AgentOS 数据 | AgentMemory type | 频率 | V2 | V3 |
+| Praxis 数据 | AgentMemory type | 频率 | V2 | V3 |
 |-------------|-----------------|------|----|----|
 | 领域知识 | `memory_save(type="domain_knowledge")` | 教导/学习时 | ❌ | ✅ |
 | 任务模式 | `memory_save(type="task_pattern")` | agent_end (新模式) | ❌ | ✅ |
@@ -1049,7 +1049,7 @@ session_end:
 | KnowledgeGap 追踪 | P1 | 生命周期管理 + 优先级排序 |
 | 任务模式识别 | P1 | agent_end 任务级反思 + 模式提取 |
 | 用户模型动态更新 | P1 | message_received + agent_end + session_end |
-| `/agentos gaps/curiosity/domains/patterns` | P1 | 新增用户命令 |
+| `/praxis gaps/curiosity/domains/patterns` | P1 | 新增用户命令 |
 | 定期缺口审计 cron | P2 | 每周跨会话缺口重排序 |
 
 ### V3 明确排除（与 V2 相同 + 新增）
@@ -1070,7 +1070,7 @@ session_end:
 |------|-------------------|-------------|----------------|
 | 运行环境 | Claude Code Harness | OpenClaw Memory Plugin | 同 V2 |
 | 存储 | AgentMemory MCP | 同 V1 | 同 V1 |
-| 工具执行 | AgentOS 自建 | OpenClaw 原生 | 同 V2 |
+| 工具执行 | Praxis 自建 | OpenClaw 原生 | 同 V2 |
 | 能力模型 | 1 维（工具） | 1 维（工具） | **4 维** |
 | 知识分类 | 无 | 无 | **5 类** |
 | 学习事件 | 1 种 | 1 种 | **5 种** |
@@ -1083,9 +1083,9 @@ session_end:
 
 ## 九、兄弟文件
 
-- [What is AgentOS V3?](what-is.md) — 它是什么
+- [What is Praxis V3?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 谁在使用？
-- [Why AgentOS V3?](why.md) — 为什么需要 V3
+- [Why Praxis V3?](why.md) — 为什么需要 V3
 - [How does it work?](how.md) — 六层架构 + Curiosity Engine 详解
 - [When does it operate?](when.md) — 完整生命周期
 - [Where does it sit?](where.md) — 架构定位

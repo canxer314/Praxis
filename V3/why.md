@@ -1,4 +1,4 @@
-# Why AgentOS V3?
+# Why Praxis V3?
 
 > V2 解决了"用什么承载学习闭环"的问题。V3 解决"学习到底学什么、谁来发起"的问题。
 
@@ -18,7 +18,7 @@ V3 追问一个更深的问题：**一个大学毕业生在工作中成长的本
 
 ### 缺口一：只有工具熟练度，没有业务知识
 
-**观察**：V2 的能力模型是 `{tool_id → proficiency}` 的映射。做了 100 次周报，AgentOS 只知道"会用 PPT 工具"，不知道"周报里应该包含什么"。
+**观察**：V2 的能力模型是 `{tool_id → proficiency}` 的映射。做了 100 次周报，Praxis 只知道"会用 PPT 工具"，不知道"周报里应该包含什么"。
 
 **Why 1**：为什么 V2 没有建模业务知识？
 → 因为 V2 的学习信号全部来自工具调用（`after_tool_call`），而业务知识的信号来自对话内容（用户在说什么）。
@@ -37,7 +37,7 @@ V3 追问一个更深的问题：**一个大学毕业生在工作中成长的本
 
 ### 缺口二：没有主动学习能力
 
-**观察**：V2 的所有学习都是被动的——Hook 触发 → AgentOS 响应。它永远不会主动说"我不懂这个，能教我吗？"
+**观察**：V2 的所有学习都是被动的——Hook 触发 → Praxis 响应。它永远不会主动说"我不懂这个，能教我吗？"
 
 **Why 1**：为什么需要被动？
 → 因为 V2 的学习引擎是一个纯事件驱动的回调集合。
@@ -46,7 +46,7 @@ V3 追问一个更深的问题：**一个大学毕业生在工作中成长的本
 → 因为设计中没有一个子系统负责"审视自己知道什么、不知道什么"。
 
 **Why 3**：为什么没有这个子系统？
-→ [假设] 因为 V1/V2 的设计隐含假设是"用户会主动教导 AI"（通过 `/agentos teach` 或反馈），而非"AI 应该主动发现自己的无知"。
+→ [假设] 因为 V1/V2 的设计隐含假设是"用户会主动教导 AI"（通过 `/praxis teach` 或反馈），而非"AI 应该主动发现自己的无知"。
 
 **Why 4**：为什么有这个假设？
 → 因为 V1 的原始用户画像是"Mentor"——一个愿意花时间培养 AI 的人。但实际上，Mentor 也会累，最好的 Mentor 希望 AI 能**自己发现问题然后带着具体问题来问**，而不是等着 Mentor 发现 AI 哪里不懂。
@@ -72,9 +72,9 @@ V3:  ┌─ tool_skills:         {coffee_machine: 0.72, ppt_generator: 0.55, ...
 ### 变化二：学习引擎从被动到主动
 
 ```
-V2:  Hook → AgentOS 响应 → 更新模型
+V2:  Hook → Praxis 响应 → 更新模型
 
-V3:  Hook → AgentOS 响应 → 更新模型
+V3:  Hook → Praxis 响应 → 更新模型
       +
       Curiosity Engine 定期扫描 → 检测知识缺口 → 排序 → 提问/自学
 ```
@@ -107,24 +107,24 @@ V3:  + domain_insight         // "用户教我膜力云项目的三个阶段"
 
 ## 四、反向论证
 
-**反方论点**："AgentOS 是中间件，不是 AI——学习主动性应该留给上层（OpenClaw Agent Loop），AgentOS 只需管理好数据和 Hook。"
+**反方论点**："Praxis 是中间件，不是 AI——学习主动性应该留给上层（OpenClaw Agent Loop），Praxis 只需管理好数据和 Hook。"
 
 **这个论点为什么不对**：
 
-1. **如果 AgentOS 只管理数据** — 它和普通数据库没有本质区别。它的核心价值主张就是"让 AI 成长"——成长必须有主体性。
-2. **OpenClaw Agent Loop 是无状态的** — 它每次会话从 system prompt 获得上下文。它没有"我上次不懂什么"的跨会话记忆，这正是 AgentOS 存在的理由。
-3. **差距检测需要跨会话的全局视角** — 单次会话中看不出"这个概念我反复遇到但始终不理解"——只有 AgentOS 的持久存储能提供这个视角。
+1. **如果 Praxis 只管理数据** — 它和普通数据库没有本质区别。它的核心价值主张就是"让 AI 成长"——成长必须有主体性。
+2. **OpenClaw Agent Loop 是无状态的** — 它每次会话从 system prompt 获得上下文。它没有"我上次不懂什么"的跨会话记忆，这正是 Praxis 存在的理由。
+3. **差距检测需要跨会话的全局视角** — 单次会话中看不出"这个概念我反复遇到但始终不理解"——只有 Praxis 的持久存储能提供这个视角。
 4. **但治理机制必须极度保守** — AI 主动提问的频率、时机、措辞需要精细控制，不能让用户觉得烦。这正是 V3 设计 Curiosity Governance 的原因。
 
 **什么条件会改变结论？**
-- 如果 OpenClaw Agent Loop 本身具备了跨会话状态管理能力 → AgentOS 的 Curiosity Engine 应该上移到 Agent Loop 层
+- 如果 OpenClaw Agent Loop 本身具备了跨会话状态管理能力 → Praxis 的 Curiosity Engine 应该上移到 Agent Loop 层
 - 如果用户明确表示"永远不要主动联系我" → Curiosity Engine 降级为被动模式（Level 0）
 
 ---
 
 ## 兄弟文件
 
-- [What is AgentOS V3?](what-is.md) — 它是什么
+- [What is Praxis V3?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 谁在使用？角色反转
 - [How does it work?](how.md) — 六层架构 + Curiosity Engine
 - [When does it operate?](when.md) — 完整生命周期

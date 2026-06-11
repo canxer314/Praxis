@@ -1,4 +1,4 @@
-# How does AgentOS V7 work?
+# How does Praxis V7 work?
 
 > V7 的工程实现详解：从 Hook 编排到 Prompt 工程，从置信度算法到 AgentMemory 集成。
 
@@ -10,9 +10,9 @@
 
 ```typescript
 // index.ts
-export default function agentosPlugin(config: AgentOSConfig): OpenClawPlugin {
+export default function praxisPlugin(config: PraxisConfig): OpenClawPlugin {
   return {
-    name: 'agentos',
+    name: 'praxis',
     version: '7.0.0',
     
     hooks: {
@@ -314,7 +314,7 @@ function buildProtoConstructionPrompt(
   count: number
 ): string {
   return `
-你是 AgentOS 的认知分析模块。你的任务是分析在同一个场景类型中观察到的元素，
+你是 Praxis 的认知分析模块。你的任务是分析在同一个场景类型中观察到的元素，
 从中检测可能的结构模式。
 
 ## 场景信息
@@ -534,9 +534,9 @@ function updateConfidence(
 ### 5.1 系统提示中给 LLM 的指令
 
 ```
-## AgentOS 预测标记协议
+## Praxis 预测标记协议
 
-你在执行任务时，会收到 AgentOS 注入的"场景理解"——这是从过去观察中形成的
+你在执行任务时，会收到 Praxis 注入的"场景理解"——这是从过去观察中形成的
 概率性模式。它们不是确定的规则。
 
 当你的操作与这些模式一致时，在你行动的理由中提及即可（不需要标记）。
@@ -596,7 +596,7 @@ function parsePredictionMarkers(agentOutput: string): PredictionResult[] {
 ```
 # 当前场景感知状态
 
-你正在处理一个你**不熟悉**的场景类型。AgentOS 通过过去的观察
+你正在处理一个你**不熟悉**的场景类型。Praxis 通过过去的观察
 积累了一些初步的模式理解。这些理解是**概率性的、可修正的**——
 它们不是确定的规则。
 
@@ -654,7 +654,7 @@ function parsePredictionMarkers(agentOutput: string): PredictionResult[] {
 {{structure.process_summary}}
 
 ## 如果发现显著差异
-使用 [PREDICTION_FAILED: ...] 标记，AgentOS 会记录并用于改进场景匹配。
+使用 [PREDICTION_FAILED: ...] 标记，Praxis 会记录并用于改进场景匹配。
 ```
 
 ---
@@ -814,8 +814,8 @@ async function checkDegradation(
 
 ## 兄弟文件
 
-- [What is AgentOS V7?](what-is.md) — V7 的工程定义
-- [Why AgentOS V7?](why.md) — 第一性原理工程可行性分析
+- [What is Praxis V7?](what-is.md) — V7 的工程定义
+- [Why Praxis V7?](why.md) — 第一性原理工程可行性分析
 - [Who is it for?](who.md) — 开发者、运维者、用户三角色
 - [When does it operate?](when.md) — 实现路线图与分阶段交付
 - [Where does it sit?](where.md) — 工程架构与模块划分

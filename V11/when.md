@@ -1,4 +1,4 @@
-# When does AgentOS V11 operate?
+# When does Praxis V11 operate?
 
 > V11 的增量比 V10 大（5 个新模块 vs 1 个），但比 V9 小（5 个 vs 7 个）。Phase 1（闭环核心）6 周，Phase 2（优化验证）4 周，总计 ~10 周。
 
@@ -14,21 +14,21 @@ Phase 1: 闭环核心 (6 周)
 │  │ • outcome-feedback.ts             (接口 3: 结果反馈)
 │  │ • hooks 微调 (message_received, before_tool_call, session_end)
 │  │
-│  │ 目标: AgentOS 能即时检测错误 + 能根据任务结果调整置信度
+│  │ 目标: Praxis 能即时检测错误 + 能根据任务结果调整置信度
 │  │
 │  ├── 周 3-4: 知→行闭环 (第一步)
 │  │ • knowledge-query.ts              (接口 1: 知识查询)
 │  │ • proto-task.ts                   (Phase 1 核心 + bootstrap)
 │  │ • memory 增强 (schemas, slots, queries)
 │  │
-│  │ 目标: planning-with-files 可以查询 AgentOS 获取 ProtoTask
+│  │ 目标: planning-with-files 可以查询 Praxis 获取 ProtoTask
 │  │
 │  └── 周 5-6: 知→行闭环 (第二步)
 │     • cognitive-guidance.ts          (接口 2: 认知指导信号)
 │     • session-start 增强
 │     • prompts 增强
 │     
-│     目标: AgentOS 生成类型化 GuidanceSignal，OpenClaw 可解析
+│     目标: Praxis 生成类型化 GuidanceSignal，OpenClaw 可解析
 │
 Phase 2: 优化与验证 (4 周)
 │
@@ -54,7 +54,7 @@ Phase 2: 优化与验证 (4 周)
 
 ### 周 1-2: 行→知闭环
 
-**目标**: AgentOS 能即时检测认知矛盾 + 能根据任务结果调整置信度。
+**目标**: Praxis 能即时检测认知矛盾 + 能根据任务结果调整置信度。
 
 | 模块 | 内容 | 优先级 | 工作量 |
 |------|------|--------|--------|
@@ -78,7 +78,7 @@ Phase 2: 优化与验证 (4 周)
 
 ### 周 3-4: 知→行闭环（第一步）
 
-**目标**: planning-with-files 可以查询 AgentOS 获取任务模式知识，ProtoTask 零样本可用。
+**目标**: planning-with-files 可以查询 Praxis 获取任务模式知识，ProtoTask 零样本可用。
 
 | 模块 | 内容 | 优先级 | 工作量 |
 |------|------|--------|--------|
@@ -100,7 +100,7 @@ Phase 2: 优化与验证 (4 周)
 
 ### 周 5-6: 知→行闭环（第二步）
 
-**目标**: AgentOS 生成类型化 GuidanceSignal，注入到 prompt + 可供 OpenClaw 解析。
+**目标**: Praxis 生成类型化 GuidanceSignal，注入到 prompt + 可供 OpenClaw 解析。
 
 | 模块 | 内容 | 优先级 | 工作量 |
 |------|------|--------|--------|
@@ -170,8 +170,8 @@ V11 Phase 1 可以直接叠加在 V10 之上:
 
 ## 五、兄弟文件
 
-- [What is AgentOS V11?](what-is.md) — V11 的工程定义
-- [Why AgentOS V11?](why.md) — 第一性原理：为什么需要知行合一闭环
+- [What is Praxis V11?](what-is.md) — V11 的工程定义
+- [Why Praxis V11?](why.md) — 第一性原理：为什么需要知行合一闭环
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — 四个接口的完整实现
 - [Where does it sit?](where.md) — 模块树（V10 基础 + 5 新增）

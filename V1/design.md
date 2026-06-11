@@ -1,4 +1,4 @@
-# AgentOS V1 Architecture Design
+# Praxis V1 Architecture Design
 
 > 版本：v1 (MVP)
 > 状态：设计阶段
@@ -12,7 +12,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                       AgentOS V1 Architecture                        │
+│                       Praxis V1 Architecture                        │
 │                                                                      │
 │  ┌───────────────────────────────────────────────────────────────┐  │
 │  │                    Harness Layer (Claude Code)                  │  │
@@ -23,15 +23,15 @@
 │  │  • SessionEnd   → reflect_and_update() + save_mental_state()    │  │
 │  │                                                                  │  │
 │  │  Skills/Commands:                                                │  │
-│  │  • /agentos status     → 查看能力模型                           │  │
-│  │  • /agentos teach      → 主动教导知识                           │  │
-│  │  • /agentos task       → 分配任务                               │  │
-│  │  • /agentos review     → 审核演化提案                           │  │
-│  │  • /agentos learn      → 发起学习任务                           │  │
+│  │  • /praxis status     → 查看能力模型                           │  │
+│  │  • /praxis teach      → 主动教导知识                           │  │
+│  │  • /praxis task       → 分配任务                               │  │
+│  │  • /praxis review     → 审核演化提案                           │  │
+│  │  • /praxis learn      → 发起学习任务                           │  │
 │  └───────────────────────────────────────────────────────────────┘  │
 │                                    │                                 │
 │  ┌─────────────────────────────────┼─────────────────────────────┐  │
-│  │                    AgentOS Core  │                              │  │
+│  │                    Praxis Core  │                              │  │
 │  │                                  │                              │  │
 │  │  L6 ┌──────────────────────────┐│                              │  │
 │  │     │  自主决策引擎             ││  proficiency × risk → action │  │
@@ -414,7 +414,7 @@ AI 准备调用 tool.action
 
 ### 存储映射表
 
-| AgentOS 数据 | AgentMemory 工具 | 存储方式 | 备注 |
+| Praxis 数据 | AgentMemory 工具 | 存储方式 | 备注 |
 |-------------|-----------------|---------|------|
 | Tool Registry (active) | `memory_slot_get/set "tool_registry"` | Slot (project scope) | 当前工具注册表的序列化 JSON |
 | Tool Registry (history) | `memory_save type="tool_registry_version"` | Memory + supersedes | 版本历史 |
@@ -439,7 +439,7 @@ AI 准备调用 tool.action
 ### Harness ↔ AgentMemory 通信
 
 ```
-AgentOS Core ──(MCP calls)──▶ AgentMemory MCP Server
+Praxis Core ──(MCP calls)──▶ AgentMemory MCP Server
                                     │
                                     ├─ memory_slot_get("competency_model")
                                     ├─ memory_smart_search(query, type="knowledge")
@@ -459,8 +459,8 @@ AgentOS Core ──(MCP calls)──▶ AgentMemory MCP Server
 
 hooks:
   SessionStart:
-    - agentos_load_context:
-        description: "加载 AgentOS 能力模型和行为指引"
+    - praxis_load_context:
+        description: "加载 Praxis 能力模型和行为指引"
         actions:
           - memory_slot_get("competency_model")
           - memory_slot_get("autonomy_policy")
@@ -469,7 +469,7 @@ hooks:
           - inject_into_system_prompt()
   
   PostToolUse:
-    - agentos_track_tool_use:
+    - praxis_track_tool_use:
         description: "追踪工具使用，检测学习事件"
         triggers: ["error", "user_correction", "task_completion"]
         actions:
@@ -477,7 +477,7 @@ hooks:
           - maybe_generate_learning_event()
   
   SessionEnd:
-    - agentos_reflect:
+    - praxis_reflect:
         description: "会话结束反思和能力更新"
         actions:
           - summarize_session_growth()
@@ -489,10 +489,10 @@ hooks:
 
 ### 5.2 System Prompt 注入
 
-每次会话开始时，AgentOS 注入以下结构化的上下文块：
+每次会话开始时，Praxis 注入以下结构化的上下文块：
 
 ```markdown
-## AgentOS Context
+## Praxis Context
 
 ### 当前能力概况
 - 总体熟练度：0.70（competent）
@@ -514,13 +514,13 @@ hooks:
 
 | 命令 | 功能 | 实现 |
 |------|------|------|
-| `/agentos status` | 查看能力模型和成长轨迹 | 读取 competency_model slot，格式化展示 |
-| `/agentos tools` | 查看已注册工具及其熟练度 | 读取 tool_registry slot |
-| `/agentos teach <topic>` | 主动教导知识 | 触发 KnowledgeManager.ingest() |
-| `/agentos task <desc>` | 分配任务 | 触发 TaskOrchestrator.create_task() |
-| `/agentos review` | 审核待处理的演化提案 | 列出未审批的更新提案 |
-| `/agentos learn <topic>` | 创建学习任务 | AI 生成学习任务计划 |
-| `/agentos history` | 查看学习历史时间线 | 检索 LearningEvent + Lesson |
+| `/praxis status` | 查看能力模型和成长轨迹 | 读取 competency_model slot，格式化展示 |
+| `/praxis tools` | 查看已注册工具及其熟练度 | 读取 tool_registry slot |
+| `/praxis teach <topic>` | 主动教导知识 | 触发 KnowledgeManager.ingest() |
+| `/praxis task <desc>` | 分配任务 | 触发 TaskOrchestrator.create_task() |
+| `/praxis review` | 审核待处理的演化提案 | 列出未审批的更新提案 |
+| `/praxis learn <topic>` | 创建学习任务 | AI 生成学习任务计划 |
+| `/praxis history` | 查看学习历史时间线 | 检索 LearningEvent + Lesson |
 
 ## 六、多模态支持设计
 
@@ -582,7 +582,7 @@ hooks:
 | Knowledge ingestion (text + image) | P1 | 基础多模态知识管理 |
 | SessionStart context injection | P1 | 会话开始时的上下文加载 |
 | Post-task learning event generation | P1 | 任务完成后的自动学习 |
-| `/agentos status` command | P1 | 用户可见的能力查看 |
+| `/praxis status` command | P1 | 用户可见的能力查看 |
 | Autonomy decision (basic) | P2 | 基于熟练度的自主性建议 |
 | SessionEnd reflection | P2 | 会话结束时的反思和状态保存 |
 | Mental state continuity | P2 | 跨会话"思维状态"传递 |
@@ -601,10 +601,10 @@ hooks:
 
 ## 八、核心接口定义
 
-### AgentOS Core API (TypeScript-like)
+### Praxis Core API (TypeScript-like)
 
 ```typescript
-interface AgentOS {
+interface Praxis {
   // === Layer 1: Tool Registry ===
   toolRegistry: {
     register(tool: Tool): Promise<void>
@@ -657,7 +657,7 @@ interface AgentOS {
 
 ## 九、兄弟文件
 
-- [What is AgentOS?](what-is.md) — 它是什么
+- [What is Praxis?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 谁在使用？谁是那个"自己"？
 - [Why does it exist?](why.md) — 它为什么存在
 - [How does it work?](how.md) — 六层架构详解

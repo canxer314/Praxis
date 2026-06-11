@@ -1,4 +1,4 @@
-# How does AgentOS V5 work?
+# How does Praxis V5 work?
 
 ## 总览：V4 全部保留 + Meta Layer
 
@@ -9,7 +9,7 @@ V5 保留 V4 的完整架构（六层 + 四子系统），在此之上增加 Met
 │                   OpenClaw Agent Loop                         │
 │                                                               │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │              AgentOS Memory Plugin (V5)                  │  │
+│  │              Praxis Memory Plugin (V5)                  │  │
 │  │                                                          │  │
 │  │  ┌──────────────────────────────────────────────────┐  │  │
 │  │  │            Meta Layer (V5 NEW)                     │  │  │
@@ -165,7 +165,7 @@ V5 保留 V4 的完整架构（六层 + 四子系统），在此之上增加 Met
 ### CandidateStructure 模板
 
 ```yaml
-# AgentOS 向用户呈交的结构提案
+# Praxis 向用户呈交的结构提案
 CandidateStructure:
   name: "NegotiationModel"
   applies_to: ["谈判", "砍价", "合同条款协商", "资源分配争议"]
@@ -260,7 +260,7 @@ CandidateStructure:
 
 ### 激活条件
 
-当一个场景触发时，AgentOS 如何选择使用哪个认知结构：
+当一个场景触发时，Praxis 如何选择使用哪个认知结构：
 
 ```
 1. 精确匹配: 场景类型 → Crystallized Structure 中有精确匹配 → 激活
@@ -276,7 +276,7 @@ CandidateStructure:
 ## V5 的完整执行流程：从"失败"到"新能力"
 
 ```
-场景: 用户第 3 次让 AgentOS 处理谈判
+场景: 用户第 3 次让 Praxis 处理谈判
 
 Session 中:
   message_received → "帮我跟供应商谈价格"
@@ -333,8 +333,8 @@ Session 中:
   
   → Registry: NegotiationModel v1.0 → status: "crystallized"
   
-  AgentOS 多了一种思考方式。
-  不是人类设计后写入的——是 AgentOS 自己发现、自己构造、人类审核后固化的。
+  Praxis 多了一种思考方式。
+  不是人类设计后写入的——是 Praxis 自己发现、自己构造、人类审核后固化的。
 ```
 
 ---
@@ -343,7 +343,7 @@ Session 中:
 
 ```
 铁律 1: 任何新认知结构的引入必须经过人类批准
-  • AgentOS 可以提议，不能单方面改变自己的架构
+  • Praxis 可以提议，不能单方面改变自己的架构
   • "提议"包括: 分析报告 + 候选方案 + 验证计划
 
 铁律 2: 新结构的实验必须在限定范围内
@@ -361,9 +361,9 @@ Session 中:
 
 ## 兄弟文件
 
-- [What is AgentOS V5?](what-is.md) — 它是什么
+- [What is Praxis V5?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 人类角色的转变
-- [Why AgentOS V5?](why.md) — 为什么需要 Meta Layer
+- [Why Praxis V5?](why.md) — 为什么需要 Meta Layer
 - [When does it operate?](when.md) — 结构进化生命周期
 - [Where does it sit?](where.md) — Meta Layer 的位置
 - [Architecture Design](design.md) — V5 架构设计文档

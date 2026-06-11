@@ -1,30 +1,30 @@
-# What is AgentOS V10?
+# What is Praxis V10?
 
-> V10 = 从"场景级认知"到"任务级认知"。V1-V9 让 AgentOS 学会"医院门诊的流程是什么"。V10 让 AgentOS 知道"当前正在构建一个医院系统，处于 Phase 2，下一步是预约挂号 API，最相关的认知结构是门诊流程和 API 设计模式"。
+> V10 = 从"场景级认知"到"任务级认知"。V1-V9 让 Praxis 学会"医院门诊的流程是什么"。V10 让 Praxis 知道"当前正在构建一个医院系统，处于 Phase 2，下一步是预约挂号 API，最相关的认知结构是门诊流程和 API 设计模式"。
 
 ## 一句话定义
 
-**AgentOS V10 引入 TaskContext——一个仅 ~200 tokens 的轻量任务感知层。它不替代 OpenClaw 的 planning-with-files（任务计划和执行协调），而是在此之上叠加一层认知上下文：AgentOS 知道"当前在做什么项目、处于哪个阶段、哪些 ProtoStructure 最相关、子 Agent 需要继承什么认知结构"。V10 的增量极小，但它打开了任务级认知学习（ProtoTask）的大门。**
+**Praxis V10 引入 TaskContext——一个仅 ~200 tokens 的轻量任务感知层。它不替代 OpenClaw 的 planning-with-files（任务计划和执行协调），而是在此之上叠加一层认知上下文：Praxis 知道"当前在做什么项目、处于哪个阶段、哪些 ProtoStructure 最相关、子 Agent 需要继承什么认知结构"。V10 的增量极小，但它打开了任务级认知学习（ProtoTask）的大门。**
 
 ---
 
 ## V9 → V10 演进
 
 ```
-V1-V6: 认知概念设计 — AgentOS 应该表现出什么行为
+V1-V6: 认知概念设计 — Praxis 应该表现出什么行为
 V7:     场景级工程落地 — 所有认知操作 = Hook + LLM + AgentMemory
 V8:     1M 上下文简化 — 删除 token 妥协，全量注入 + 独立验证
 V9:     上下文压力自适应 — 四级压缩 + Lazy Loading + 注意力遥测
 
 V10:    任务级认知感知 — TaskContext (~200 tokens)
-        从 "AgentOS 理解场景" 到 "AgentOS 理解任务中的场景"
+        从 "Praxis 理解场景" 到 "Praxis 理解任务中的场景"
         
 关键洞察:
-  V1-V9 的 AgentOS 在每次会话中都是"失忆但博学"的——
+  V1-V9 的 Praxis 在每次会话中都是"失忆但博学"的——
   它记得所有场景模式（ProtoStructures），但不记得"当前在做什么项目"。
   
-  V10 填补这个 gap —— 不需要 AgentOS 做任务规划（那是 OpenClaw 的事），
-  只需要 AgentOS 知道"当前任务的认知上下文是什么"。
+  V10 填补这个 gap —— 不需要 Praxis 做任务规划（那是 OpenClaw 的事），
+  只需要 Praxis 知道"当前任务的认知上下文是什么"。
 ```
 
 ---
@@ -34,7 +34,7 @@ V10:    任务级认知感知 — TaskContext (~200 tokens)
 ### 命题 1：TaskContext — 认知上下文的最小化任务感知
 
 ```
-TaskContext 不是任务计划。它是认知索引——告诉 AgentOS：
+TaskContext 不是任务计划。它是认知索引——告诉 Praxis：
   • 当前任务是什么？（一个标识符 + 一句话描述）
   • 处于哪个阶段？（Phase 2 / 3）
   • 进度如何？（"API 60% 完成"）
@@ -103,7 +103,7 @@ ProtoTask 从多次同类项目中学习"这类项目的典型推进模式"。
 
 ## 兄弟文件
 
-- [Why AgentOS V10?](why.md) — 第一性原理：为什么需要任务级认知
+- [Why Praxis V10?](why.md) — 第一性原理：为什么需要任务级认知
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — TaskContext 注入、ProtoTask 构造
 - [When does it operate?](when.md) — 2 Phase 实现路线图

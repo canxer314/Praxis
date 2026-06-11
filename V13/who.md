@@ -1,6 +1,6 @@
-# Who is AgentOS V13 for?
+# Who is Praxis V13 for?
 
-> V13 三角色模型不变。核心变化：AgentOS 从"任务编排者"升级为"任务驱动者"——用户获得自动驾驶选项，开发者实现 3 个轻量触发模块，运维者获得精密的触发边界控制。
+> V13 三角色模型不变。核心变化：Praxis 从"任务编排者"升级为"任务驱动者"——用户获得自动驾驶选项，开发者实现 3 个轻量触发模块，运维者获得精密的触发边界控制。
 
 ---
 
@@ -11,11 +11,11 @@
               │  用户     │
               │ (User)    │
               └─────┬─────┘
-                    │ 使用 AgentOS + OpenClaw 时:
+                    │ 使用 Praxis + OpenClaw 时:
                     │  • [V12继承] 任务开始时自动生成计划
                     │  • [V12继承] 会话中看到结构化的进度和陷阱预警
                     │  • [V12继承] 子任务完成时自动验收
-                    │  • [V13新增] 开启"自动驾驶"模式——AgentOS 在后台自动推进任务
+                    │  • [V13新增] 开启"自动驾驶"模式——Praxis 在后台自动推进任务
                     │  • [V13新增] 独立子任务并行执行——等待时间减少
                     │  • [V13新增] 子任务停滞时收到提醒——不会忘记任务
                     │  • [V13新增] 在合适的时间被自动唤醒——"刚好该做下一步了"
@@ -24,7 +24,7 @@
     │               │               │
     ▼               ▼               ▼
 ┌──────────┐  ┌──────────┐  ┌──────────┐
-│  开发者   │  │  运维者   │  │  AgentOS │
+│  开发者   │  │  运维者   │  │  Praxis │
 │(Developer)│  │(Operator) │  │  自身     │
 └──────────┘  └──────────┘  └──────────┘
  实现3个触发模块  配置触发边界    主动驱动任务状态机
@@ -41,23 +41,23 @@
 
 ```
 1. 开启自动驾驶模式:
-   用户: /agentos task auto on
+   用户: /praxis task auto on
    
-   AgentOS: "自动驾驶模式已开启。我将:
+   Praxis: "自动驾驶模式已开启。我将:
            - 在每个子任务完成后自动安排下一个 session
            - 对独立子任务使用并行执行（最多 3 个）
            - 在子任务停滞时主动提醒你
            - 静默时段: 22:00-08:00（可在配置中修改）
-           你可以随时用 /agentos task auto off 关闭。"
+           你可以随时用 /praxis task auto off 关闭。"
 
 2. 自动 session 触发:
    [用户在 14:00 完成了"数据库 Schema 设计"子任务]
-   [AgentOS 计算: 下一子任务"API 端点实现"估计 3 小时]
-   [AgentOS 注册 scheduleSessionTurn: at 17:00]
+   [Praxis 计算: 下一子任务"API 端点实现"估计 3 小时]
+   [Praxis 注册 scheduleSessionTurn: at 17:00]
    
    [17:00 — 用户收到通知，打开 Claude]
-   AgentOS 已准备好上下文:
-   "## 任务编排状态 [AgentOS V13 — 自动驾驶]
+   Praxis 已准备好上下文:
+   "## 任务编排状态 [Praxis V13 — 自动驾驶]
    任务: 医院管理系统
    阶段: Phase 2/5 — API 开发
    当前子任务: 实现预约挂号 API (第 3/7 步)
@@ -66,12 +66,12 @@
    ✅ 已完成: 数据库 Schema 设计 (14:00 完成)
    ⚡ 并行进行中: 前端脚手架搭建 (子 Agent, 14:05 启动)"
    
-   用户感知: 不需要记得"该做下一步了"——AgentOS 在合适的时间准备好了上下文。
+   用户感知: 不需要记得"该做下一步了"——Praxis 在合适的时间准备好了上下文。
 
 3. 并行子 Agent 执行:
    用户: "开始 Phase 3 的三个独立子任务"
    
-   V13 AgentOS:
+   V13 Praxis:
    → 检测 3 个子任务都标记为 parallelizable + 无依赖
    → spawn 3 个子 Agent:
      • 子Agent 1: 设计数据库 Schema — 独立 session
@@ -104,7 +104,7 @@
    用户感知: 不是 3 周后才发现卡住了——3 天内就收到了提醒。
 
 5. 用户管理自动驾驶:
-   /agentos task auto status
+   /praxis task auto status
    → "自动驾驶: 开启
       活跃触发: 1 个定时 session (明天 09:00)
       并行子Agent: 0 个运行中, 3 个已完成
@@ -112,10 +112,10 @@
       今日触发: 2/8
       静默时段: 22:00-08:00"
    
-   /agentos task auto off
+   /praxis task auto off
    → "自动驾驶已关闭。已清理 1 个待触发定时任务。"
    
-   /agentos task auto config
+   /praxis task auto config
    → 修改自动驾驶参数（静默时段、每日上限、并行数等）
 ```
 
@@ -247,7 +247,7 @@ trigger_adapter:
     cleanup_completed_after_hours: 1  # 完成后多久清理 cron job
 ```
 
-### AgentOS 自主权边界（V13 重新界定）
+### Praxis 自主权边界（V13 重新界定）
 
 ```
 V12 的立场:
@@ -270,7 +270,7 @@ V13 的立场:
   ❌ 超过每日触发上限后继续触发
 
 关键原则（不变）:
-  AgentOS 仍然不"做决策"——它做的是"条件→动作"的确定性映射。
+  Praxis 仍然不"做决策"——它做的是"条件→动作"的确定性映射。
   主动触发 = 在满足 GovernancePolicy 所有约束条件时，自动执行预定义的触发动作。
   这不是 AI 的自主决策——这是配置驱动的自动化。
 ```
@@ -279,8 +279,8 @@ V13 的立场:
 
 ## 兄弟文件
 
-- [What is AgentOS V13?](what-is.md) — V13 定义 + 四个核心职能
-- [Why AgentOS V13?](why.md) — 第一性原理：为什么被动响应不够
+- [What is Praxis V13?](what-is.md) — V13 定义 + 四个核心职能
+- [Why Praxis V13?](why.md) — 第一性原理：为什么被动响应不够
 - [How does it work?](how.md) — 三个新模块 + 五个修改模块的完整实现
 - [When does it operate?](when.md) — Phase 7-9 路线图（+5 周）
 - [Where does it sit?](where.md) — 完整模块树（V12 基础 + 3 新增 + services/ 目录）

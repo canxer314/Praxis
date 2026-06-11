@@ -1,4 +1,4 @@
-# AgentOS V2 Architecture Design
+# Praxis V2 Architecture Design
 
 > 版本：v2 (OpenClaw + AgentMemory Integration)
 > 状态：设计阶段
@@ -24,7 +24,7 @@
 │  │       │                    │              │            │         │  │
 │  │       ▼                    ▼              ▼            ▼         │  │
 │  │  ┌──────────────────────────────────────────────────────────┐  │  │
-│  │  │               AgentOS Memory Plugin                        │  │  │
+│  │  │               Praxis Memory Plugin                        │  │  │
 │  │  │                                                             │  │  │
 │  │  │  ┌─────────────────────────────────────────────────────┐  │  │  │
 │  │  │  │ Hook Handlers (5 core hooks)                         │  │  │  │
@@ -37,7 +37,7 @@
 │  │  │  └──────────────────────┬──────────────────────────────┘  │  │  │
 │  │  │                         │                                  │  │  │
 │  │  │  ┌──────────────────────┴──────────────────────────────┐  │  │  │
-│  │  │  │              AgentOS Core Engine                     │  │  │  │
+│  │  │  │              Praxis Core Engine                     │  │  │  │
 │  │  │  │                                                      │  │  │  │
 │  │  │  │  L6  AutonomyEngine     • proficiency × risk →       │  │  │  │
 │  │  │  │                           autonomy decision          │  │  │  │
@@ -118,7 +118,7 @@ ToolProficiency:
     quality_indicators:
       - signal: string
         interpretation: string
-    # 如果工具提供了 agentos 元数据，从这里加载
+    # 如果工具提供了 praxis 元数据，从这里加载
     # 否则从学习事件中自动提取
   
   risk:
@@ -138,7 +138,7 @@ ToolProficiency:
 
 ### 2.2 Task Trace（任务追踪）
 
-OpenClaw agent 执行任务时，AgentOS 追踪工具调用链：
+OpenClaw agent 执行任务时，Praxis 追踪工具调用链：
 
 ```yaml
 TaskTrace:
@@ -214,7 +214,7 @@ User (via Telegram): "帮我冲杯咖啡"
                    ▼
 ┌─────────────────────────────────────────────┐
 │ [Hook: before_tool_call]                     │
-│ AgentOS:                                     │
+│ Praxis:                                     │
 │ • tool_id = "coffee_machine"                 │
 │ • action = "brew"                            │
 │ • 查询 proficiency: 0.72 (proficient)        │
@@ -235,7 +235,7 @@ User (via Telegram): "帮我冲杯咖啡"
                    ▼
 ┌─────────────────────────────────────────────┐
 │ [Hook: after_tool_call]                      │
-│ AgentOS:                                     │
+│ Praxis:                                     │
 │ • status = "brew_complete"                   │
 │ • 匹配 success_signal: "brew_complete" ✅    │
 │ • 无错误 → 无学习事件                        │
@@ -250,7 +250,7 @@ User (via Telegram): "帮我冲杯咖啡"
                    ▼
 ┌─────────────────────────────────────────────┐
 │ [Hook: agent_end]                            │
-│ AgentOS:                                     │
+│ Praxis:                                     │
 │ • 汇总本 agent 的所有工具调用                 │
 │ • 无新的学习事件 → 能力模型不变               │
 │ • task_trace 存储到 AgentMemory              │
@@ -264,7 +264,7 @@ User (via Telegram): "帮我冲杯咖啡"
 
 ┌─────────────────────────────────────────────┐
 │ [Hook: after_tool_call]                      │
-│ AgentOS:                                     │
+│ Praxis:                                     │
 │ • status = "out_of_water"                    │
 │ • 匹配 failure_signal: "out_of_water" ❌     │
 │ • 检查 known_failure_modes:                  │
@@ -280,7 +280,7 @@ User (via Telegram): "帮我冲杯咖啡"
                    ▼
 ┌─────────────────────────────────────────────┐
 │ [Hook: agent_end]                            │
-│ AgentOS:                                     │
+│ Praxis:                                     │
 │ • 处理 pending_learning_event                │
 │ • proficiency: 0.72 → 0.71 (-0.01)          │
 │ • 添加 prevention: "brew() 前先 status()"    │
@@ -316,10 +316,10 @@ User (via Telegram): "帮我冲杯咖啡"
 
 ```json
 {
-  "name": "agentos",
+  "name": "praxis",
   "version": "0.1.0",
   "kind": "memory",
-  "description": "AgentOS learning loop and competency model as an OpenClaw memory plugin",
+  "description": "Praxis learning loop and competency model as an OpenClaw memory plugin",
   "entry": {
     "api": "./api.js",
     "runtime": "./runtime.js"
@@ -336,8 +336,8 @@ User (via Telegram): "帮我冲杯咖啡"
 ### 4.2 Plugin Runtime API
 
 ```typescript
-// AgentOS Plugin 暴露给 OpenClaw 的 runtime interface
-interface AgentOSPlugin {
+// Praxis Plugin 暴露给 OpenClaw 的 runtime interface
+interface PraxisPlugin {
   // Memory plugin 标准接口（OpenClaw 要求在 memory slot 中的插件实现）
   getMemorySearchManager(params: {
     agentId: string;
@@ -394,17 +394,17 @@ function registerHooks(): PluginHookRegistration[] {
 
 | 命令 | 功能 | 实现 |
 |------|------|------|
-| `/agentos status` | 查看能力模型和成长轨迹 | 从 AgentMemory slot 读取，格式化展示 |
-| `/agentos tools` | 查看已注册工具及其熟练度 | 从 in-memory competency model 读取 |
-| `/agentos teach <topic>` | 主动教导知识 | 触发 KnowledgeManager.ingest() → AgentMemory |
-| `/agentos review` | 审核待处理的演化提案 | 列出未审批的 SelfModelUpdateProposal |
-| `/agentos history [tool]` | 查看学习历史时间线 | 检索 LearningEvent + Lesson |
+| `/praxis status` | 查看能力模型和成长轨迹 | 从 AgentMemory slot 读取，格式化展示 |
+| `/praxis tools` | 查看已注册工具及其熟练度 | 从 in-memory competency model 读取 |
+| `/praxis teach <topic>` | 主动教导知识 | 触发 KnowledgeManager.ingest() → AgentMemory |
+| `/praxis review` | 审核待处理的演化提案 | 列出未审批的 SelfModelUpdateProposal |
+| `/praxis history [tool]` | 查看学习历史时间线 | 检索 LearningEvent + Lesson |
 
 ---
 
 ## 五、AgentMemory 集成映射
 
-| AgentOS 数据 | AgentMemory 工具 | 存储方式 | 频率 |
+| Praxis 数据 | AgentMemory 工具 | 存储方式 | 频率 |
 |-------------|-----------------|---------|------|
 | CompetencyModel (active) | `memory_slot_get/set "competency_model"` | Slot (project scope) | session_start 读, agent_end 写 |
 | CompetencyModel (history) | `memory_save type="competency_model_version"` | Memory + supersedes | 能力模型变更时 |
@@ -459,16 +459,16 @@ function registerHooks(): PluginHookRegistration[] {
 
 | 组件 | 优先级 | 说明 |
 |------|--------|------|
-| AgentOS Memory Plugin (OpenClaw) | P0 | 核心：plugin manifest + runtime + hooks |
+| Praxis Memory Plugin (OpenClaw) | P0 | 核心：plugin manifest + runtime + hooks |
 | AgentMemory MCP 集成 | P0 | 核心：slot 读写、lesson 存储、知识检索 |
 | before/after_tool_call hooks | P0 | 核心：自主性检查 + 反馈收集 |
 | agent_end learning loop | P0 | 核心：学习事件生成 + 能力模型更新 |
 | CompetencyModel (slot-based) | P0 | 与 V1 相同的数据模型 |
 | session_start context injection | P1 | 会话开始时的能力上下文加载 |
-| `/agentos status` command | P1 | 用户可见的能力查看 |
+| `/praxis status` command | P1 | 用户可见的能力查看 |
 | session_end reflection | P2 | 会话结束反思 + mental_state |
 | 反馈解释器（自动模式检测） | P2 | 无需工具元数据，自动从失败中学习 |
-| 工具元数据发现 | P2 | 从 OpenClaw plugin manifest / MCP metadata 读取 agentos 元数据 |
+| 工具元数据发现 | P2 | 从 OpenClaw plugin manifest / MCP metadata 读取 praxis 元数据 |
 
 ### V2: 明确排除
 
@@ -487,7 +487,7 @@ function registerHooks(): PluginHookRegistration[] {
 
 | V1 自建 | V2 使用 OpenClaw |
 |---------|-----------------|
-| Tool Registry（自建数据模型） | Tool Registry（OpenClaw 工具列表 + AgentOS 元数据） |
+| Tool Registry（自建数据模型） | Tool Registry（OpenClaw 工具列表 + Praxis 元数据） |
 | Claude Code Harness Hooks | OpenClaw Plugin Hook System |
 | Claude Code Slash Commands | OpenClaw Plugin Commands |
 | Claude Code System Prompt 注入 | OpenClaw Plugin session_start hook |
@@ -497,9 +497,9 @@ function registerHooks(): PluginHookRegistration[] {
 
 ## 八、兄弟文件
 
-- [What is AgentOS V2?](what-is.md) — 它是什么
+- [What is Praxis V2?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 谁在使用？
-- [Why AgentOS V2?](why.md) — 为什么是这个组合
-- [How does it work?](how.md) — AgentOS Plugin 架构详解
+- [Why Praxis V2?](why.md) — 为什么是这个组合
+- [How does it work?](how.md) — Praxis Plugin 架构详解
 - [When does it operate?](when.md) — Hook 触发点和生命周期
 - [Where does it sit?](where.md) — 架构定位与系统关系

@@ -1,4 +1,4 @@
-# When does AgentOS V13 operate?
+# When does Praxis V13 operate?
 
 > V13 在 V12 的 9 周实现基础上增加 5 周（Phase 7-9）。三个新模块逐 Phase 交付，每个 Phase 可独立验证。总增量 < 530 行代码。
 
@@ -62,8 +62,8 @@ Phase 7: 主动调度 (周 9-11)
 ✅ CronTriggerAdapter.scheduleTurn() → 返回 { jobId } (降级路径)
 ✅ 重复触发去重: 相同 reason 的第二个触发被跳过
 ✅ session_end → scheduleNextIfEnabled → pending_triggers 中有新触发
-✅ session_start with [AgentOS V13 自动触发] system event → triggerSource = 'cron:scheduled'
-✅ session_start with [AgentOS V13 停滞检测] system event → triggerSource = 'heartbeat:wake'
+✅ session_start with [Praxis V13 自动触发] system event → triggerSource = 'cron:scheduled'
+✅ session_start with [Praxis V13 停滞检测] system event → triggerSource = 'heartbeat:wake'
 ✅ session_start (普通用户启动) → triggerSource = 'hook:session_start'
 ✅ 过期触发 (> 1h 未触发) 在 session_start 时被自动清理
 ```
@@ -191,8 +191,8 @@ Phase 7: 主动调度 (周 9-11)
 
 ## 兄弟文件
 
-- [What is AgentOS V13?](what-is.md) — V13 定义 + 四个核心职能
-- [Why AgentOS V13?](why.md) — 第一性原理：为什么被动响应不够
+- [What is Praxis V13?](what-is.md) — V13 定义 + 四个核心职能
+- [Why Praxis V13?](why.md) — 第一性原理：为什么被动响应不够
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — 三个新模块 + 五个修改模块的完整实现
 - [Where does it sit?](where.md) — 完整模块树（V12 基础 + 3 新增 + services/ 目录）

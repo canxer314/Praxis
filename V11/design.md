@@ -1,4 +1,4 @@
-# AgentOS V11 Architecture Design
+# Praxis V11 Architecture Design
 
 > 版本：v11 (Closed-Loop Cognitive Engine)
 > 状态：设计阶段
@@ -9,15 +9,15 @@
 ## 零、架构哲学：从"开环注入"到"闭环认知"
 
 ```
-V10: AgentOS 理解任务中的场景（"在构建医院系统 Phase 2 的上下文中，
+V10: Praxis 理解任务中的场景（"在构建医院系统 Phase 2 的上下文中，
      哪些认知结构最相关"），但知识只能以 prompt 文本形式注入。
 
-V11: AgentOS 的知识可以结构化地进入执行层（planning-with-files 查询
+V11: Praxis 的知识可以结构化地进入执行层（planning-with-files 查询
      ProtoTask、OpenClaw 解析 GuidanceSignal），执行层的结果可以结构化地
-     反馈给 AgentOS（SubtaskOutcome 驱动置信度更新）。
+     反馈给 Praxis（SubtaskOutcome 驱动置信度更新）。
 
 关键进化:
-  V10 解决了 "AgentOS 知道什么"（任务级认知感知）
+  V10 解决了 "Praxis 知道什么"（任务级认知感知）
   V11 解决了 "知道的东西怎么用"（知行合一闭环）
   
   不做执行 — 但知识不再被锁在 prompt 文本中。
@@ -278,7 +278,7 @@ interface GovernancePolicy {
 
 ```
 V10 Layer 1:
-  # AgentOS 认知状态
+  # Praxis 认知状态
   ## 当前任务
   任务: 构建医院管理系统
   阶段: Phase 2 — API 开发
@@ -288,7 +288,7 @@ V10 Layer 1:
   - api_design: REST API 设计模式
 
 V11 Layer 1 (新增认知指导段):
-  # AgentOS 认知状态
+  # Praxis 认知状态
 
   ## 当前任务
   任务: 构建医院管理系统
@@ -371,7 +371,7 @@ function fuseConfidence(
   │                                                               │
   │  planning-with-files skill:                                   │
   │    职责: 任务计划的文件持久化                                   │
-  │    【新 V11】创建计划前: 查询 AgentOS 知识库                     │
+  │    【新 V11】创建计划前: 查询 Praxis 知识库                     │
   │      → queryKnowledge({query_type: "proto_task"})             │
   │      → 将 ProtoTask 模板纳入计划骨架                           │
   │      → queryKnowledge({query_type: "pitfalls"})               │
@@ -383,7 +383,7 @@ function fuseConfidence(
   │      → 解析 phase_suggestion → 调整子 Agent 配置               │
   │      → 解析 pitfall_warning → 增加子 Agent 的检查步骤           │
   │    【新 V11】子 Agent 完成时:                                   │
-  │      → 发送 SubtaskOutcome → AgentOS                          │
+  │      → 发送 SubtaskOutcome → Praxis                          │
   │                                                               │
   │  context compaction:                                          │
   │    职责: 长会话的自动摘要                                      │
@@ -396,7 +396,7 @@ function fuseConfidence(
     │  (知→行, 结构化JSON)    │  (知→行, 类型化元数据)   │  (行→知, 结构化反馈)
     │                         │                         │
   ┌─────────────────────────────────────────────────────────────┐
-  │                     AgentOS V11                               │
+  │                     Praxis V11                               │
   │                                                               │
   │  api/knowledge-query.ts:                                     │
   │    职责: 响应 planning-with-files 的知识查询                   │
@@ -452,8 +452,8 @@ function fuseConfidence(
 
 ## 九、兄弟文件
 
-- [What is AgentOS V11?](what-is.md) — V11 的工程定义
-- [Why AgentOS V11?](why.md) — 第一性原理：为什么需要知行合一闭环
+- [What is Praxis V11?](what-is.md) — V11 的工程定义
+- [Why Praxis V11?](why.md) — 第一性原理：为什么需要知行合一闭环
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — 四个接口的完整实现
 - [When does it operate?](when.md) — 2 Phase 实现路线图

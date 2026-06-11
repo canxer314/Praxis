@@ -1,4 +1,4 @@
-# Where does AgentOS V13 sit?
+# Where does Praxis V13 sit?
 
 > V13 在 V12 基础上添加 3 个新模块（orchestration/ 下 2 个 + services/ 下 1 个），修改 5 个模块，新增 2 个 AgentMemory slots。V12 模块零移除。`services/` 目录为 V13 新增。
 
@@ -7,7 +7,7 @@
 ## 一、完整模块树（V13）
 
 ```
-openclaw/src/plugins/agentos-plugin/
+openclaw/src/plugins/praxis-plugin/
 ├── index.ts                                 # [V13修改] +heartbeatMonitorService 注册
 ├── config.ts                                # [V13修改] +activeTriggering +subagentManagement +triggerAdapter 配置段
 │
@@ -206,8 +206,8 @@ session_start (V13 增量):
   [V12 完整流程: 加载状态 + 生成计划 + 注入上下文]
   0. 【V13 新增】触发源识别:
      ├── detectTriggerSource(ctx):
-     │   ├── systemEvents 含 "[AgentOS V13 自动触发]" → 'cron:scheduled'
-     │   ├── systemEvents 含 "[AgentOS V13 停滞检测]" → 'heartbeat:wake'
+     │   ├── systemEvents 含 "[Praxis V13 自动触发]" → 'cron:scheduled'
+     │   ├── systemEvents 含 "[Praxis V13 停滞检测]" → 'heartbeat:wake'
      │   └── 其他 → 'hook:session_start'
      ├── cron:scheduled → 注入 buildAutoTriggerNotice()
      ├── heartbeat:wake → 注入 buildHeartbeatWakeNotice()
@@ -244,7 +244,7 @@ heartbeat-monitor 检查循环 (V13 新增，后台 Service):
 
 | 维度 | V10 | V11 | V12 | V13 |
 |------|-----|-----|-----|-----|
-| 架构哲学 | 开环注入 | 四个结构化接口 | AgentOS 直接做任务分解 | **AgentOS 主动驱动任务执行** |
+| 架构哲学 | 开环注入 | 四个结构化接口 | Praxis 直接做任务分解 | **Praxis 主动驱动任务执行** |
 | 核心职能 | 记忆 | 记忆+学习 | 记忆+学习+编排 | **记忆+学习+编排+驱动** |
 | 驱动方式 | Hook(被动) | Hook(被动) | Hook(被动) | **5源驱动(Hook+Cron+Subagent+Heartbeat+Service)** |
 | 子任务执行 | 无 | 无 | 串行(inline) | **串行+并行(subagent)** |
@@ -297,8 +297,8 @@ V13 (全部激活):
 
 ## 兄弟文件
 
-- [What is AgentOS V13?](what-is.md) — V13 定义 + 四个核心职能
-- [Why AgentOS V13?](why.md) — 第一性原理：为什么被动响应不够
+- [What is Praxis V13?](what-is.md) — V13 定义 + 四个核心职能
+- [Why Praxis V13?](why.md) — 第一性原理：为什么被动响应不够
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — 三个新模块 + 五个修改模块的完整实现
 - [When does it operate?](when.md) — Phase 7-9 路线图（+5 周）

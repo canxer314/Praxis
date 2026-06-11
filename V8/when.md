@@ -1,4 +1,4 @@
-# When does AgentOS V8 operate?
+# When does Praxis V8 operate?
 
 > V8 的实现路线图因架构简化而缩短。V7 需要 4 个 Phase（~4-5 个月），V8 可以压缩为 3 个 Phase（~3 个月），因为删除了大量 token 妥协模块。
 
@@ -44,7 +44,7 @@ Phase 1 (MVP)                Phase 2                      Phase 3
 | **Cumulative Analyzer** | `transcript-analyzer.ts` — LLM 一步完成提取+构造 | P0 | 🟢 **合并** V7 的 proto-constructor + pattern-detector |
 | **Flat Context Organizer** | `context-organizer.ts` — 扁平化全量注入（Phase 1 先用最简单的扁平方案） | P0 | 🔄 替代 V7 的 context-builder + scene-matcher |
 | **Prediction Protocol** | `prediction-protocol.ts` — 同 V7 | P0 | 无变化 |
-| **手动固化审批** | `/agentos crystallize` 命令 | P1 | 无变化 |
+| **手动固化审批** | `/praxis crystallize` 命令 | P1 | 无变化 |
 | **Real-time Degradation** | `degradation-checker.ts` — session_end 内联检测 | P1 | 🟢 **增强**（V7 需要等到 Phase 3 才做 cron） |
 
 ### Phase 1 明确不做
@@ -72,7 +72,7 @@ Phase 1 (MVP)                Phase 2                      Phase 3
 |------|------|---------|
 | **Transcript 提取 vs Regex** | 同一批数据，regex 预标记 vs LLM 从 transcript 提取 → 比较 precision/recall | LLM 提取显著优于 regex → 确认删除 salience-marker |
 | **累积分析延迟** | 测量 N=1/3/5 次历史会话的 LLM 分析延迟 | 找到延迟 < 30s 的最大 N 值 → 设为默认 |
-| **扁平全量注入质量** | A/B 测试：开启 AgentOS vs 关闭 → 比较 Agent 回复质量 | 开启后质量不下降 → 确认全量注入安全 |
+| **扁平全量注入质量** | A/B 测试：开启 Praxis vs 关闭 → 比较 Agent 回复质量 | 开启后质量不下降 → 确认全量注入安全 |
 
 ---
 
@@ -91,7 +91,7 @@ Phase 1 (MVP)                Phase 2                      Phase 3
 | **A/B 测试框架** | 扁平化 vs 层级化的对比测试 | P0 |
 | **Auto Crystallization** | 自动固化阶梯（tier 1 + tier 2） | P1 |
 | **Degradation Deep Check** | 每周 cron（保留 V7 的深度检测） | P1 |
-| **Governance Policy UI** | `/agentos config` — 运维者配置风险偏好 | P1 |
+| **Governance Policy UI** | `/praxis config` — 运维者配置风险偏好 | P1 |
 
 ### Phase 2 关键实验
 
@@ -126,7 +126,7 @@ Phase 1 (MVP)                Phase 2                      Phase 3
 | **Local Cache** | `local-cache.ts` — AgentMemory 降级 | P0 |
 | **成本监控** | session_end 分析的成本追踪 + `max_monthly_analysis_cost` 限制 | P1 |
 | **注意力预算调优** | 基于 Phase 2 实验数据优化层级化组织的参数 | P1 |
-| **运维者仪表盘** | `/agentos architecture status/proposals/rollback` | P1 |
+| **运维者仪表盘** | `/praxis architecture status/proposals/rollback` | P1 |
 
 ### Phase 3 验证标准
 
@@ -178,8 +178,8 @@ Phase 1 (MVP)                Phase 2                      Phase 3
 
 ## 兄弟文件
 
-- [What is AgentOS V8?](what-is.md) — V8 的工程定义
-- [Why AgentOS V8?](why.md) — 第一性原理：为什么 1M 上下文改变了架构
+- [What is Praxis V8?](what-is.md) — V8 的工程定义
+- [Why Praxis V8?](why.md) — 第一性原理：为什么 1M 上下文改变了架构
 - [Who is it for?](who.md) — 角色职责的变化
 - [How does it work?](how.md) — 层级化组织、统计验证、双信号融合
 - [Where does it sit?](where.md) — 模块树（删除 + 新增 + 修改）

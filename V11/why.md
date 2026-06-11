@@ -1,30 +1,30 @@
-# Why AgentOS V11?
+# Why Praxis V11?
 
-> 从第一性原理出发，分析为什么 V10 的"开环上下文注入"不足以实现真正的知行合一，为什么需要在 AgentOS 和 OpenClaw 之间建立四个结构化接口。
+> 从第一性原理出发，分析为什么 V10 的"开环上下文注入"不足以实现真正的知行合一，为什么需要在 Praxis 和 OpenClaw 之间建立四个结构化接口。
 
 ---
 
 ## 一、不可否认的工程基础
 
 ```
-事实 1: V10 的 AgentOS 学会了 ProtoTask（"医院系统开发通常有 5 个阶段"），
+事实 1: V10 的 Praxis 学会了 ProtoTask（"医院系统开发通常有 5 个阶段"），
         但这个知识只能以 prompt 文本形式注入 LLM 的上下文窗口。
         planning-with-files 的任务计划文件不知道这个知识存在。
 
 事实 2: V10 的置信度更新仅基于观察频次和 LLM 标记。
-        AgentOS 不知道它学到的结构在实践中是成功还是失败。
+        Praxis 不知道它学到的结构在实践中是成功还是失败。
         一个被频繁观察但总是导致失败的结构，置信度可能虚高。
 
 事实 3: V10 的学习只在 session_end 触发。
-        如果 AgentOS 在会话开始注入了错误的结构，
+        如果 Praxis 在会话开始注入了错误的结构，
         它会在整个会话中持续误导 LLM，直到会话结束才能修正。
 
-事实 4: AgentOS 和 OpenClaw 之间的唯一结构化接口是 TaskContext (~200 tokens)。
+事实 4: Praxis 和 OpenClaw 之间的唯一结构化接口是 TaskContext (~200 tokens)。
         其他所有信息流都是非结构化的 prompt 文本——
         LLM 可以读，但 planning-with-files 和 OpenClaw 调度器不能消费。
 
-事实 5: 这四个问题不要求 AgentOS 跨界做任务执行。
-        它们只要求在"知"（AgentOS）和"行"（OpenClaw/planning-with-files）
+事实 5: 这四个问题不要求 Praxis 跨界做任务执行。
+        它们只要求在"知"（Praxis）和"行"（OpenClaw/planning-with-files）
         之间建立更厚的结构化接口。
 ```
 
@@ -36,10 +36,10 @@
 
 ```
 断裂 1: 知不能有效进入行
-  场景: AgentOS 从 3 次医院系统开发中学到了 ProtoTask——
+  场景: Praxis 从 3 次医院系统开发中学到了 ProtoTask——
         "Phase 2 API 开发阶段，医保对接模块是最大的陷阱"。
   V10:  用户启动第 4 个医院系统项目，planning-with-files 创建计划。
-        AgentOS 将 ProtoTask 作为 prompt 片段注入 LLM 上下文。
+        Praxis 将 ProtoTask 作为 prompt 片段注入 LLM 上下文。
         但 planning-with-files 的任务计划文件中没有任何陷阱预警——
         因为 planning-with-files 不消费 prompt 文本。
         → 如果 LLM 忽略了这段 prompt（在复杂任务中很可能），
@@ -55,10 +55,10 @@
         → 结果信息丢失了与认知结构的关联。
 
 断裂 3: 知在行动中无法自我修正
-  场景: AgentOS 注入了 ProtoSequence "门诊流程: 挂号→等待→问诊→检查→开药"。
+  场景: Praxis 注入了 ProtoSequence "门诊流程: 挂号→等待→问诊→检查→开药"。
         但用户在第 3 条消息中说"不对，现在我们医院改了流程，
         挂号之后直接分诊到专科"。
-  V10:  LLM 看到了纠正，调整了行为。但 AgentOS 不知道——
+  V10:  LLM 看到了纠正，调整了行为。但 Praxis 不知道——
         它要等到 session_end 分析 transcript 时才发现这个矛盾，
         而这个错误的结构在本次会话中已经持续影响了 LLM 的行为。
         → 修正延迟了一个完整会话。
@@ -68,7 +68,7 @@
 
 ```
 正确的诊断:
-  AgentOS = 记忆/认知系统 (知) ←→ OpenClaw = 执行系统 (行)
+  Praxis = 记忆/认知系统 (知) ←→ OpenClaw = 执行系统 (行)
   这个边界本身是正确的。
   
   错误的是: 两者之间的接口只有一个 ~200 tokens 的 TaskContext。
@@ -85,19 +85,19 @@
 
 ### 接口 1：知识查询 API — 必要性论证
 
-**如果没有**：planning-with-files 只能依赖 LLM 的通用知识做任务分解。做了 10 次同类项目后，AgentOS 学到了团队特定的陷阱和阶段模式，但这些知识无法进入任务计划——它们停留在 LLM 的上下文窗口中，随着会话结束而消失。
+**如果没有**：planning-with-files 只能依赖 LLM 的通用知识做任务分解。做了 10 次同类项目后，Praxis 学到了团队特定的陷阱和阶段模式，但这些知识无法进入任务计划——它们停留在 LLM 的上下文窗口中，随着会话结束而消失。
 
-**有了之后**：planning-with-files 在创建计划时主动查询 AgentOS："这类任务通常有哪些阶段？每个阶段需要注意什么？"AgentOS 返回基于真实项目历史的结构化答案——不是 LLM 的通用猜测。
+**有了之后**：planning-with-files 在创建计划时主动查询 Praxis："这类任务通常有哪些阶段？每个阶段需要注意什么？"Praxis 返回基于真实项目历史的结构化答案——不是 LLM 的通用猜测。
 
-⚠️ 此处存在不确定性：planning-with-files 是否在架构上能够调用 AgentOS 的查询端点？这取决于 OpenClaw plugin 系统是否支持 skill→plugin 的函数调用。如果不支持，可能需要通过 AgentMemory slot 作为中介（planning-with-files 读 slot → AgentOS 写 slot）。
+⚠️ 此处存在不确定性：planning-with-files 是否在架构上能够调用 Praxis 的查询端点？这取决于 OpenClaw plugin 系统是否支持 skill→plugin 的函数调用。如果不支持，可能需要通过 AgentMemory slot 作为中介（planning-with-files 读 slot → Praxis 写 slot）。
 
 ### 接口 2：认知指导信号 — 必要性论证
 
-**如果没有**：AgentOS 的指导是 prompt 文本。LLM 可以遵循也可以忽略。OpenClaw 调度器完全看不到。例如 ProtoTask 说"Phase 2 通常需要 3 个子 Agent 并行"，但 OpenClaw 不知道——它按默认策略调度。
+**如果没有**：Praxis 的指导是 prompt 文本。LLM 可以遵循也可以忽略。OpenClaw 调度器完全看不到。例如 ProtoTask 说"Phase 2 通常需要 3 个子 Agent 并行"，但 OpenClaw 不知道——它按默认策略调度。
 
 **有了之后**：GuidanceSignal 是类型化的元数据。LLM 在 prompt 中看到自然语言版本，OpenClaw 可以解析结构化版本。例如一个 `phase_suggestion` 信号可以包含 `suggested_action: "spawn 3 parallel sub-agents for API endpoints"`——OpenClaw 据此调整调度策略。
 
-**关键限制**：GuidanceSignal 的 `suggested_action` 是"建议"而非"指令"。OpenClaw 可以忽略。这是刻意的——AgentOS 的置信度可能不够高，不应强制执行。但如果采纳率 < 30%（见可证伪预测），接口 2 的价值就有限。
+**关键限制**：GuidanceSignal 的 `suggested_action` 是"建议"而非"指令"。OpenClaw 可以忽略。这是刻意的——Praxis 的置信度可能不够高，不应强制执行。但如果采纳率 < 30%（见可证伪预测），接口 2 的价值就有限。
 
 ### 接口 3：任务结果反馈 — 必要性论证
 
@@ -109,7 +109,7 @@
 
 ### 接口 4：会话中实时学习 — 必要性论证
 
-**如果没有**：错误结构在会话中持续为害。用户纠正了 LLM，但 AgentOS 没有听到。
+**如果没有**：错误结构在会话中持续为害。用户纠正了 LLM，但 Praxis 没有听到。
 
 **有了之后**：用户纠正 → 即时置信度下调。错误结构在本次会话中就被削弱。主要的结构更新仍在 session_end（深度分析），但"紧急修正"不再需要等待。
 
@@ -132,7 +132,7 @@ V11 的 ProtoTask 必须是 Phase 1 的核心交付。
   那么这四个接口中有两个在绝大部分场景下是空转的。
   
   Bootstrap 机制（零样本 LLM 通用知识）解决了冷启动问题:
-    即使从未做过同类项目，AgentOS 也能提供基本可用的 ProtoTask
+    即使从未做过同类项目，Praxis 也能提供基本可用的 ProtoTask
     （置信度 0.2，标记来源: llm_general_knowledge）。
     
   这不是"虚假的知识"——这是"标注了低置信度的通用知识"。
@@ -146,8 +146,8 @@ V11 的 ProtoTask 必须是 Phase 1 的核心交付。
 **反方论点**："四个结构化接口是过度设计。LLM 足够聪明，能从 prompt 文本中提取关键信息。planning-with-files 的 markdown 文件 + LLM 读取已经能完成任务协调。增加接口复杂度带来的收益不值得维护成本。"
 
 **回应**：
-1. "LLM 能从 prompt 提取关键信息"这个假设在复杂任务中不成立。当上下文窗口被 300K tokens 的对话历史填满时，AgentOS 的 prompt 注入可能被淹没在噪声中。结构化信号不受此影响——OpenClaw 在注入 prompt 之前就解析了 GuidanceSignal 并据此调整调度策略。
-2. planning-with-files 的 markdown 文件是"死"的——它们回显你写的内容。AgentOS 的 ProtoTask 是"活"的——它从实际项目历史中学习。这是质的差异，不是量的差异。
+1. "LLM 能从 prompt 提取关键信息"这个假设在复杂任务中不成立。当上下文窗口被 300K tokens 的对话历史填满时，Praxis 的 prompt 注入可能被淹没在噪声中。结构化信号不受此影响——OpenClaw 在注入 prompt 之前就解析了 GuidanceSignal 并据此调整调度策略。
+2. planning-with-files 的 markdown 文件是"死"的——它们回显你写的内容。Praxis 的 ProtoTask 是"活"的——它从实际项目历史中学习。这是质的差异，不是量的差异。
 3. 维护成本：5 个新模块（4 个接口 + ProtoTask），~400 行新代码。这不是一个大的增量。V9 增加了 7 个新模块——V11 的增量更小。
 
 **什么证据会推翻当前结论？**
@@ -168,7 +168,7 @@ V11 的 ProtoTask 必须是 Phase 1 的核心交付。
 
 ## 兄弟文件
 
-- [What is AgentOS V11?](what-is.md) — V11 的工程定义
+- [What is Praxis V11?](what-is.md) — V11 的工程定义
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — 四个接口的完整实现
 - [When does it operate?](when.md) — 2 Phase 实现路线图

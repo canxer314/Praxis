@@ -1,4 +1,4 @@
-# Where does AgentOS V10 sit?
+# Where does Praxis V10 sit?
 
 > V10 在 V9 基础上的最小扩展：1 个新模块、1 个新 slot、2 个微调的 Hook。
 
@@ -7,7 +7,7 @@
 ## 一、完整模块树
 
 ```
-openclaw/src/plugins/agentos-plugin/
+openclaw/src/plugins/praxis-plugin/
 ├── index.ts
 ├── config.ts                              # [增强] task_context + proto_task 配置
 │
@@ -146,8 +146,8 @@ session_end (V10 微调):
 
 ## 四、兄弟文件
 
-- [What is AgentOS V10?](what-is.md) — V10 的工程定义
-- [Why AgentOS V10?](why.md) — 第一性原理：为什么需要任务级认知
+- [What is Praxis V10?](what-is.md) — V10 的工程定义
+- [Why Praxis V10?](why.md) — 第一性原理：为什么需要任务级认知
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — TaskContext 注入、ProtoTask 构造
 - [When does it operate?](when.md) — 2 Phase 实现路线图

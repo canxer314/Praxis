@@ -1,4 +1,4 @@
-# When does AgentOS V5 operate?
+# When does Praxis V5 operate?
 
 ## V5 触发模型：V4 全部保留 + 结构进化生命周期
 
@@ -71,7 +71,7 @@ Meta (V5 新增)         定期结构审计 (每周 cron)             ❌    ✅
 │  │                                                       │   │
 │  │ 触发: 用户在活跃会话中收到 Proposal                   │   │
 │  │                                                       │   │
-│  │ AgentOS 呈交:                                          │   │
+│  │ Praxis 呈交:                                          │   │
 │  │   "我注意到 [场景类型] 我一直处理不好。               │   │
 │  │    这是我的分析：[根因]。                              │   │
 │  │    我设计了一种新的处理方式：[候选结构概要]。          │   │
@@ -213,22 +213,22 @@ V5 新增:
 
 | 命令 | 功能 |
 |------|------|
-| `/agentos structures` | 查看认知结构注册表（所有结构 + 状态 + 版本） |
-| `/agentos structure <id>` | 查看某个结构的详细信息 |
-| `/agentos structure <id> approve` | 批准候选结构进入实验 |
-| `/agentos structure <id> reject` | 拒绝候选结构 |
-| `/agentos structure <id> rollback` | 回滚固化结构到上一版本 |
-| `/agentos gaps structural` | 查看已识别的结构缺口 |
-| `/agentos experiments` | 查看进行中的结构实验 |
-| `/agentos governance` | 查看/修改治理策略 |
+| `/praxis structures` | 查看认知结构注册表（所有结构 + 状态 + 版本） |
+| `/praxis structure <id>` | 查看某个结构的详细信息 |
+| `/praxis structure <id> approve` | 批准候选结构进入实验 |
+| `/praxis structure <id> reject` | 拒绝候选结构 |
+| `/praxis structure <id> rollback` | 回滚固化结构到上一版本 |
+| `/praxis gaps structural` | 查看已识别的结构缺口 |
+| `/praxis experiments` | 查看进行中的结构实验 |
+| `/praxis governance` | 查看/修改治理策略 |
 
 ---
 
 ## 兄弟文件
 
-- [What is AgentOS V5?](what-is.md) — 它是什么
+- [What is Praxis V5?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 人类角色的转变
-- [Why AgentOS V5?](why.md) — 为什么需要 Meta Layer
+- [Why Praxis V5?](why.md) — 为什么需要 Meta Layer
 - [How does it work?](how.md) — Meta Layer 三个子系统详解
 - [Where does it sit?](where.md) — Meta Layer 的位置
 - [Architecture Design](design.md) — V5 架构设计文档

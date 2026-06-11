@@ -1,4 +1,4 @@
-# How does AgentOS V8 work?
+# How does Praxis V8 work?
 
 > V8 的核心工程实现：层级化上下文组织、统计验证器、双信号置信度融合、累积 transcript 分析、自动固化阶梯。
 
@@ -9,9 +9,9 @@
 ### 1.1 插件入口
 
 ```typescript
-export default function agentosPlugin(config: AgentOSConfig): OpenClawPlugin {
+export default function praxisPlugin(config: PraxisConfig): OpenClawPlugin {
   return {
-    name: 'agentos',
+    name: 'praxis',
     version: '8.0.0',
 
     hooks: {
@@ -51,7 +51,7 @@ interface SceneRecognitionResult {
 function recognizeScene(
   messages: Message[],
   knownScenarios: ScenarioProfile[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): SceneRecognitionResult {
 
   // Step 1: 提取场景特征
@@ -115,7 +115,7 @@ function organizeContext(
   protoStructures: ProtoStructure[],
   cognitiveStructures: CognitiveStructure[],
   pendingQuestions: Question[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): OrganizedContext {
 
   // ── Layer 1: 场景索引 ──
@@ -134,7 +134,7 @@ function organizeContext(
     : `匹配置信度: ${sceneRecognition.recognition_confidence.toFixed(2)}`;
 
   const layer1_index = `
-# AgentOS 认知状态
+# Praxis 认知状态
 
 ## 已知场景
 ${scenarioSummaries}
@@ -291,7 +291,7 @@ interface StatisticalVerificationResult {
 function verifyProtoSequence(
   protoSequence: ProtoStructure,   // proto_type = 'sequence'
   toolTrace: ToolTraceEntry[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): StatisticalVerificationResult {
 
   const steps = protoSequence.sequence_steps ?? [];
@@ -536,7 +536,7 @@ async function analyzeTranscripts(
   currentTranscript: SessionTranscript,
   historicalTranscripts: SessionTranscript[],
   existingProtos: ProtoStructure[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): Promise<{
   newElements: SalientElement[];
   updatedProtos: ProtoStructure[];
@@ -571,7 +571,7 @@ function buildCumulativeAnalysisPrompt(
   existingProtos: ProtoStructure[]
 ): string {
   return `
-你是 AgentOS 的认知分析模块。你的任务是分析同一场景的多次完整对话记录，
+你是 Praxis 的认知分析模块。你的任务是分析同一场景的多次完整对话记录，
 从中提取认知元素并更新认知结构。
 
 ## 场景信息
@@ -659,7 +659,7 @@ ${existingProtos.map(p => `
 
 async function checkCrystallization(
   protos: ProtoStructure[],
-  config: AgentOSConfig,
+  config: PraxisConfig,
   monthlyAutoCount: number
 ): Promise<CrystallizationAction[]> {
 
@@ -821,7 +821,7 @@ class LocalCache {
         await this.markSynced(entry.key);
         synced++;
       } catch (e) {
-        console.warn(`[AgentOS] Failed to sync ${entry.key}: ${e}`);
+        console.warn(`[Praxis] Failed to sync ${entry.key}: ${e}`);
       }
     }
 
@@ -849,7 +849,7 @@ interface LifecycleAction {
 async function checkStructureLifecycle(
   protoStructures: ProtoStructure[],
   cognitiveStructures: CognitiveStructure[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): Promise<LifecycleAction[]> {
 
   const actions: LifecycleAction[] = [];
@@ -913,7 +913,7 @@ async function analyzeTranscriptsAdaptive(
   currentTranscript: SessionTranscript,
   observationCount: number,
   existingProtos: ProtoStructure[],
-  config: AgentOSConfig
+  config: PraxisConfig
 ): Promise<AnalysisResult> {
 
   const strategy = getAnalysisStrategy(observationCount);
@@ -946,8 +946,8 @@ async function analyzeTranscriptsAdaptive(
 
 ## 兄弟文件
 
-- [What is AgentOS V8?](what-is.md) — V8 的工程定义
-- [Why AgentOS V8?](why.md) — 第一性原理：为什么 1M 上下文改变了架构
+- [What is Praxis V8?](what-is.md) — V8 的工程定义
+- [Why Praxis V8?](why.md) — 第一性原理：为什么 1M 上下文改变了架构
 - [Who is it for?](who.md) — 角色职责的变化
 - [When does it operate?](when.md) — 简化的实现路线图
 - [Where does it sit?](where.md) — 模块树（删除 + 新增 + 修改）

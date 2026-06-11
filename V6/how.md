@@ -1,4 +1,4 @@
-# How does AgentOS V6 work?
+# How does Praxis V6 work?
 
 ## 总览：V5 全部保留 + Proto-Cognitive Engine + 层自修改
 
@@ -9,7 +9,7 @@ V6 保留 V5 的全部架构（Meta Layer + V4 六层 + 四子系统），新增
 │                   OpenClaw Agent Loop                         │
 │                                                               │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │              AgentOS Memory Plugin (V6)                  │  │
+│  │              Praxis Memory Plugin (V6)                  │  │
 │  │                                                          │  │
 │  │  Meta Layer:                                             │  │
 │  │  ├─ V5: Structural Detector + Constructor + Registry    │  │
@@ -37,7 +37,7 @@ V6 保留 V5 的全部架构（Meta Layer + V4 六层 + 四子系统），新增
 │  触发: 场景匹配 → 所有 CognitiveStructure 适配度 = 0     │
 │                                                           │
 │  Step 1: 声明零先验状态                                   │
-│  ├─ AgentOS 向用户声明:                                   │
+│  ├─ Praxis 向用户声明:                                   │
 │  │  "这是我完全不了解的场景。我会先观察和学习。"          │
 │  └─ 设置认知模式: "open_perception" (非"matching")       │
 │                                                           │
@@ -200,7 +200,7 @@ V6 保留 V5 的全部架构（Meta Layer + V4 六层 + 四子系统），新增
 
 ## 层自修改流程
 
-V6 允许 AgentOS 在人类治理下修改自己的架构组织方式。
+V6 允许 Praxis 在人类治理下修改自己的架构组织方式。
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -223,7 +223,7 @@ V6 允许 AgentOS 在人类治理下修改自己的架构组织方式。
 │  Step 3: 多级审批                                          │
 │  ├─ Level 3-4: 用户 + 运维者双重审核                     │
 │  ├─ Level 5: 同上 + 外部专家可选                          │
-│  ├─ Level 6: 人类手动修改（AgentOS 不能提议）             │
+│  ├─ Level 6: 人类手动修改（Praxis 不能提议）             │
 │  └─ 所有级别: 需要回滚方案                                │
 │                                                           │
 │  Step 4: 受控实施                                          │
@@ -234,7 +234,7 @@ V6 允许 AgentOS 在人类治理下修改自己的架构组织方式。
 │                                                           │
 │  Step 5: 版本管理                                          │
 │  ├─ 架构版本号: major.minor.patch                         │
-│  │  • patch: 参数调整 (AgentOS 自主)                      │
+│  │  • patch: 参数调整 (Praxis 自主)                      │
 │  │  • minor: 新结构增加/结构修改 (人类审核)               │
 │  │  • major: 层定义/组织方式变化 (双重审核)               │
 │  └─ 完整回滚路径: 任何一个版本都可以降级回去              │
@@ -284,7 +284,7 @@ V6 允许 AgentOS 在人类治理下修改自己的架构组织方式。
   • DomainKnowledge "医疗健康" familiarity: 0.75
   • Role "医生" v3 / Role "护士" v2 / Role "药剂师" v1
   
-  AgentOS 从"医院是什么都不知道"变成了"医院就诊专家"。
+  Praxis 从"医院是什么都不知道"变成了"医院就诊专家"。
   没有人类为它设计任何一个模板——它自己观察、自己构造、自己精化。
   人类做的只是回答它的感知性问题、纠正它的错误假设、审核它的固化提案。
 ```
@@ -293,9 +293,9 @@ V6 允许 AgentOS 在人类治理下修改自己的架构组织方式。
 
 ## 兄弟文件
 
-- [What is AgentOS V6?](what-is.md) — 它是什么
+- [What is Praxis V6?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 人类作为递归终止条件
-- [Why AgentOS V6?](why.md) — 为什么需要 Proto-Cognitive Engine
+- [Why Praxis V6?](why.md) — 为什么需要 Proto-Cognitive Engine
 - [When does it operate?](when.md) — 零先验场景生命周期
 - [Where does it sit?](where.md) — 原型→固化的演化路径
 - [Architecture Design](design.md) — V6 架构设计文档

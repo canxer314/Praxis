@@ -1,4 +1,4 @@
-# Why AgentOS?
+# Why Praxis?
 
 ## 根本问题
 
@@ -36,7 +36,7 @@
 
 ## 当前痛点
 
-| 没有 AgentOS | 有 AgentOS |
+| 没有 Praxis | 有 Praxis |
 |-------------|-----------|
 | 每次对话重新教 AI 你的偏好 | AI 记得你的咖啡口味、代码风格、PPT 偏好 |
 | AI 重复犯同样的错误 | 错误被记录和规避 |
@@ -48,12 +48,12 @@
 ## 一个不可否认的事实
 
 > 一个有 N 个工具的 AI，如果不积累经验，在每次使用任何工具时都像第一次一样。
-> AgentOS 的价值在于让第 100 次使用咖啡机比第 1 次更好——
+> Praxis 的价值在于让第 100 次使用咖啡机比第 1 次更好——
 > 不管这个"更好"意味着更快、更符合用户口味、还是更少出错。
 
 ## 兄弟文件
 
-- [What is AgentOS?](what-is.md) — 它是什么
+- [What is Praxis?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 谁在使用？谁是那个"自己"？
 - [How does it work?](how.md) — 六层架构详解
 - [When does it operate?](when.md) — 生命周期和触发点

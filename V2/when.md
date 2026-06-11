@@ -1,15 +1,15 @@
-# When does AgentOS V2 operate?
+# When does Praxis V2 operate?
 
 ## V2 触发模型：Hook-Driven Lifecycle
 
-V1 中 AgentOS 在 Claude Code 的 Harness Hook 上运行。V2 中触发点全部迁移到 OpenClaw 的 Plugin Hook System。
+V1 中 Praxis 在 Claude Code 的 Harness Hook 上运行。V2 中触发点全部迁移到 OpenClaw 的 Plugin Hook System。
 
 ### OpenClaw Hook 映射
 
-OpenClaw 提供 25+ 个 plugin hook。AgentOS 使用其中 5 个核心 hook：
+OpenClaw 提供 25+ 个 plugin hook。Praxis 使用其中 5 个核心 hook：
 
 ```
-OpenClaw Hook              AgentOS 动作                      V1 对应
+OpenClaw Hook              Praxis 动作                      V1 对应
 ─────────────────────────────────────────────────────────────────────
 session_start             加载能力模型 + 注入上下文          SessionStart Hook
 before_tool_call          查询自主性策略 + 注入已知陷阱       PostToolUse (pre)
@@ -24,7 +24,7 @@ session_end               会话反思 + 保存 mental_state        SessionEnd (
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│                  AgentOS V2 Lifecycle                        │
+│                  Praxis V2 Lifecycle                        │
 │  (All trigger points are OpenClaw Plugin Hooks)             │
 │                                                              │
 │  OPENCLAW SESSION START ──────────────────────────────────▶ │
@@ -34,7 +34,7 @@ session_end               会话反思 + 保存 mental_state        SessionEnd (
 │    │   ├─ memory_slot_get("autonomy_policy")                 │
 │    │   ├─ memory_slot_get("tool_registry")                   │
 │    │   ├─ memory_smart_search("mental_state", limit=3)       │
-│    │   └─ 注入 AgentOS Context 到 OpenClaw system prompt     │
+│    │   └─ 注入 Praxis Context 到 OpenClaw system prompt     │
 │    │                                                         │
 │    │   ┌─── WORK PHASE (OpenClaw Agent Loop) ──────────┐    │
 │    │   │                                                │    │
@@ -92,7 +92,7 @@ session_end               会话反思 + 保存 mental_state        SessionEnd (
 | 加载自主性策略 | 每次会话开始 | 是 | `memory_slot_get("autonomy_policy")` |
 | 加载工具注册表 | 每次会话开始 | 是 | `memory_slot_get("tool_registry")` |
 | 恢复思维状态 | 每次会话开始 | 是 | `memory_smart_search("mental_state", 3)` |
-| 注入系统提示 | 每次会话开始 | 是 | 格式化 AgentOS Context 块到 system prompt |
+| 注入系统提示 | 每次会话开始 | 是 | 格式化 Praxis Context 块到 system prompt |
 
 **重要**：按照 OpenClaw 的性能准则，所有高频数据在 session_start 时一次性批量加载，会话期间不再重复调用 AgentMemory。在 plugin 内存中缓存，避免 "repeated request-time discovery"。
 
@@ -166,7 +166,7 @@ OpenClaw 会话关闭时触发。
 
 | 场景 | 处理 |
 |------|------|
-| AgentMemory MCP 连接断开 | AgentOS 降级为内存模式（本会话内有效，会话结束后丢失） |
+| AgentMemory MCP 连接断开 | Praxis 降级为内存模式（本会话内有效，会话结束后丢失） |
 | session_start 加载失败 | 使用上次已知的能力模型（从 OpenClaw 本地缓存） |
 | agent_end 写入失败 | 重试 3 次，仍失败则保留在本地 pending queue，下次 session 重试 |
 | before_tool_call 超时 | 默认降级为 "inform"（不阻塞工具执行） |
@@ -180,16 +180,16 @@ OpenClaw 会话关闭时触发。
 | 每次 agent_end | 学习事件批量写入 | agent_end hook |
 | 每次 session_end | 技能评估校准 | session_end hook |
 | 每天 | 知识固化 | AgentMemory consolidation pipeline |
-| 每周 | 能力缺口分析 | OpenClaw cron + AgentOS analysis skill |
-| 每月 | 能力模型审计 | OpenClaw cron + AgentOS audit skill |
+| 每周 | 能力缺口分析 | OpenClaw cron + Praxis analysis skill |
+| 每月 | 能力模型审计 | OpenClaw cron + Praxis audit skill |
 
 ---
 
 ## 兄弟文件
 
-- [What is AgentOS V2?](what-is.md) — 它是什么
+- [What is Praxis V2?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 谁在使用？
-- [Why AgentOS V2?](why.md) — 为什么是这个组合
-- [How does it work?](how.md) — AgentOS Plugin 架构详解
+- [Why Praxis V2?](why.md) — 为什么是这个组合
+- [How does it work?](how.md) — Praxis Plugin 架构详解
 - [Where does it sit?](where.md) — 架构定位与系统关系
 - [Architecture Design](design.md) — V2 集成架构设计文档

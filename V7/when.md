@@ -1,4 +1,4 @@
-# When does AgentOS V7 operate?
+# When does Praxis V7 operate?
 
 > V7 定义了分阶段实现路线图。每个 Phase 独立可交付、独立可验证价值。
 
@@ -29,7 +29,7 @@ Phase 1 (MVP)           Phase 2               Phase 3               Phase 4
 ## Phase 1: 基础记忆 + 静默观察（2-3 周）
 
 ### 目标
-验证 AgentOS 能否在真实使用中正确采集和存储 SalientElement，不引入明显延迟。
+验证 Praxis 能否在真实使用中正确采集和存储 SalientElement，不引入明显延迟。
 
 ### 交付物
 
@@ -40,7 +40,7 @@ Phase 1 (MVP)           Phase 2               Phase 3               Phase 4
 | **SalientElement 存储** | AgentMemory `memory_save(type="salient_element")` | P0 |
 | **记忆 buffer** | 会话内临时存储（不跨会话可见） | P0 |
 | **session_end 精化** | 去重 + 过滤 + 分类 + 持久化 | P0 |
-| **感知仪表盘** | `/agentos perceive` 命令 — 查看当前场景的观察状态 | P1 |
+| **感知仪表盘** | `/praxis perceive` 命令 — 查看当前场景的观察状态 | P1 |
 | **session_start 加载** | 加载 active_proto_structures（此时为空） | P1 |
 
 ### Phase 1 明确不做
@@ -57,14 +57,14 @@ Phase 1 (MVP)           Phase 2               Phase 3               Phase 4
 ✅ SalientElement 准确率（人工 review 20 个元素 → 至少 60% "确实是 salient"）
 ✅ session_end 延迟 < 2 秒（仅本地处理 + AgentMemory 写操作）
 ✅ message_received 额外延迟 < 50ms（仅正则 + 内存操作）
-✅ 不影响 Agent 的正常回复质量（A/B 对比测试: 开启/关闭 AgentOS 时的回复质量无差异）
+✅ 不影响 Agent 的正常回复质量（A/B 对比测试: 开启/关闭 Praxis 时的回复质量无差异）
 ```
 
 ### Phase 1 关键风险
 
 | 风险 | 缓解 |
 |------|------|
-| 本地预标记质量差（噪声 > 80%） | Phase 1 让用户手动 review `/agentos perceive` 的前 20 个元素，人工校准正则规则 |
+| 本地预标记质量差（噪声 > 80%） | Phase 1 让用户手动 review `/praxis perceive` 的前 20 个元素，人工校准正则规则 |
 | AgentMemory 写操作在 session_end 中超时 | 使用 memory_slot_append 而非逐个 memory_save；批量写入 |
 
 ---
@@ -87,7 +87,7 @@ Phase 1 (MVP)           Phase 2               Phase 3               Phase 4
 | **系统提示注入** | 零先验场景 → 注入 open-perception + proto-structure 模板 | P0 |
 | **感知摘要** | session_start 时如果 ProtoStructure 更新 → 展示感知摘要 | P1 |
 | **主动提问框架** | 待验证问题 → 注入系统提示 → Agent 在合适时机提问 | P1 |
-| **原型仪表盘** | `/agentos proto <id>` 查看置信度历史 | P1 |
+| **原型仪表盘** | `/praxis proto <id>` 查看置信度历史 | P1 |
 
 ### Phase 2 明确不做
 
@@ -126,12 +126,12 @@ Phase 1 (MVP)           Phase 2               Phase 3               Phase 4
 | 模块 | 内容 | 优先级 |
 |------|------|--------|
 | **固化提案生成器** | 置信度达标 → 数据格式转换 → 提案 | P0 |
-| **固化审批流程** | `/agentos crystallize approve/reject/edit` | P0 |
+| **固化审批流程** | `/praxis crystallize approve/reject/edit` | P0 |
 | **固化执行器** | 批准 → 数据从 proto slot 移到 structure_registry slot | P0 |
 | **退化检测器** | `degradation-checker.ts` — 准确率/反例/用户标记 | P0 |
 | **退化执行器** | structure → degraded → proto（保留数据） | P0 |
 | **每周 cron** | pattern_audit + degradation_check cron 任务 | P1 |
-| **置信度仪表盘** | `/agentos perceive` 增强版（含趋势图描述） | P1 |
+| **置信度仪表盘** | `/praxis perceive` 增强版（含趋势图描述） | P1 |
 | **用户纠正处理** | 用户说"不对" → 高权重信号直接调整置信度 | P1 |
 | **学习事件完整记录** | 23 种学习事件类型全部实现 | P1 |
 
@@ -175,9 +175,9 @@ Phase 1 (MVP)           Phase 2               Phase 3               Phase 4
 | **架构审计器** | `architecture-auditor.ts` — 每月分析 ArchitectureGap | P0 |
 | **架构版本管理** | `architecture_version` slot + 版本号规则 (major.minor.patch) | P0 |
 | **回归护栏** | 核心指标监控 + 退化 > 5% → 自动暂停 + 通知 | P0 |
-| **紧急冻结** | `/agentos architecture freeze/unfreeze` | P0 |
+| **紧急冻结** | `/praxis architecture freeze/unfreeze` | P0 |
 | **Level 3 结构重组** | CognitiveStructure 间关系管理（非代码级重构） | P1 |
-| **运维者仪表盘** | `/agentos architecture status/proposals/rollback` | P1 |
+| **运维者仪表盘** | `/praxis architecture status/proposals/rollback` | P1 |
 | **结构演化追溯** | `StructureEvolution` 完整记录 → 可追溯任何结构的演化路径 | P1 |
 | **外部审核流程** | Level 5 变更的外部专家审核工作流（基础版） | P2 |
 
@@ -185,14 +185,14 @@ Phase 1 (MVP)           Phase 2               Phase 3               Phase 4
 
 - ❌ Level 4-6 的代码级架构自修改（defer 到后续版本）
 - ❌ 外部专家审核的自动化（仅提供流程框架）
-- ❌ 跨 AgentOS 实例的结构共享
+- ❌ 跨 Praxis 实例的结构共享
 
 ### Phase 4 验证标准
 
 ```
 ✅ 回归护栏: 模拟核心指标退化 8% → 自动暂停触发（10 分钟内）
-✅ 紧急冻结: /agentos architecture freeze → Level 3+ 修改全部暂停
-✅ 版本回滚: /agentos architecture rollback v1.2.0 → 成功恢复旧版本的结构集合
+✅ 紧急冻结: /praxis architecture freeze → Level 3+ 修改全部暂停
+✅ 版本回滚: /praxis architecture rollback v1.2.0 → 成功恢复旧版本的结构集合
 ✅ 审计报告: 每月生成一份可读的架构健康报告
 ```
 
@@ -234,7 +234,7 @@ Phase 1 (MVP)           Phase 2               Phase 3               Phase 4
 
 ```
 测试场景: "模拟医院" (5 次虚拟会话)
-  ├─ 第 1 次: AgentOS 零先验 → 标记 SalientElement
+  ├─ 第 1 次: Praxis 零先验 → 标记 SalientElement
   ├─ 第 2 次: 检测到初始共现 → 形成低置信度 ProtoSequence
   ├─ 第 3 次: ProtoSequence 置信度通过互动验证上升
   ├─ 第 4 次: 置信度接近 0.8 → 生成固化提案
@@ -257,8 +257,8 @@ Phase 1 (MVP)           Phase 2               Phase 3               Phase 4
 
 ## 兄弟文件
 
-- [What is AgentOS V7?](what-is.md) — V7 的工程定义
-- [Why AgentOS V7?](why.md) — 第一性原理工程可行性分析
+- [What is Praxis V7?](what-is.md) — V7 的工程定义
+- [Why Praxis V7?](why.md) — 第一性原理工程可行性分析
 - [Who is it for?](who.md) — 开发者、运维者、用户三角色
 - [How does it work?](how.md) — Hook 编排、Prompt 工程、数据流详解
 - [Where does it sit?](where.md) — 工程架构与模块划分

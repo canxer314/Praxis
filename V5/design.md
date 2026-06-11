@@ -1,4 +1,4 @@
-# AgentOS V5 Architecture Design
+# Praxis V5 Architecture Design
 
 > 版本：v5 (Meta-Cognitive Architecture)
 > 状态：设计阶段
@@ -148,7 +148,7 @@ GovernancePolicy:
   version: string                    # "1.0" (人类手动管理)
   last_modified_by: "human"
   
-  auto_approval:                     # AgentOS 可以自主执行
+  auto_approval:                     # Praxis 可以自主执行
     - action: "parameter_tuning"
       scope: ["ProcessTemplate.wait_policy", "Role.nudge_profile", "KnowledgeGap.priority"]
       constraint: "变化幅度 < 20%"
@@ -185,7 +185,7 @@ GovernancePolicy:
 |------|-----------------|------|
 | CognitiveStructure Registry | `memory_slot_get/set "structure_registry"` | session_start 读, 结构变更时写 |
 | StructuralGap Registry | `memory_slot_get/set "structural_gaps"` | 定期更新 |
-| GovernancePolicy | `memory_slot_get "governance_policy"` | session_start 读（不可被 AgentOS 修改） |
+| GovernancePolicy | `memory_slot_get "governance_policy"` | session_start 读（不可被 Praxis 修改） |
 | ArchitectureGap Registry | `memory_slot_get/set "architecture_gaps"` | 定期更新 |
 
 ### Memory 存储
@@ -205,7 +205,7 @@ GovernancePolicy:
 | structure_constructed | Constructor 生成了候选结构 |
 | structure_validated | 实验验证了新结构的有效性 |
 | structure_regression | 固化结构出现了退化 |
-| governance_override | 人类否决了 AgentOS 的提案 |
+| governance_override | 人类否决了 Praxis 的提案 |
 
 ---
 
@@ -235,9 +235,9 @@ GovernancePolicy:
 
 ## 四、兄弟文件
 
-- [What is AgentOS V5?](what-is.md) — 它是什么
+- [What is Praxis V5?](what-is.md) — 它是什么
 - [Who is it for?](who.md) — 人类角色的转变
-- [Why AgentOS V5?](why.md) — 为什么需要 Meta Layer
+- [Why Praxis V5?](why.md) — 为什么需要 Meta Layer
 - [How does it work?](how.md) — Meta Layer 三个子系统详解
 - [When does it operate?](when.md) — 结构进化生命周期
 - [Where does it sit?](where.md) — Meta Layer 的位置

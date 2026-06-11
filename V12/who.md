@@ -1,6 +1,6 @@
-# Who is AgentOS V12 for?
+# Who is Praxis V12 for?
 
-> V12 三角色模型不变。核心变化：AgentOS 从"知识提供者"升级为"任务编排者"——用户的交互方式、开发者的模块职责、运维者的配置范围都随之改变。
+> V12 三角色模型不变。核心变化：Praxis 从"知识提供者"升级为"任务编排者"——用户的交互方式、开发者的模块职责、运维者的配置范围都随之改变。
 
 ---
 
@@ -11,18 +11,18 @@
               │  用户     │
               │ (User)    │
               └─────┬─────┘
-                    │ 使用 AgentOS + OpenClaw 时:
-                    │  • 任务开始时 AgentOS 自动生成计划（基于 ProtoTask）
+                    │ 使用 Praxis + OpenClaw 时:
+                    │  • 任务开始时 Praxis 自动生成计划（基于 ProtoTask）
                     │  • 会话中看到结构化的进度和陷阱预警
-                    │  • 子任务完成时 AgentOS 自动验收
+                    │  • 子任务完成时 Praxis 自动验收
                     │  • 陷阱命中时实时反馈到 ProtoTask 学习
-                    │  • 可以用 /agentos task * 命令管理任务
+                    │  • 可以用 /praxis task * 命令管理任务
                     │
     ┌───────────────┼───────────────┐
     │               │               │
     ▼               ▼               ▼
 ┌──────────┐  ┌──────────┐  ┌──────────┐
-│  开发者   │  │  运维者   │  │  AgentOS │
+│  开发者   │  │  运维者   │  │  Praxis │
 │(Developer)│  │(Operator) │  │  自身     │
 └──────────┘  └──────────┘  └──────────┘
  实现编排状态机   配置编排行为    驱动任务状态机
@@ -38,13 +38,13 @@
 ### V11 → V12 新增/变化的交互
 
 ```
-1. 任务开始时 AgentOS 自动生成计划:
+1. 任务开始时 Praxis 自动生成计划:
    用户: "开始一个新的医院系统项目"
    
-   V11: planning-with-files 创建空模板 → 查询 AgentOS 获取 ProtoTask
-        → LLM 填内容（AgentOS 的知识可能被忽略）
+   V11: planning-with-files 创建空模板 → 查询 Praxis 获取 ProtoTask
+        → LLM 填内容（Praxis 的知识可能被忽略）
    
-   V12: AgentOS 直接从 ProtoTask 生成 PlanDocument:
+   V12: Praxis 直接从 ProtoTask 生成 PlanDocument:
         → 写入 task_plan.md（阶段划分、子任务、验收标准、陷阱预警）
         → 注入到 LLM 上下文（结构化计划，非 prompt 建议）
         → 用户看到的计划标注了来源:
@@ -55,7 +55,7 @@
 2. 会话中看到结构化进度:
    session_start 后，LLM 系统提示中出现:
    
-   "## 任务编排状态 [AgentOS V12]
+   "## 任务编排状态 [Praxis V12]
    任务: 医院管理系统
    阶段: Phase 2/5 — API 开发
    当前子任务: 实现预约挂号 API (第 3/7 步)
@@ -85,7 +85,7 @@
 4. 陷阱命中时实时反馈:
    用户: "医保接口的文档和实际行为不一致，我们卡住了"
    
-   V11: AgentOS 在 session_end 分析 transcript 时可能提取到
+   V11: Praxis 在 session_end 分析 transcript 时可能提取到
    
    V12: pitfall-tracker 实时匹配:
         → "医保对接模块容易被低估" 陷阱命中!
@@ -94,19 +94,19 @@
         → 计划中自动增加"锁定医保接口外部依赖"的预检查步骤
 
 5. 用户管理任务:
-   /agentos task status
+   /praxis task status
    → "任务 '医院管理系统': Phase 2/5 (API 开发)
       子任务 3/7 进行中, 2 已验证, 0 失败
       陷阱命中: 1 (医保对接)
       估计剩余: 4-6 个 session"
 
-   /agentos task plan
+   /praxis task plan
    → 输出完整的 PlanDocument（phases + subtasks + criteria + pitfalls）
 
-   /agentos task verify --subtask "预约挂号 API"
+   /praxis task verify --subtask "预约挂号 API"
    → 手动触发验收检查
 
-   /agentos task abandon --reason "需求变更"
+   /praxis task abandon --reason "需求变更"
    → 标记任务 TASK_ABANDONED，保存最终状态供未来参考
 ```
 
@@ -156,7 +156,7 @@
   方案: 初始生成在首次 session_start 检测到任务时。
         重新生成在以下情况:
         - ProtoTask 置信度显著变化 (Δ > 0.2)
-        - 用户显式请求 (/agentos task replan)
+        - 用户显式请求 (/praxis task replan)
         - task 完成后，为下次同类任务更新 ProtoTask
         不会在每次 session_start 重新生成（保持计划稳定）。
 
@@ -169,7 +169,7 @@
 决策 4: pitfall-tracker 的误报如何处理？
   方案: 陷阱匹配需要至少匹配 ProtoTask.pitfall.description 中 2 个关键词。
         单次匹配不自动标记——需要同一子任务中 2+ 次匹配。
-        用户可以手动清除误报: /agentos task pitfall-clear。
+        用户可以手动清除误报: /praxis task pitfall-clear。
         误报率超过 30% 的陷阱自动降低 severity。
 
 决策 5: V13 的主动触发如何预留？
@@ -199,7 +199,7 @@ task_orchestration:
   token_budget_for_plan: 500            # 计划注入的 token 预算
   plan_file_persistence:
     enabled: true                       # 写入 task_plan.md 等文件
-    directory: "./.agentos"             # 文件存放目录
+    directory: "./.praxis"             # 文件存放目录
     auto_read_plan_file: false          # LLM 显式读取计划文件
 
 # ── V12 新增: verification ──
@@ -251,7 +251,7 @@ mid_session_learner:
 
 ---
 
-## 五、AgentOS 自身的自主权边界（V12 重新界定）
+## 五、Praxis 自身的自主权边界（V12 重新界定）
 
 V11 的立场：
 - ❌ 触发任务分解——那是 planning-with-files 的事
@@ -269,14 +269,14 @@ V12 的立场：
 - ❌ 替代用户决策（用户仍然决定"做什么任务"）
 - ❌ 替代 OpenClaw 执行工具（工具调用仍在 OpenClaw 中）
 
-**V12 仍然不"做决策"——但它现在"管理任务的结构"。这就像项目经理 vs 工程师：AgentOS 管理任务的结构（阶段、子任务、验收标准），LLM 和 OpenClaw 做具体的执行工作。**
+**V12 仍然不"做决策"——但它现在"管理任务的结构"。这就像项目经理 vs 工程师：Praxis 管理任务的结构（阶段、子任务、验收标准），LLM 和 OpenClaw 做具体的执行工作。**
 
 ---
 
 ## 兄弟文件
 
-- [What is AgentOS V12?](what-is.md) — V12 的工程定义
-- [Why AgentOS V12?](why.md) — 第一性原理：为什么 V11 的边界是错的
+- [What is Praxis V12?](what-is.md) — V12 的工程定义
+- [Why Praxis V12?](why.md) — 第一性原理：为什么 V11 的边界是错的
 - [How does it work?](how.md) — 六个模块的完整实现
 - [When does it operate?](when.md) — 6 Phase 实现路线图
 - [Where does it sit?](where.md) — 模块树（V11 基础 + 6 新增 - 3 移除）

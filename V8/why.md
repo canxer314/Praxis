@@ -1,4 +1,4 @@
-# Why AgentOS V8?
+# Why Praxis V8?
 
 > 从第一性原理出发，分析 1M 上下文窗口如何改变 V7 的工程约束，以及为什么需要 V8。
 
@@ -10,7 +10,7 @@
 
 ```
 事实 1: LLM 是无状态的。每次 API 调用独立。→ V7 结论不变。
-事实 2: AgentOS 没有独立推理引擎。→ V7 结论不变。
+事实 2: Praxis 没有独立推理引擎。→ V7 结论不变。
 事实 3: Hook 回调是同步的。message_received 不能阻塞超过 50ms。→ V7 结论不变。
 事实 4: AgentMemory 是唯一的持久化层。→ V7 结论不变。
 ```
@@ -95,7 +95,7 @@ V8: message_received → 归档原始消息 → session_end → 完整 transcrip
 
 功能 B: 场景识别
   "当前会话的特征与哪个 scenario 最匹配？→ 确定 scenario_id"
-  驱动因素: AgentOS 需要知道当前在哪个场景中，才能:
+  驱动因素: Praxis 需要知道当前在哪个场景中，才能:
     - 在 session_end 中按 scenario_id 加载正确的历史 transcript
     - 将新的 SalientElement 关联到正确的场景
     - 更新正确的 ProtoStructure
@@ -318,7 +318,7 @@ V8 修正: 自适应分析策略
 
 ## 兄弟文件
 
-- [What is AgentOS V8?](what-is.md) — V8 的工程定义
+- [What is Praxis V8?](what-is.md) — V8 的工程定义
 - [Who is it for?](who.md) — 角色职责的变化
 - [How does it work?](how.md) — 层级化组织、统计验证、双信号融合
 - [When does it operate?](when.md) — 简化的实现路线图

@@ -1,4 +1,4 @@
-# AgentOS V13 Architecture Design
+# Praxis V13 Architecture Design
 
 > 版本：v13 (Complete Cognitive OS)
 > 状态：设计阶段
@@ -9,16 +9,16 @@
 ## 零、架构哲学：从"被动编排"到"主动驱动"
 
 ```
-V12: AgentOS 编排任务的结构（状态机），但不驱动任务的执行（等 Hook）
+V12: Praxis 编排任务的结构（状态机），但不驱动任务的执行（等 Hook）
      → 状态机是完整的，但它是"等事件"的状态机
 
-V13: AgentOS 既编排任务的结构，又驱动任务的执行
+V13: Praxis 既编排任务的结构，又驱动任务的执行
      → 状态机不变 — 只在 trigger 层添加事件创造能力
      → V12 的 TriggerSource/ActivationMode 预留被激活
 
 关键进化:
-  V12 解决了 "AgentOS 应该管理任务结构"（任务分解 + 状态机 + 验收）
-  V13 解决了 "AgentOS 应该驱动任务执行"（主动调度 + 并行 + 监控）
+  V12 解决了 "Praxis 应该管理任务结构"（任务分解 + 状态机 + 验收）
+  V13 解决了 "Praxis 应该驱动任务执行"（主动调度 + 并行 + 监控）
 
   状态机一行不改 — 这是 V12 前瞻设计正确的证据。
   V13 只在"谁调用 advanceOuterLoop()"这一点上扩展 — 从 2 个调用者到 5 个。
@@ -267,7 +267,7 @@ executeTrigger() 在执行前:
 ### 3.2 子 Agent 上下文注入格式
 
 ```
-[AgentOS V13 子 Agent 上下文]
+[Praxis V13 子 Agent 上下文]
 
 ## 任务: {task_name}
 阶段: Phase {n} — {phase_name}
@@ -332,7 +332,7 @@ executeTrigger() 在执行前:
 api.registerService(heartbeatMonitorService);
 
 // heartbeatMonitorService:
-//   id: 'agentos-heartbeat-monitor'
+//   id: 'praxis-heartbeat-monitor'
 //   start(ctx): 检查 allow_heartbeat_monitor → 启动 setInterval
 //   stop(ctx): clearInterval
 ```
@@ -378,7 +378,7 @@ Level 1: NUDGE (有活跃 session)
   条件: checkActiveSession(task_id) === true
   动作: enqueueSystemEvent(nudgeMessage, { sessionKey, contextKey: 'heartbeat_nudge' })
   效果: 下一次 prompt 构建时，LLM 看到:
-        "⚠️ [AgentOS V13] 子任务 '{name}' 运行时间超过预期。
+        "⚠️ [Praxis V13] 子任务 '{name}' 运行时间超过预期。
          已运行 {elapsed}h，估计 {estimated}h。
          建议: 检查进展，或标记为 BLOCKED。"
   后续: 如果 nudge 后 1 小时内子任务有进展 (tool_call 发生) → 解除停滞
@@ -400,7 +400,7 @@ Level 3: ESCALATE (> 24h 停滞)
 假阳性控制:
   • 如果最近 30 分钟内有 tool_call 活动 → 不标记停滞（子任务仍在运行）
   • 如果子任务在 nudge 后 1 小时内有进展 → 清除停滞标记
-  • 用户可手动清除: /agentos task heartbeat-clear
+  • 用户可手动清除: /praxis task heartbeat-clear
 ```
 
 ### 4.4 心跳状态转换图
@@ -582,7 +582,7 @@ heartbeat-monitor (V13 新增，后台):
           │                  │                  │
           ▼                  ▼                  ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                      AgentOS V13 (认知操作系统)                     │
+│                      Praxis V13 (认知操作系统)                     │
 │                                                                    │
 │  ┌────────────────────┐  ┌──────────────────┐                    │
 │  │   task-scheduler   │  │ subagent-manager │                    │
@@ -677,8 +677,8 @@ V13 总开销:
 
 ## 十、兄弟文件
 
-- [What is AgentOS V13?](what-is.md) — V13 定义 + 四个核心职能
-- [Why AgentOS V13?](why.md) — 第一性原理：为什么被动响应不够
+- [What is Praxis V13?](what-is.md) — V13 定义 + 四个核心职能
+- [Why Praxis V13?](why.md) — 第一性原理：为什么被动响应不够
 - [Who is it for?](who.md) — 三角色职责变化
 - [How does it work?](how.md) — 三个新模块 + 五个修改模块的完整实现
 - [When does it operate?](when.md) — Phase 7-9 路线图（+5 周）
