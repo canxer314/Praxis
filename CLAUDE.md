@@ -109,3 +109,51 @@ Default to surfacing uncertainty, not hiding it.
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## gstack
+
+gstack provides specialized skills for QA, code review, design, planning, deployment, and more. See `~/.claude/skills/gstack/SKILL.md` for the full reference.
+
+**Web browsing:** Use the `/browse` skill from gstack for all web browsing. Never use `mcp__claude-in-chrome__*` tools — they are slow and unreliable compared to gstack's headless browser.
+
+### Available skills
+
+| Skill | Purpose |
+|-------|---------|
+| `/office-hours` | Product ideas, brainstorming, pitch evaluation |
+| `/plan-ceo-review` | Strategy, scope, ambition review |
+| `/plan-eng-review` | Architecture and engineering plan review |
+| `/plan-design-review` | Design review of a plan |
+| `/design-consultation` | Design system, brand, visual identity |
+| `/design-shotgun` | Generate multiple AI design variants for comparison |
+| `/design-html` | Generate production-quality HTML/CSS |
+| `/review` | Code review and diff check |
+| `/ship` | Create PR and ship changes |
+| `/land-and-deploy` | Merge + deploy + verify as one flow |
+| `/canary` | Post-deploy monitoring |
+| `/benchmark` | Performance regression detection |
+| `/browse` | Headless browser for QA testing and dogfooding |
+| `/connect-chrome` | Launch headed Chromium for interactive testing |
+| `/qa` | Full QA testing workflow |
+| `/qa-only` | QA testing without fixes |
+| `/design-review` | Visual design audit of live site |
+| `/setup-browser-cookies` | Import cookies for authenticated testing |
+| `/setup-deploy` | Configure deployment for the project |
+| `/setup-gbrain` | Set up GBrain integration |
+| `/retro` | Weekly retrospective |
+| `/investigate` | Systematic debugging and root cause analysis |
+| `/document-release` | Post-ship documentation update |
+| `/document-generate` | Generate documentation from scratch |
+| `/codex` | OpenAI Codex CLI wrapper |
+| `/cso` | Security review |
+| `/autoplan` | Full auto-review pipeline |
+| `/plan-devex-review` | Developer experience plan review |
+| `/devex-review` | Live developer experience audit |
+| `/careful` | Safety guardrails for destructive commands |
+| `/freeze` | Restrict edits to a directory |
+| `/guard` | Full safety mode |
+| `/unfreeze` | Remove directory edit restrictions |
+| `/gstack-upgrade` | Upgrade gstack to latest version |
+| `/learn` | View gstack learnings |
+
+**Routing:** When the user's request matches an available skill, invoke it via the Skill tool. When in doubt, invoke the skill — a false positive is cheaper than a false negative.
