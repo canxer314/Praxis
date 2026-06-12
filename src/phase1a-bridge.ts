@@ -113,6 +113,7 @@ if (cmd === "inject") {
     const result = await handler.handle(`session-${getSessionCount()}`);
     if (result.ok) {
       console.log(result.value.systemPromptAddition);
+      console.log("\n[Praxis Phase1A] 注入验证码: PRAXIS-1A-OK-8f3a");
       logSession(getSessionCount(), "context_injected");
     } else {
       console.error("inject failed:", result.error.message);
