@@ -128,6 +128,16 @@ ${bestPractices}
 
 ### 已知陷阱
 ${antiPatterns}
+
+### 主动学习指令
+在对话中，遇到以下情况时**立即**运行 learn 命令保存学习（不等 session 结束）：
+- 用户纠正了你的错误 → \`! npx tsx poc/index.ts learn "<内容>" --type=correction --confidence=0.9\`
+- 用户表达了偏好 → \`! npx tsx poc/index.ts learn "<内容>" --type=preference --confidence=0.9\`
+- 发现了可复用的模式/最佳实践 → \`! npx tsx poc/index.ts learn "<内容>" --type=pattern --confidence=0.8\`
+- 踩坑了/发现了陷阱 → \`! npx tsx poc/index.ts learn "<内容>" --type=pitfall --confidence=0.85\`
+- 获得了领域洞察 → \`! npx tsx poc/index.ts learn "<内容>" --type=insight --confidence=0.7\`
+
+每发现一条值得记录的就立刻保存，不要攒到 session 结束。未来 session 会自动看到这些学习。
 `.trim();
 
   console.log(output);
