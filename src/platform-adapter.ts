@@ -9,6 +9,8 @@
  *   - Result 类型统一错误处理
  */
 
+import { log, logDegraded } from "./logger";
+
 // ---- 类型 ----
 
 export type AutonomyAction = "proceed" | "inform" | "confirm" | "block";
@@ -100,9 +102,12 @@ export class PlatformAdapter {
   }
 
   async onEvent(event: PraxisEvent): Promise<Result<EventResult>> {
+    const start = Date.now();
+
     // 幂等去重
     const dedupKey = `${event.sessionId}:${event.type}`;
     if (event.type === "session_end" && this.processed.has(dedupKey)) {
+      log({ ts: new Date().toISOString(), module: "platform-adapter", op: event.type, duration_ms: Date.now() - start, outcome: "skipped", sessionId: event.sessionId });
       return { ok: true, value: { learningEvents: [] } };
     }
     if (event.type === "session_start" && this.processed.has(dedupKey)) {
@@ -116,22 +121,41 @@ export class PlatformAdapter {
 
     this.processed.add(dedupKey);
 
+    let result: Result<EventResult>;
     switch (event.type) {
       case "session_start":
-        return this.handleSessionStart(event);
+        result = await this.handleSessionStart(event);
+        break;
       case "session_end":
-        return this.handleSessionEnd(event);
+        result = await this.handleSessionEnd(event);
+        break;
       case "before_tool_call":
-        return this.handleBeforeToolCall(event);
+        result = await this.handleBeforeToolCall(event);
+        break;
       case "after_tool_call":
-        return this.handleAfterToolCall(event);
+        result = await this.handleAfterToolCall(event);
+        break;
       case "message_received":
-        return this.handleMessageReceived(event);
+        result = await this.handleMessageReceived(event);
+        break;
       case "agent_end":
-        return this.handleAgentEnd(event);
+        result = await this.handleAgentEnd(event);
+        break;
       default:
-        return { ok: false, error: { code: "UNKNOWN_EVENT", message: `Unknown event type` } };
+        result = { ok: false, error: { code: "UNKNOWN_EVENT", message: `Unknown event type` } };
     }
+
+    log({
+      ts: new Date().toISOString(),
+      module: "platform-adapter",
+      op: event.type,
+      duration_ms: Date.now() - start,
+      outcome: result.ok ? "success" : "error",
+      error: result.ok ? undefined : result.error.message,
+      sessionId: event.sessionId,
+    });
+
+    return result;
   }
 
   // ---- Handler ----
