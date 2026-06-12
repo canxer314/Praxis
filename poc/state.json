@@ -1,0 +1,14 @@
+{
+  "session_count": 0,
+  "competency_model": {
+    "skills": [
+      { "id": "typescript", "name": "TypeScript", "proficiency": 0.6, "level": "competent" },
+      { "id": "architecture", "name": "系统架构设计", "proficiency": 0.8, "level": "proficient" },
+      { "id": "ai-agent", "name": "AI Agent 系统", "proficiency": 0.7, "level": "competent" }
+    ],
+    "best_practices": [],
+    "anti_patterns": []
+  },
+  "learnings": [],
+  "last_session": null
+}
