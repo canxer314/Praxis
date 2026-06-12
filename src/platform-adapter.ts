@@ -76,19 +76,27 @@ interface CompetencyModel {
   anti_patterns: string[];
 }
 
+// ---- 轻量分析器接口（避免循环依赖） ----
+
+interface TranscriptAnalyzerLike {
+  analyze(transcript: string): LearningEvent[];
+}
+
 // ---- PlatformAdapter ----
 
 export class PlatformAdapter {
   private readonly am: AgentMemoryClient;
   private readonly llm: LlmClient;
+  private readonly transcriptAnalyzer?: TranscriptAnalyzerLike;
   private readonly processed: Set<string> = new Set();
   private sessionStarted = false;
 
-  constructor(am: AgentMemoryClient, llm: LlmClient) {
+  constructor(am: AgentMemoryClient, llm: LlmClient, transcriptAnalyzer?: TranscriptAnalyzerLike) {
     if (!am) throw new Error("AgentMemoryClient is required");
     if (!llm) throw new Error("LlmClient is required");
     this.am = am;
     this.llm = llm;
+    this.transcriptAnalyzer = transcriptAnalyzer;
   }
 
   async onEvent(event: PraxisEvent): Promise<Result<EventResult>> {
@@ -241,7 +249,25 @@ export class PlatformAdapter {
     return { ok: true, value: {} };
   }
 
-  private async handleMessageReceived(_event: PraxisEvent & { type: "message_received" }): Promise<Result<EventResult>> {
+  private async handleMessageReceived(event: PraxisEvent & { type: "message_received" }): Promise<Result<EventResult>> {
+    if (!this.transcriptAnalyzer) return { ok: true, value: {} };
+
+    const events = this.transcriptAnalyzer.analyze(event.message.content);
+
+    if (events.length > 0) {
+      // 实时保存学习事件（不等 session_end）
+      const writeResult = await this.am.setSlot("progress_log", {
+        sessionId: event.sessionId,
+        timestamp: new Date().toISOString(),
+        events,
+      });
+
+      if (writeResult.ok) {
+        return { ok: true, value: { learningEvents: events } };
+      }
+      // 写入失败静默继续（message_received 不能阻塞对话）
+    }
+
     return { ok: true, value: {} };
   }
 

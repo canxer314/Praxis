@@ -358,6 +358,100 @@ describe("PlatformAdapter", () => {
     });
   });
 
+  // ---- 实时学习提取（message_received + TranscriptAnalyzer） ----
+
+  describe("message_received 实时学习", () => {
+    it("注入 TranscriptAnalyzer 后在 message_received 时提取学习事件", async () => {
+      const am = createMockAgentMemory();
+      const mockAnalyzer = {
+        analyze: vi.fn().mockReturnValue([
+          { id: "e1", type: "correction" as const, content: "用户纠正了错误", confidence: 0.8 },
+        ]),
+      };
+
+      const adapter = new PlatformAdapter(am, createMockLlm(), mockAnalyzer);
+
+      // session_start 必须先完成
+      am.getSlot = vi.fn().mockResolvedValue({
+        ok: true,
+        value: { skills: [], best_practices: [], anti_patterns: [] },
+      } as Result<unknown>);
+      await adapter.onEvent({
+        type: "session_start",
+        sessionId: "realtime",
+        timestamp: new Date().toISOString(),
+      });
+
+      const result = await adapter.onEvent({
+        type: "message_received",
+        sessionId: "realtime",
+        message: { role: "user", content: "不对，这里应该用 type" },
+        timestamp: new Date().toISOString(),
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.learningEvents).toHaveLength(1);
+        expect(result.value.learningEvents![0].type).toBe("correction");
+      }
+      // 验证 setSlot 被调用保存学习事件
+      expect(am.setSlot).toHaveBeenCalledWith(
+        "progress_log",
+        expect.objectContaining({
+          sessionId: "realtime",
+          events: expect.arrayContaining([
+            expect.objectContaining({ type: "correction" }),
+          ]),
+        }),
+      );
+    });
+
+    it("未注入 TranscriptAnalyzer 时 message_received 返回空（向后兼容）", async () => {
+      const am = createMockAgentMemory();
+      const adapter = new PlatformAdapter(am, createMockLlm()); // 无第三个参数
+
+      await adapter.onEvent({
+        type: "session_start",
+        sessionId: "nop",
+        timestamp: new Date().toISOString(),
+      });
+
+      const result = await adapter.onEvent({
+        type: "message_received",
+        sessionId: "nop",
+        message: { role: "user", content: "hello" },
+        timestamp: new Date().toISOString(),
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.learningEvents).toBeUndefined();
+      }
+    });
+
+    it("analyzer 未发现事件时不写入 AgentMemory", async () => {
+      const am = createMockAgentMemory();
+      const mockAnalyzer = { analyze: vi.fn().mockReturnValue([]) };
+      const adapter = new PlatformAdapter(am, createMockLlm(), mockAnalyzer);
+
+      await adapter.onEvent({
+        type: "session_start",
+        sessionId: "no-events",
+        timestamp: new Date().toISOString(),
+      });
+
+      await adapter.onEvent({
+        type: "message_received",
+        sessionId: "no-events",
+        message: { role: "user", content: "普通对话，无学习内容" },
+        timestamp: new Date().toISOString(),
+      });
+
+      // 无事件时不调用 setSlot
+      expect(am.setSlot).not.toHaveBeenCalled();
+    });
+  });
+
   // ---- 降级模式 ----
 
   describe("降级模式", () => {
