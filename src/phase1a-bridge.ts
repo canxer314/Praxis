@@ -164,6 +164,35 @@ if (cmd === "inject") {
   appendLearnings([event], session, "manual");
   console.log(`[Praxis Phase1A] 已保存 (session ${session})`);
   logSession(session, "manual_learn");
+} else if (cmd === "message") {
+  // 从 stdin 读取 UserPromptSubmit hook JSON，实时分析用户消息
+  (async () => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf-8").trim();
+    if (!raw) { console.log("[Praxis Phase1A] 空输入，跳过"); return; }
+
+    let prompt = "";
+    try {
+      const data = JSON.parse(raw);
+      prompt = data.prompt || data.text || data.message || "";
+    } catch {
+      prompt = raw;
+    }
+    if (!prompt) { console.log("[Praxis Phase1A] 无法提取消息内容"); return; }
+
+    const analyzer = new TranscriptAnalyzer();
+    const events = analyzer.analyze(prompt);
+    if (events.length > 0) {
+      const session = getSessionCount();
+      appendLearnings(events, session, "auto");
+      console.log(`[Praxis Phase1A] 实时提取 ${events.length} 条学习`);
+      for (const e of events.slice(0, 3)) {
+        console.log(`  [${e.type}] ${e.content.slice(0, 80)}`);
+      }
+      logSession(session, `realtime_learned:${events.length}`);
+    }
+  })();
 } else if (cmd === "show") {
   const stored = loadLearnings();
   console.log(`=== Praxis Phase1A 学习状态 ===`);
