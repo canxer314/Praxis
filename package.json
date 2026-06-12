@@ -2,10 +2,13 @@
   "name": "praxis-poc",
   "private": true,
   "scripts": {
-    "poc": "npx tsx poc/index.ts"
+    "poc": "npx tsx poc/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "tsx": "^4.22.4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.8"
   }
 }
