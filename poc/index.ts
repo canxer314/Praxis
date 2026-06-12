@@ -11,8 +11,10 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 
-const STATE_FILE = path.join(__dirname, "state.json");
+const PRAXIS_HOME = path.join(os.homedir(), ".praxis-poc");
+const STATE_FILE = path.join(PRAXIS_HOME, "state.json");
 
 // --- 数据模型 ---
 
@@ -45,12 +47,38 @@ interface PraxisState {
 
 // --- 状态读写 ---
 
+const DEFAULT_STATE: PraxisState = {
+  session_count: 0,
+  competency_model: {
+    skills: [
+      { id: "typescript", name: "TypeScript", proficiency: 0.6, level: "competent" },
+      { id: "architecture", name: "系统架构设计", proficiency: 0.8, level: "proficient" },
+      { id: "ai-agent", name: "AI Agent 系统", proficiency: 0.7, level: "competent" },
+    ],
+    best_practices: [],
+    anti_patterns: [],
+  },
+  learnings: [],
+  last_session: null,
+};
+
+function ensureState(): void {
+  if (!fs.existsSync(PRAXIS_HOME)) {
+    fs.mkdirSync(PRAXIS_HOME, { recursive: true });
+  }
+  if (!fs.existsSync(STATE_FILE)) {
+    fs.writeFileSync(STATE_FILE, JSON.stringify(DEFAULT_STATE, null, 2) + "\n", "utf-8");
+  }
+}
+
 function loadState(): PraxisState {
+  ensureState();
   const raw = fs.readFileSync(STATE_FILE, "utf-8");
   return JSON.parse(raw);
 }
 
 function saveState(state: PraxisState): void {
+  ensureState();
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2) + "\n", "utf-8");
 }
 
@@ -230,6 +258,22 @@ switch (cmd) {
     show();
     break;
 
+  case "init":
+    ensureState();
+    if (fs.existsSync(STATE_FILE)) {
+      console.log(`state.json 已存在于 ${STATE_FILE}`);
+      console.log("如需重置，请使用: npx tsx poc/index.ts reset");
+    } else {
+      saveState({ ...DEFAULT_STATE });
+      console.log(`✅ state.json 已初始化: ${STATE_FILE}`);
+    }
+    break;
+
+  case "reset":
+    saveState({ ...DEFAULT_STATE });
+    console.log(`✅ state.json 已重置: ${STATE_FILE}`);
+    break;
+
   default:
     console.log(`Praxis PoC — 验证核心假设
 
@@ -238,6 +282,10 @@ switch (cmd) {
   npx tsx poc/index.ts learn "<内容>"       — 保存一条学习
   npx tsx poc/index.ts analyze <文件>       — 输出学习提取 prompt
   npx tsx poc/index.ts show                — 查看当前状态
+  npx tsx poc/index.ts init                — 初始化 state.json（首次使用）
+  npx tsx poc/index.ts reset               — 重置所有数据
+
+数据存储: ~/.praxis-poc/state.json（跨 session 共享）
 `);
     break;
 }
