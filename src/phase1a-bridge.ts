@@ -14,6 +14,8 @@ import * as os from "os";
 import { SessionStartHandler } from "./session-start";
 import { SessionEndHandler } from "./session-end";
 import { TranscriptAnalyzer } from "./transcript-analyzer";
+import { TranscriptAnalyzerV2 } from "./transcript-analyzer-v2";
+import { llmClient } from "./llm-client";
 import { Result, LearningEvent } from "./platform-adapter";
 
 // ---- 持久化（本地 JSON，等 AgentMemory 集成后替换） ----
@@ -127,9 +129,14 @@ if (cmd === "inject") {
     process.exit(1);
   }
   (async () => {
-    const analyzer = new TranscriptAnalyzer();
+    const v2Analyzer = new TranscriptAnalyzerV2(llmClient);
+    const v1Fallback = new TranscriptAnalyzer();
+    const analyzeTranscript = async (t: string) => {
+      const events = await v2Analyzer.analyze(t);
+      return events.length > 0 ? events : v1Fallback.analyze(t);
+    };
     const handler = new SessionEndHandler({
-      analyzeTranscript: (t) => Promise.resolve(analyzer.analyze(t)),
+      analyzeTranscript,
       setSlot: mockSetSlot,
     });
 
@@ -182,16 +189,18 @@ if (cmd === "inject") {
     }
     if (!prompt) { console.log("[Praxis Phase1A] 无法提取消息内容"); return; }
 
-    const analyzer = new TranscriptAnalyzer();
-    const events = analyzer.analyze(prompt);
-    if (events.length > 0) {
+    const v2 = new TranscriptAnalyzerV2(llmClient);
+    const v1 = new TranscriptAnalyzer();
+    const events = await v2.analyze(prompt);
+    const finalEvents = events.length > 0 ? events : v1.analyze(prompt);
+    if (finalEvents.length > 0) {
       const session = getSessionCount();
-      appendLearnings(events, session, "auto");
-      console.log(`[Praxis Phase1A] 实时提取 ${events.length} 条学习`);
-      for (const e of events.slice(0, 3)) {
+      appendLearnings(finalEvents, session, "auto");
+      console.log(`[Praxis Phase1A] 实时提取 ${finalEvents.length} 条学习`);
+      for (const e of finalEvents.slice(0, 3)) {
         console.log(`  [${e.type}] ${e.content.slice(0, 80)}`);
       }
-      logSession(session, `realtime_learned:${events.length}`);
+      logSession(session, `realtime_learned:${finalEvents.length}`);
     }
   })();
 } else if (cmd === "show") {
@@ -208,11 +217,59 @@ if (cmd === "inject") {
   stored.slice(-5).forEach((s) => {
     console.log(`  [S${s.session}] [${s.type}] [${s.source}] ${s.content.slice(0, 80)}`);
   });
+} else if (cmd === "expand") {
+  // UserPromptExpansion hook — 每轮对话前搜索相关记忆，注入经验
+  (async () => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf-8").trim();
+    if (!raw) return; // 空输入 → 零注入
+
+    let prompt = "";
+    try { const data = JSON.parse(raw); prompt = data.prompt || data.text || data.message || ""; }
+    catch { prompt = raw; }
+    if (!prompt || prompt.length < 3) return; // 太短不搜
+
+    const stored = loadLearnings();
+    if (stored.length === 0) return; // 无学习 → 零注入
+
+    // 中文 n-gram 匹配（无 AgentMemory 时的轻量方案）
+    const grams = new Set<string>();
+    for (let i = 0; i < prompt.length - 1; i++) grams.add(prompt.slice(i, i + 2));
+    for (let i = 0; i < prompt.length - 2; i++) grams.add(prompt.slice(i, i + 3));
+    const keywords = [...grams].filter((g: string) => /[一-鿿]/.test(g));
+    // 去重 + 排序
+    const seen = new Set<string>();
+    const scored = stored
+      .map((l: StoredLearning) => {
+        const lower = l.content.toLowerCase();
+        const hits = keywords.filter((kw: string) => lower.includes(kw)).length;
+        return { ...l, score: hits > 0 ? hits * l.confidence : 0 };
+      })
+      .filter((l: { score: number; content: string }) => {
+        if (l.score === 0) return false;
+        const key = l.content.slice(0, 60);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
+      .slice(0, 3);
+
+    if (scored.length === 0) return; // 无相关 → 零注入
+
+    const lines = scored.map((l: StoredLearning) =>
+      `- [${l.type}] ${l.content.slice(0, 120)} (置信度: ${l.confidence.toFixed(1)})`
+    );
+    console.log(`\n[Praxis 相关经验]\n${lines.join("\n")}`);
+    logSession(getSessionCount(), `expand:${scored.length}`);
+  })();
 } else {
   console.log(`Praxis Phase1A Bridge
 用法:
   tsx src/phase1a-bridge.ts inject           — 输出上下文注入 (SessionStart hook)
   tsx src/phase1a-bridge.ts end <file>       — 分析 transcript (Stop hook)
+  tsx src/phase1a-bridge.ts expand           — 搜索经验注入 (UserPromptExpansion hook)
   tsx src/phase1a-bridge.ts learn "<内容>"    — 手动保存学习
   tsx src/phase1a-bridge.ts show             — 查看状态
 `);
