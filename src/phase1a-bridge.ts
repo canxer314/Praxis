@@ -16,9 +16,71 @@ import { SessionEndHandler } from "./session-end";
 import { TranscriptAnalyzer } from "./transcript-analyzer";
 import { TranscriptAnalyzerV2 } from "./transcript-analyzer-v2";
 import { llmClient } from "./llm-client";
+import { agentmemory } from "./agentmemory-client";
 import { Result, LearningEvent } from "./platform-adapter";
 
-// ---- 持久化（本地 JSON，等 AgentMemory 集成后替换） ----
+// ---- 搜索（AgentMemory 优先，本地 n-gram 兜底） ----
+
+async function searchRelevant(prompt: string, limit: number): Promise<StoredLearning[]> {
+  const stored = loadLearnings();
+  if (stored.length === 0) return [];
+
+  // 尝试 AgentMemory 语义搜索
+  if (agentmemory.isAvailable()) {
+    try {
+      const results = await agentmemory.smartSearch(prompt, limit);
+      if (results.length > 0) {
+        return results.map((r, i) => ({
+          session: 0, timestamp: "", type: "insight" as const,
+          content: r, confidence: 0.8, source: "auto" as const,
+          _score: limit - i,
+        })).filter((r: { content: string }) => r.content.length > 0);
+      }
+    } catch { /* fall through to n-gram */ }
+  }
+
+  // n-gram 兜底
+  const grams = new Set<string>();
+  for (let i = 0; i < prompt.length - 1; i++) grams.add(prompt.slice(i, i + 2));
+  for (let i = 0; i < prompt.length - 2; i++) grams.add(prompt.slice(i, i + 3));
+  const keywords = [...grams].filter((g: string) => /[一-鿿]/.test(g));
+
+  const seen = new Set<string>();
+  return stored
+    .map((l: StoredLearning) => {
+      const lower = l.content.toLowerCase();
+      const hits = keywords.filter((kw: string) => lower.includes(kw)).length;
+      return { ...l, _score: hits > 0 ? hits * l.confidence : 0 };
+    })
+    .filter((l: StoredLearning & { _score: number }) => {
+      if (l._score === 0) return false;
+      const key = l.content.slice(0, 60);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => (b as { _score: number })._score - (a as { _score: number })._score)
+    .slice(0, limit);
+}
+
+// ---- 持久化（AgentMemory slots + 本地 JSON 兜底） ----
+
+function appendLearnings(events: LearningEvent[], session: number, source: "auto" | "manual"): void {
+  // 本地 JSON（始终保存）
+  const stored = loadLearnings();
+  for (const e of events) {
+    stored.push({
+      session, timestamp: new Date().toISOString(),
+      type: e.type, content: e.content, confidence: e.confidence, source,
+    });
+  }
+  saveLearnings(stored);
+
+  // AgentMemory（异步，不阻塞）
+  if (agentmemory.isAvailable()) {
+    agentmemory.setSlot("praxis_learnings", stored).catch(() => {});
+  }
+}
 
 const MEMORY_DIR = path.join(os.homedir(), ".praxis-phase1a");
 const LEARNINGS_FILE = path.join(MEMORY_DIR, "learnings.json");
@@ -48,21 +110,6 @@ function saveLearnings(learnings: StoredLearning[]): void {
   fs.writeFileSync(LEARNINGS_FILE, JSON.stringify(learnings, null, 2), "utf-8");
 }
 
-function appendLearnings(events: LearningEvent[], session: number, source: "auto" | "manual"): void {
-  const stored = loadLearnings();
-  for (const e of events) {
-    stored.push({
-      session,
-      timestamp: new Date().toISOString(),
-      type: e.type,
-      content: e.content,
-      confidence: e.confidence,
-      source,
-    });
-  }
-  saveLearnings(stored);
-}
-
 function getSessionCount(): number {
   const stored = loadLearnings();
   if (stored.length === 0) return 1;
@@ -78,7 +125,28 @@ function logSession(session: number, event: string): void {
 
 // ---- 模拟 AgentMemory getSlot（Phase 1A 真实集成前用本地文件） ----
 
+const DEFAULT_SKILLS = [
+  { id: "typescript", name: "TypeScript", proficiency: 0.65, level: "competent" },
+  { id: "architecture", name: "系统架构设计", proficiency: 0.80, level: "proficient" },
+  { id: "ai-agent", name: "AI Agent 系统", proficiency: 0.70, level: "competent" },
+  { id: "obsidian", name: "Obsidian 笔记管理", proficiency: 0.75, level: "competent" },
+];
+
 async function mockGetSlot(_name: string): Promise<Result<unknown>> {
+  // 尝试 AgentMemory
+  if (agentmemory.isAvailable()) {
+    const r = await agentmemory.getSlot("praxis_learnings");
+    if (r.ok && r.value) {
+      const parsed = typeof r.value === "string" ? JSON.parse(r.value) : r.value;
+      if (Array.isArray(parsed)) {
+        const bestPractices = [...new Set(parsed.filter((s: StoredLearning) => s.type === "pattern" || s.type === "insight").map((s: StoredLearning) => s.content))];
+        const antiPatterns = [...new Set(parsed.filter((s: StoredLearning) => s.type === "pitfall" || s.type === "correction").map((s: StoredLearning) => s.content))];
+        return { ok: true, value: { skills: DEFAULT_SKILLS, best_practices: bestPractices.slice(-20), anti_patterns: antiPatterns.slice(-20) } };
+      }
+    }
+  }
+
+  // 本地 JSON 兜底
   const stored = loadLearnings();
   const bestPractices = stored.filter((s) => s.type === "pattern" || s.type === "insight").map((s) => s.content);
   const antiPatterns = stored.filter((s) => s.type === "pitfall" || s.type === "correction").map((s) => s.content);
@@ -86,12 +154,7 @@ async function mockGetSlot(_name: string): Promise<Result<unknown>> {
   return {
     ok: true,
     value: {
-      skills: [
-        { id: "typescript", name: "TypeScript", proficiency: 0.65, level: "competent" },
-        { id: "architecture", name: "系统架构设计", proficiency: 0.80, level: "proficient" },
-        { id: "ai-agent", name: "AI Agent 系统", proficiency: 0.70, level: "competent" },
-        { id: "obsidian", name: "Obsidian 笔记管理", proficiency: 0.75, level: "competent" },
-      ],
+      skills: DEFAULT_SKILLS,
       best_practices: [...new Set(bestPractices)].slice(-20),
       anti_patterns: [...new Set(antiPatterns)].slice(-20),
     },
@@ -230,33 +293,8 @@ if (cmd === "inject") {
     catch { prompt = raw; }
     if (!prompt || prompt.length < 3) return; // 太短不搜
 
-    const stored = loadLearnings();
-    if (stored.length === 0) return; // 无学习 → 零注入
-
-    // 中文 n-gram 匹配（无 AgentMemory 时的轻量方案）
-    const grams = new Set<string>();
-    for (let i = 0; i < prompt.length - 1; i++) grams.add(prompt.slice(i, i + 2));
-    for (let i = 0; i < prompt.length - 2; i++) grams.add(prompt.slice(i, i + 3));
-    const keywords = [...grams].filter((g: string) => /[一-鿿]/.test(g));
-    // 去重 + 排序
-    const seen = new Set<string>();
-    const scored = stored
-      .map((l: StoredLearning) => {
-        const lower = l.content.toLowerCase();
-        const hits = keywords.filter((kw: string) => lower.includes(kw)).length;
-        return { ...l, score: hits > 0 ? hits * l.confidence : 0 };
-      })
-      .filter((l: { score: number; content: string }) => {
-        if (l.score === 0) return false;
-        const key = l.content.slice(0, 60);
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
-      .slice(0, 3);
-
-    if (scored.length === 0) return; // 无相关 → 零注入
+    const scored = await searchRelevant(prompt, 3);
+    if (scored.length === 0) return;
 
     const lines = scored.map((l: StoredLearning) =>
       `- [${l.type}] ${l.content.slice(0, 120)} (置信度: ${l.confidence.toFixed(1)})`
