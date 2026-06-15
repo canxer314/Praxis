@@ -65,8 +65,7 @@ async function searchRelevant(prompt: string, limit: number): Promise<StoredLear
 
 // ---- 持久化（AgentMemory slots + 本地 JSON 兜底） ----
 
-function appendLearnings(events: LearningEvent[], session: number, source: "auto" | "manual"): void {
-  // 本地 JSON（始终保存）
+async function appendLearnings(events: LearningEvent[], session: number, source: "auto" | "manual"): Promise<void> {
   const stored = loadLearnings();
   for (const e of events) {
     stored.push({
@@ -74,11 +73,17 @@ function appendLearnings(events: LearningEvent[], session: number, source: "auto
       type: e.type, content: e.content, confidence: e.confidence, source,
     });
   }
-  saveLearnings(stored);
 
-  // AgentMemory（异步，不阻塞）
   if (agentmemory.isAvailable()) {
-    agentmemory.setSlot("praxis_learnings", stored).catch(() => {});
+    // AgentMemory 是唯一存储
+    const r = await agentmemory.setSlot("praxis_learnings", stored);
+    if (!r.ok) {
+      console.error("[Praxis] AgentMemory 写入失败，降级到本地 JSON:", r.error?.message);
+      saveLearnings(stored); // 仅 AgentMemory 失败时才写本地
+    }
+  } else {
+    // 无 AgentMemory → 本地 JSON
+    saveLearnings(stored);
   }
 }
 
@@ -208,7 +213,7 @@ if (cmd === "inject") {
     const result = await handler.handle(`session-${session}`, transcript);
 
     if (result.ok && result.value.learningEvents && result.value.learningEvents.length > 0) {
-      appendLearnings(result.value.learningEvents, session, "auto");
+      await appendLearnings(result.value.learningEvents, session, "auto");
       console.log(`[Praxis Phase1A] session ${session} 自动提取 ${result.value.learningEvents.length} 条学习`);
       for (const e of result.value.learningEvents.slice(0, 5)) {
         console.log(`  [${e.type}] ${e.content.slice(0, 80)}`);
@@ -220,21 +225,23 @@ if (cmd === "inject") {
     }
   })();
 } else if (cmd === "learn") {
-  const content = process.argv[3];
-  if (!content) {
-    console.error("用法: tsx src/phase1a-bridge.ts learn <内容>");
-    process.exit(1);
-  }
-  const session = getSessionCount();
-  const event: LearningEvent = {
-    id: `manual_${Date.now()}`,
-    type: "insight",
-    content,
-    confidence: 0.85,
-  };
-  appendLearnings([event], session, "manual");
-  console.log(`[Praxis Phase1A] 已保存 (session ${session})`);
-  logSession(session, "manual_learn");
+  (async () => {
+    const content = process.argv[3];
+    if (!content) {
+      console.error("用法: tsx src/phase1a-bridge.ts learn <内容>");
+      process.exit(1);
+    }
+    const session = getSessionCount();
+    const event: LearningEvent = {
+      id: `manual_${Date.now()}`,
+      type: "insight",
+      content,
+      confidence: 0.85,
+    };
+    await appendLearnings([event], session, "manual");
+    console.log(`[Praxis Phase1A] 已保存 (session ${session})`);
+    logSession(session, "manual_learn");
+  })();
 } else if (cmd === "message") {
   // 从 stdin 读取 UserPromptSubmit hook JSON，实时分析用户消息
   (async () => {
@@ -258,7 +265,7 @@ if (cmd === "inject") {
     const finalEvents = events.length > 0 ? events : v1.analyze(prompt);
     if (finalEvents.length > 0) {
       const session = getSessionCount();
-      appendLearnings(finalEvents, session, "auto");
+      await appendLearnings(finalEvents, session, "auto");
       console.log(`[Praxis Phase1A] 实时提取 ${finalEvents.length} 条学习`);
       for (const e of finalEvents.slice(0, 3)) {
         console.log(`  [${e.type}] ${e.content.slice(0, 80)}`);
