@@ -1,12 +1,33 @@
 /**
- * AgentMemory MCP 客户端 — 轻量 stdio JSON-RPC
+ * AgentMemory MCP 客户端
  *
- * 用于 bridge 脚本（hook 进程）调用 AgentMemory。
- * 进程内复用单例，避免每次调用都重新 spawn。
+ * 通过 spawn npx @agentmemory/mcp → stdio JSON-RPC 调用 AgentMemory。
+ * 需要 AGENTMEMORY_URL 环境变量指向 AgentMemory REST API（默认 http://localhost:3111）。
  */
 
 import { spawn, ChildProcess } from "child_process";
+import * as fs from "fs";
+import * as path from "path";
 import { Result } from "./platform-adapter";
+
+// ---- 读取 .env ----
+
+function loadEnv(): Record<string, string> {
+  const envPath = path.join(process.cwd(), ".env");
+  if (!fs.existsSync(envPath)) return {};
+  const vars: Record<string, string> = {};
+  for (const line of fs.readFileSync(envPath, "utf-8").split("\n")) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const eq = t.indexOf("=");
+    if (eq === -1) continue;
+    vars[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
+  }
+  return vars;
+}
+
+const env = loadEnv();
+const AM_URL = env.AGENTMEMORY_URL || process.env.AGENTMEMORY_URL || "http://localhost:3111";
 
 // ---- MCP JSON-RPC ----
 
@@ -24,59 +45,45 @@ let buffer = "";
 
 function getClient(): ChildProcess {
   if (proc && !proc.killed) return proc;
-
-  const url = process.env.AGENTMEMORY_URL || "http://127.0.0.1:11434";
-  const secret = process.env.AGENTMEMORY_SECRET || "";
-
-  proc = spawn("npx", ["-y", "@agentmemory/mcp"], {
-    env: { ...process.env, AGENTMEMORY_URL: url, AGENTMEMORY_SECRET: secret },
+  const cmd = process.platform === "win32" ? "npx.cmd" : "npx";
+  proc = spawn(cmd, ["-y", "@agentmemory/mcp"], {
+    env: { ...process.env, AGENTMEMORY_URL: AM_URL },
     stdio: ["pipe", "pipe", "pipe"],
+    shell: true,
   });
-
   proc.stdout!.on("data", (chunk: Buffer) => {
     buffer += chunk.toString();
     const lines = buffer.split("\n");
     buffer = lines.pop() || "";
-
     for (const line of lines) {
       if (!line.trim()) continue;
       try {
         const msg = JSON.parse(line) as JsonRpcResponse;
         const p = pending.get(msg.id);
-        if (p) {
-          pending.delete(msg.id);
-          if (msg.error) p.reject(new Error(msg.error.message));
-          else p.resolve(msg.result);
-        }
-      } catch { /* skip partial/unparseable */ }
+        if (p) { pending.delete(msg.id); msg.error ? p.reject(new Error(msg.error.message)) : p.resolve(msg.result); }
+      } catch { /* skip */ }
     }
   });
-
   proc.on("exit", () => { proc = null; });
   return proc;
 }
 
-function callTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
+function callTool(tool: string, args: Record<string, unknown>): Promise<unknown> {
   const p = getClient();
   const id = nextId++;
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });
-    const req = JSON.stringify({
-      jsonrpc: "2.0",
-      id,
-      method: "tools/call",
-      params: { name: toolName, arguments: args },
-    }) + "\n";
-    p.stdin!.write(req);
-
-    // 15s 超时
-    setTimeout(() => {
-      if (pending.has(id)) {
-        pending.delete(id);
-        reject(new Error("MCP timeout"));
-      }
-    }, 15000);
+    p.stdin!.write(JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name: tool, arguments: args } }) + "\n");
+    setTimeout(() => { if (pending.has(id)) { pending.delete(id); reject(new Error("MCP timeout")); } }, 15000);
   });
+}
+
+function extractText(result: unknown): string {
+  try {
+    const r = result as { content?: Array<{ text?: string; type?: string }> };
+    const texts = (r.content || []).filter((c) => c.type === "text").map((c) => c.text || "");
+    return texts.join("\n");
+  } catch { return ""; }
 }
 
 // ---- 公开 API ----
@@ -84,8 +91,10 @@ function callTool(toolName: string, args: Record<string, unknown>): Promise<unkn
 export const agentmemory = {
   async getSlot(name: string): Promise<Result<unknown>> {
     try {
-      const result = await callTool("memory_slot_get", { name });
-      return { ok: true, value: (result as { content: Array<{ text: string }> }).content?.[0]?.text };
+      const raw = await callTool("memory_slot_get", { name });
+      const text = extractText(raw);
+      try { return { ok: true, value: JSON.parse(text) }; }
+      catch { return { ok: true, value: text }; }
     } catch (err) {
       return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(err) } };
     }
@@ -93,25 +102,26 @@ export const agentmemory = {
 
   async setSlot(name: string, data: unknown): Promise<Result<void>> {
     try {
-      await callTool("memory_slot_set", { name, data: JSON.stringify(data) });
+      await callTool("memory_slot_set", { name, data: typeof data === "string" ? data : JSON.stringify(data) });
       return { ok: true, value: undefined };
     } catch (err) {
       return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(err) } };
     }
   },
 
-  async smartSearch(query: string, limit = 5): Promise<string[]> {
+  async smartSearch(query: string, limit = 5): Promise<Array<{ content: string; confidence: number }>> {
     try {
-      const result = await callTool("memory_smart_search", { query, limit });
-      const raw = (result as { content: Array<{ text: string }> }).content?.[0]?.text || "[]";
-      const items = JSON.parse(raw);
-      return Array.isArray(items) ? items.map((i: { content?: string; text?: string }) => i.content || i.text || "") : [];
-    } catch {
-      return [];
-    }
+      const raw = await callTool("memory_smart_search", { query, limit });
+      const text = extractText(raw);
+      try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) return parsed.map((i: { content?: string; score?: number; confidence?: number }) => ({
+          content: i.content || "", confidence: i.score || i.confidence || 0.7,
+        }));
+      } catch { /* fall through */ }
+      return text ? [{ content: text, confidence: 0.7 }] : [];
+    } catch { return []; }
   },
 
-  isAvailable(): boolean {
-    return !!(process.env.AGENTMEMORY_URL || process.env.AGENTMEMORY_SECRET);
-  }
+  isAvailable(): boolean { return true; },
 };
