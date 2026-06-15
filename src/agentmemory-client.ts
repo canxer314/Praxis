@@ -93,6 +93,9 @@ export const agentmemory = {
     try {
       const raw = await callTool("memory_slot_get", { name });
       const text = extractText(raw);
+      if (!text || text.startsWith("Error:")) {
+        return { ok: false, error: { code: "NOT_FOUND", message: text || "slot not found" } };
+      }
       try { return { ok: true, value: JSON.parse(text) }; }
       catch { return { ok: true, value: text }; }
     } catch (err) {
@@ -123,5 +126,13 @@ export const agentmemory = {
     } catch { return []; }
   },
 
-  isAvailable(): boolean { return true; },
+  async isAvailable(): Promise<boolean> {
+    try {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), 2000); // 2s 超时
+      const r = await fetch(`${AM_URL}/api/health`, { signal: c.signal });
+      clearTimeout(t);
+      return r.ok;
+    } catch { return false; }
+  },
 };

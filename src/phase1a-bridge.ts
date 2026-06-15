@@ -26,7 +26,7 @@ async function searchRelevant(prompt: string, limit: number): Promise<StoredLear
   if (stored.length === 0) return [];
 
   // 尝试 AgentMemory 语义搜索
-  if (agentmemory.isAvailable()) {
+  if (await agentmemory.isAvailable()) {
     try {
       const results = await agentmemory.smartSearch(prompt, limit);
       if (results.length > 0) {
@@ -74,7 +74,7 @@ async function appendLearnings(events: LearningEvent[], session: number, source:
     });
   }
 
-  if (agentmemory.isAvailable()) {
+  if (await agentmemory.isAvailable()) {
     // AgentMemory 是唯一存储
     const r = await agentmemory.setSlot("praxis_learnings", stored);
     if (!r.ok) {
@@ -139,15 +139,19 @@ const DEFAULT_SKILLS = [
 
 async function mockGetSlot(_name: string): Promise<Result<unknown>> {
   // 尝试 AgentMemory
-  if (agentmemory.isAvailable()) {
-    const r = await agentmemory.getSlot("praxis_learnings");
-    if (r.ok && r.value) {
-      const parsed = typeof r.value === "string" ? JSON.parse(r.value) : r.value;
-      if (Array.isArray(parsed)) {
-        const bestPractices = [...new Set(parsed.filter((s: StoredLearning) => s.type === "pattern" || s.type === "insight").map((s: StoredLearning) => s.content))];
-        const antiPatterns = [...new Set(parsed.filter((s: StoredLearning) => s.type === "pitfall" || s.type === "correction").map((s: StoredLearning) => s.content))];
-        return { ok: true, value: { skills: DEFAULT_SKILLS, best_practices: bestPractices.slice(-20), anti_patterns: antiPatterns.slice(-20) } };
+  if (await agentmemory.isAvailable()) {
+    try {
+      const r = await agentmemory.getSlot("praxis_learnings");
+      if (r.ok && r.value) {
+        const parsed = typeof r.value === "string" ? JSON.parse(r.value) : r.value;
+        if (Array.isArray(parsed)) {
+          const bestPractices = [...new Set(parsed.filter((s: StoredLearning) => s.type === "pattern" || s.type === "insight").map((s: StoredLearning) => s.content))];
+          const antiPatterns = [...new Set(parsed.filter((s: StoredLearning) => s.type === "pitfall" || s.type === "correction").map((s: StoredLearning) => s.content))];
+          return { ok: true, value: { skills: DEFAULT_SKILLS, best_practices: bestPractices.slice(-20), anti_patterns: antiPatterns.slice(-20) } };
+        }
       }
+    } catch {
+      // AgentMemory 读取失败 → 降级到本地 JSON
     }
   }
 
