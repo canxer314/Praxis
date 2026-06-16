@@ -1,138 +1,145 @@
 /**
- * AgentMemory MCP 客户端
+ * AgentMemory REST API 客户端
  *
- * 通过 spawn npx @agentmemory/mcp → stdio JSON-RPC 调用 AgentMemory。
- * 需要 AGENTMEMORY_URL 环境变量指向 AgentMemory REST API（默认 http://localhost:3111）。
+ * 直接 HTTP 调用 AgentMemory REST API（http://localhost:3111），
+ * 不通过 MCP spawn — 零启动开销，单次调用 < 50ms。
+ *
+ * 端点：
+ *   GET  /agentmemory/slot?label=xxx     — 读取 slot
+ *   POST /agentmemory/slot               — 创建 slot
+ *   POST /agentmemory/slot/replace       — 覆盖 slot
+ *   POST /agentmemory/smart-search       — 语义搜索（观察 + lessons）
+ *   POST /agentmemory/lessons            — 保存 lesson
+ *   POST /agentmemory/lessons/search     — 语义搜索 lessons
+ *   GET  /agentmemory/livez              — 健康检查
  */
 
-import { spawn, ChildProcess } from "child_process";
-import * as fs from "fs";
-import * as path from "path";
 import { Result } from "./platform-adapter";
 
-// ---- 读取 .env ----
+const BASE = process.env.AGENTMEMORY_URL || "http://localhost:3111";
 
-function loadEnv(): Record<string, string> {
-  const envPath = path.join(process.cwd(), ".env");
-  if (!fs.existsSync(envPath)) return {};
-  const vars: Record<string, string> = {};
-  for (const line of fs.readFileSync(envPath, "utf-8").split("\n")) {
-    const t = line.trim();
-    if (!t || t.startsWith("#")) continue;
-    const eq = t.indexOf("=");
-    if (eq === -1) continue;
-    vars[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
-  }
-  return vars;
+// ---- HTTP helpers ----
+
+async function restGet(path: string): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE}${path}`);
+  return (await res.json()) as Record<string, unknown>;
 }
 
-const env = loadEnv();
-const AM_URL = env.AGENTMEMORY_URL || process.env.AGENTMEMORY_URL || "http://localhost:3111";
-
-// ---- MCP JSON-RPC ----
-
-interface JsonRpcResponse {
-  jsonrpc: "2.0";
-  id: number;
-  result?: unknown;
-  error?: { code: number; message: string };
-}
-
-let proc: ChildProcess | null = null;
-let nextId = 1;
-const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
-let buffer = "";
-
-function getClient(): ChildProcess {
-  if (proc && !proc.killed) return proc;
-  const cmd = process.platform === "win32" ? "npx.cmd" : "npx";
-  proc = spawn(cmd, ["-y", "@agentmemory/mcp"], {
-    env: { ...process.env, AGENTMEMORY_URL: AM_URL },
-    stdio: ["pipe", "pipe", "pipe"],
-    shell: true,
+async function restPost(path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
-  proc.stdout!.on("data", (chunk: Buffer) => {
-    buffer += chunk.toString();
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const msg = JSON.parse(line) as JsonRpcResponse;
-        const p = pending.get(msg.id);
-        if (p) { pending.delete(msg.id); msg.error ? p.reject(new Error(msg.error.message)) : p.resolve(msg.result); }
-      } catch { /* skip */ }
-    }
-  });
-  proc.on("exit", () => { proc = null; });
-  return proc;
+  return (await res.json()) as Record<string, unknown>;
 }
 
-function callTool(tool: string, args: Record<string, unknown>): Promise<unknown> {
-  const p = getClient();
-  const id = nextId++;
-  return new Promise((resolve, reject) => {
-    pending.set(id, { resolve, reject });
-    p.stdin!.write(JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name: tool, arguments: args } }) + "\n");
-    setTimeout(() => { if (pending.has(id)) { pending.delete(id); reject(new Error("MCP timeout")); } }, 15000);
-  });
-}
+// ---- 健康检查缓存 ----
 
-function extractText(result: unknown): string {
-  try {
-    const r = result as { content?: Array<{ text?: string; type?: string }> };
-    const texts = (r.content || []).filter((c) => c.type === "text").map((c) => c.text || "");
-    return texts.join("\n");
-  } catch { return ""; }
-}
+let _available: boolean | null = null;
+let _lastCheck = 0;
 
 // ---- 公开 API ----
 
 export const agentmemory = {
+  /** 读取 slot */
   async getSlot(name: string): Promise<Result<unknown>> {
     try {
-      const raw = await callTool("memory_slot_get", { name });
-      const text = extractText(raw);
-      if (!text || text.startsWith("Error:")) {
-        return { ok: false, error: { code: "NOT_FOUND", message: text || "slot not found" } };
+      const data = await restGet(`/agentmemory/slot?label=${encodeURIComponent(name)}`);
+      if (!data.success) {
+        return { ok: false, error: { code: "NOT_FOUND", message: String(data.error || "slot not found") } };
       }
-      try { return { ok: true, value: JSON.parse(text) }; }
-      catch { return { ok: true, value: text }; }
+      const slot = data.slot as { content?: string } | undefined;
+      const raw = slot?.content || "";
+      if (!raw) return { ok: false, error: { code: "EMPTY", message: "slot content is empty" } };
+      try { return { ok: true, value: JSON.parse(raw) }; }
+      catch { return { ok: true, value: raw }; }
     } catch (err) {
       return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(err) } };
     }
   },
 
-  async setSlot(name: string, data: unknown): Promise<Result<void>> {
+  /** 写入 slot（自动 create-or-replace） */
+  async setSlot(name: string, content: unknown): Promise<Result<void>> {
+    const contentStr = typeof content === "string" ? content : JSON.stringify(content);
     try {
-      await callTool("memory_slot_set", { name, data: typeof data === "string" ? data : JSON.stringify(data) });
+      // 先尝试 replace
+      let data = await restPost("/agentmemory/slot/replace", { label: name, content: contentStr });
+      if (!data.success && String(data.error || "").includes("not found")) {
+        // slot 不存在 → 创建
+        data = await restPost("/agentmemory/slot", { label: name, content: contentStr });
+      }
+      if (!data.success) {
+        return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(data.error || "unknown error") } };
+      }
       return { ok: true, value: undefined };
     } catch (err) {
       return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(err) } };
     }
   },
 
-  async smartSearch(query: string, limit = 5): Promise<Array<{ content: string; confidence: number }>> {
+  /** 语义搜索（观察 + lessons） */
+  async smartSearch(
+    query: string,
+    limit = 5,
+  ): Promise<Array<{ content: string; score: number; source: "observation" | "lesson" }>> {
     try {
-      const raw = await callTool("memory_smart_search", { query, limit });
-      const text = extractText(raw);
-      try {
-        const parsed = JSON.parse(text);
-        if (Array.isArray(parsed)) return parsed.map((i: { content?: string; score?: number; confidence?: number }) => ({
-          content: i.content || "", confidence: i.score || i.confidence || 0.7,
-        }));
-      } catch { /* fall through */ }
-      return text ? [{ content: text, confidence: 0.7 }] : [];
-    } catch { return []; }
+      const data = await restPost("/agentmemory/smart-search", {
+        query,
+        limit,
+        includeLessons: "true",
+      });
+      const results: Array<{ content: string; score: number; source: "observation" | "lesson" }> = [];
+
+      for (const r of (data.results as Array<Record<string, unknown>>) || []) {
+        results.push({
+          content: String(r.title || r.content || ""),
+          score: Number(r.score || 0),
+          source: "observation" as const,
+        });
+      }
+      for (const l of (data.lessons as Array<Record<string, unknown>>) || []) {
+        results.push({
+          content: String(l.content || ""),
+          score: Number(l.score || 0),
+          source: "lesson" as const,
+        });
+      }
+      return results.sort((a, b) => b.score - a.score).slice(0, limit);
+    } catch {
+      return [];
+    }
   },
 
-  async isAvailable(): Promise<boolean> {
+  /** 保存单条 lesson（跨会话语义可检索） */
+  async saveLesson(content: string, tags: string[] = [], confidence = 0.8): Promise<Result<void>> {
     try {
-      const c = new AbortController();
-      const t = setTimeout(() => c.abort(), 2000); // 2s 超时
-      const r = await fetch(`${AM_URL}/api/health`, { signal: c.signal });
-      clearTimeout(t);
-      return r.ok;
-    } catch { return false; }
+      const data = await restPost("/agentmemory/lessons", {
+        content,
+        tags: ["praxis", ...tags],
+        confidence,
+        source: "praxis-phase1a",
+      });
+      if (!data.success) {
+        return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(data.error || "unknown error") } };
+      }
+      return { ok: true, value: undefined };
+    } catch (err) {
+      return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(err) } };
+    }
+  },
+
+  /** 健康检查（带 30s 缓存） */
+  async isAvailable(): Promise<boolean> {
+    const now = Date.now();
+    if (_available !== null && now - _lastCheck < 30_000) return _available;
+    try {
+      const data = await restGet("/agentmemory/livez");
+      _available = data.status === "ok";
+    } catch {
+      _available = false;
+    }
+    _lastCheck = now;
+    return _available;
   },
 };

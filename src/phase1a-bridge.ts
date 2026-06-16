@@ -6,6 +6,8 @@
  *   tsx src/phase1a-bridge.ts end <file>    — SessionEnd: 分析 transcript 并保存学习
  *   tsx src/phase1a-bridge.ts show          — 查看学习状态
  *   tsx src/phase1a-bridge.ts learn "<内容>" — 手动保存学习
+ *   tsx src/phase1a-bridge.ts expand        — UserPromptExpansion: 语义搜索注入
+ *   tsx src/phase1a-bridge.ts message       — UserPromptSubmit: 实时学习提取
  */
 
 import * as fs from "fs";
@@ -19,27 +21,31 @@ import { llmClient } from "./llm-client";
 import { agentmemory } from "./agentmemory-client";
 import { Result, LearningEvent } from "./platform-adapter";
 
-// ---- 搜索（AgentMemory 优先，本地 n-gram 兜底） ----
+// ---- 搜索（AgentMemory 语义搜索） ----
 
 async function searchRelevant(prompt: string, limit: number): Promise<StoredLearning[]> {
+  const amAvailable = await agentmemory.isAvailable();
+
+  if (amAvailable) {
+    // 主要路径：AgentMemory 语义搜索（观察 + lessons）
+    const results = await agentmemory.smartSearch(prompt, limit);
+    if (results.length > 0) {
+      return results.map((r) => ({
+        session: 0,
+        timestamp: "",
+        type: r.source === "lesson" ? "insight" : "observation",
+        content: r.content,
+        confidence: r.score,
+        source: "auto" as const,
+      }));
+    }
+  }
+
+  // 降级：从 slot 读取 learnings 做本地匹配
   const stored = loadLearnings();
   if (stored.length === 0) return [];
 
-  // 尝试 AgentMemory 语义搜索
-  if (await agentmemory.isAvailable()) {
-    try {
-      const results = await agentmemory.smartSearch(prompt, limit);
-      if (results.length > 0) {
-        return results.map((r, i) => ({
-          session: 0, timestamp: "", type: "insight" as const,
-          content: r, confidence: 0.8, source: "auto" as const,
-          _score: limit - i,
-        })).filter((r: { content: string }) => r.content.length > 0);
-      }
-    } catch { /* fall through to n-gram */ }
-  }
-
-  // n-gram 兜底
+  // 中文 n-gram 兜底（AgentMemory 不可用时）
   const grams = new Set<string>();
   for (let i = 0; i < prompt.length - 1; i++) grams.add(prompt.slice(i, i + 2));
   for (let i = 0; i < prompt.length - 2; i++) grams.add(prompt.slice(i, i + 3));
@@ -63,7 +69,7 @@ async function searchRelevant(prompt: string, limit: number): Promise<StoredLear
     .slice(0, limit);
 }
 
-// ---- 持久化（AgentMemory slots + 本地 JSON 兜底） ----
+// ---- 持久化（AgentMemory slot + lessons） ----
 
 async function appendLearnings(events: LearningEvent[], session: number, source: "auto" | "manual"): Promise<void> {
   const stored = loadLearnings();
@@ -74,15 +80,20 @@ async function appendLearnings(events: LearningEvent[], session: number, source:
     });
   }
 
-  if (await agentmemory.isAvailable()) {
-    // AgentMemory 是唯一存储
+  const amAvailable = await agentmemory.isAvailable();
+
+  if (amAvailable) {
+    // 存入 slot（结构化全量）
     const r = await agentmemory.setSlot("praxis_learnings", stored);
     if (!r.ok) {
-      console.error("[Praxis] AgentMemory 写入失败，降级到本地 JSON:", r.error?.message);
-      saveLearnings(stored); // 仅 AgentMemory 失败时才写本地
+      console.error("[Praxis] AgentMemory slot 写入失败，降级到本地 JSON:", r.error?.message);
+      saveLearnings(stored);
+    }
+    // 每条学习同时存为 lesson（语义可检索）
+    for (const e of events) {
+      await agentmemory.saveLesson(e.content, [e.type], e.confidence);
     }
   } else {
-    // 无 AgentMemory → 本地 JSON
     saveLearnings(stored);
   }
 }
@@ -128,7 +139,7 @@ function logSession(session: number, event: string): void {
   fs.appendFileSync(SESSION_LOG_FILE, line, "utf-8");
 }
 
-// ---- 模拟 AgentMemory getSlot（Phase 1A 真实集成前用本地文件） ----
+// ---- AgentMemory 数据读取（注入到 SessionStartHandler） ----
 
 const DEFAULT_SKILLS = [
   { id: "typescript", name: "TypeScript", proficiency: 0.65, level: "competent" },
@@ -137,9 +148,10 @@ const DEFAULT_SKILLS = [
   { id: "obsidian", name: "Obsidian 笔记管理", proficiency: 0.75, level: "competent" },
 ];
 
-async function mockGetSlot(_name: string): Promise<Result<unknown>> {
-  // 尝试 AgentMemory
-  if (await agentmemory.isAvailable()) {
+async function getSlotForInjection(_name: string): Promise<Result<unknown>> {
+  const amAvailable = await agentmemory.isAvailable();
+
+  if (amAvailable) {
     try {
       const r = await agentmemory.getSlot("praxis_learnings");
       if (r.ok && r.value) {
@@ -151,7 +163,7 @@ async function mockGetSlot(_name: string): Promise<Result<unknown>> {
         }
       }
     } catch {
-      // AgentMemory 读取失败 → 降级到本地 JSON
+      // AgentMemory 读取失败 → 降级
     }
   }
 
@@ -170,7 +182,12 @@ async function mockGetSlot(_name: string): Promise<Result<unknown>> {
   };
 }
 
-async function mockSetSlot(name: string, data: unknown): Promise<Result<void>> {
+async function setSlotForSessionEnd(name: string, data: unknown): Promise<Result<void>> {
+  const amAvailable = await agentmemory.isAvailable();
+  if (amAvailable) {
+    return agentmemory.setSlot(name, data);
+  }
+  // 降级：本地文件
   ensureDir();
   const file = path.join(MEMORY_DIR, `slot-${name}.json`);
   fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf-8");
@@ -183,7 +200,7 @@ const cmd = process.argv[2];
 
 if (cmd === "inject") {
   (async () => {
-    const handler = new SessionStartHandler({ getSlot: mockGetSlot });
+    const handler = new SessionStartHandler({ getSlot: getSlotForInjection });
     const result = await handler.handle(`session-${getSessionCount()}`);
     if (result.ok) {
       console.log(result.value.systemPromptAddition);
@@ -209,7 +226,7 @@ if (cmd === "inject") {
     };
     const handler = new SessionEndHandler({
       analyzeTranscript,
-      setSlot: mockSetSlot,
+      setSlot: setSlotForSessionEnd,
     });
 
     const transcript = fs.readFileSync(transcriptFile, "utf-8");
@@ -308,7 +325,7 @@ if (cmd === "inject") {
     if (scored.length === 0) return;
 
     const lines = scored.map((l: StoredLearning) =>
-      `- [${l.type}] ${l.content.slice(0, 120)} (置信度: ${l.confidence.toFixed(1)})`
+      `- [${l.type}] ${l.content.slice(0, 120)} (匹配: ${l.confidence.toFixed(3)})`
     );
     console.log(`\n[Praxis 相关经验]\n${lines.join("\n")}`);
     logSession(getSessionCount(), `expand:${scored.length}`);
