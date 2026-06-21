@@ -129,6 +129,53 @@ export const agentmemory = {
     }
   },
 
+  /**
+   * 去重保存 lesson — 先语义搜索已有 lessons，
+   * 若最佳匹配 score > 0.7 则调用 strengthen 强化，否则创建新 lesson。
+   * 返回 { created | strengthened, id? }
+   */
+  async saveLessonDeduped(
+    content: string,
+    tags: string[] = [],
+    confidence = 0.8,
+  ): Promise<Result<{ action: "created" | "strengthened"; id?: string }>> {
+    try {
+      // 搜索已有 lessons，用 content 自身作为查询
+      const searchData = await restPost("/agentmemory/lessons/search", {
+        query: content,
+        limit: 1,
+      });
+      const existing = (searchData.lessons as Array<{ id: string; score: number }>) || [];
+      if (existing.length > 0 && existing[0].score > 0.7) {
+        // 去重：强化已有 lesson
+        const strengthenData = await restPost("/agentmemory/lessons/strengthen", {
+          lessonId: existing[0].id,
+          confidence,
+          source: "praxis-phase1a",
+        });
+        if (!strengthenData.success) {
+          return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(strengthenData.error || "strengthen failed") } };
+        }
+        return { ok: true, value: { action: "strengthened", id: existing[0].id } };
+      }
+
+      // 没有匹配 → 创建新 lesson
+      const data = await restPost("/agentmemory/lessons", {
+        content,
+        tags: ["praxis", ...tags],
+        confidence,
+        source: "praxis-phase1a",
+      });
+      if (!data.success) {
+        return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(data.error || "create failed") } };
+      }
+      const lesson = data.lesson as { id?: string } | undefined;
+      return { ok: true, value: { action: "created", id: lesson?.id } };
+    } catch (err) {
+      return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(err) } };
+    }
+  },
+
   /** 健康检查（带 30s 缓存） */
   async isAvailable(): Promise<boolean> {
     const now = Date.now();

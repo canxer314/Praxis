@@ -15,29 +15,58 @@ import { TranscriptAnalyzer } from "./transcript-analyzer";
 // ---- LLM Prompt ----
 
 function buildPrompt(transcript: string): string {
-  return `你是一个 AI 学习事件提取器。分析以下对话片段，提取值得记录的学习事件。
+  return `你是一个 AI 学习事件提取器。分析以下对话片段，提取对未来会话有价值的学习事件。
 
-规则:
-1. 只在对话中包含"学到了什么"时才提取。普通闲聊、简单问答不提取。
-2. 每条事件包含: type, content, confidence
-3. type 必须是以下之一: correction(用户纠正)、preference(用户偏好)、pattern(可复用模式)、pitfall(陷阱/坑)、insight(领域洞察)
-4. content 是完整、有意义的描述，包含上下文信息
-5. confidence 是 0.0-1.0 的浮点数，表示你对这条学习正确性的置信度
+什么是"有价值的学习事件"：任何在未来的对话中应该被记住的信息，例如：
+- 用户纠正了你的错误或误解
+- 用户表达了编码风格、工具选择、工作流程的偏好
+- 发现了一个可复用的技术模式、架构原则或最佳实践
+- 踩到了陷阱——某个方案行不通、某个工具有问题、某个做法导致了 bug
+- 获得了领域洞察——对某个系统、项目、业务逻辑有了更深入的理解
 
-返回格式: 纯 JSON 数组。不要 Markdown 代码块包裹。不要额外解释。
-如果没有值得记录的学习事件，返回空数组 []。
+提取原则：
+- 提取你希望下个 session 的自己已经知道的信息，不需要在这次对话中重新发现
+- 宁可多提——如果拿不准是否值得记住，提出来，用较低的 confidence 表达
+- 每条 content 必须是完整句子，包含必要的上下文，让未来 session 能理解
+- 纯问候、闲谈、单字确认等不提取
+
+每条事件格式: { "type": "...", "content": "...", "confidence": 0.0-1.0 }
+
+type 取值:
+- correction  — 用户纠正了你的错误
+- preference  — 用户表达了偏好（工具、风格、流程）
+- pattern     — 可复用的技术模式或架构原则
+- pitfall     — 踩到的陷阱，以后应该避免的做法
+- insight     — 对项目/系统/领域的深入理解
+
+confidence 取值:
+- 0.9-1.0  — 用户明确说出来（"以后都用 X"、"记住 X"）
+- 0.7-0.8  — 从对话中推断出来的模式或偏好
+- 0.5-0.6  — 合理的推断，但证据不够充分
+- <0.5     — 不确定但仍值得标记的观察
+
+返回格式: 纯 JSON 数组，不要 Markdown 代码块包裹，不要额外解释。
+如果没有值得记录的学习事件，返回 []。
 
 示例输入:
 "用户: 别用 interface 了，这个项目统一用 type
 AI: 好的，已改为 type
-用户: 还有，AgentMemory MCP 调用经常超时 30 秒，以后加个 10 秒超时控制"
+用户: AgentMemory MCP 调用经常超时，以后加个超时控制"
 
 示例输出:
-[{"type":"preference","content":"用户偏好使用 type 别名而非 interface 声明，要求项目统一使用 type","confidence":0.9},{"type":"pitfall","content":"AgentMemory MCP 调用默认 30 秒超时过长，需要 10 秒超时控制","confidence":0.85}]
+[{"type":"preference","content":"用户偏好使用 type 别名而非 interface 声明，要求项目统一使用 type","confidence":0.9},{"type":"pitfall","content":"AgentMemory MCP 调用默认超时过长，需要 10 秒超时控制","confidence":0.85}]
+
+示例输入2（分析/设计对话）:
+"用户: Phase 1B 的 context-organizer 现在还需要吗？
+AI: AgentMemory 语义搜索返回的 score 本身就是质量分级。score > 0.5 的注入、< 0.1 的丢弃，不需要复杂的 Tier 系统。
+用户: 合理，所以砍掉。"
+
+示例输出2:
+[{"type":"insight","content":"Phase 1B context-organizer 的 Tier A/B/C 分级可用 AgentMemory smartSearch 的 score 阈值替代，不需要独立模块","confidence":0.8}]
 
 对话片段:
 ---
-${transcript.slice(0, 6000)}
+${transcript.slice(0, 8000)}
 ---`;
 }
 

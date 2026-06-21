@@ -74,6 +74,11 @@ async function searchRelevant(prompt: string, limit: number): Promise<StoredLear
 async function appendLearnings(events: LearningEvent[], session: number, source: "auto" | "manual"): Promise<void> {
   const stored = loadLearnings();
   for (const e of events) {
+    // Slot 层内容去重：相同 content（忽略首尾空白）只保留第一条
+    const exists = stored.some(
+      (s) => s.content.trim().toLowerCase() === e.content.trim().toLowerCase()
+    );
+    if (exists) continue;
     stored.push({
       session, timestamp: new Date().toISOString(),
       type: e.type, content: e.content, confidence: e.confidence, source,
@@ -89,9 +94,12 @@ async function appendLearnings(events: LearningEvent[], session: number, source:
       console.error("[Praxis] AgentMemory slot 写入失败，降级到本地 JSON:", r.error?.message);
       saveLearnings(stored);
     }
-    // 每条学习同时存为 lesson（语义可检索）
+    // 每条学习同时存为 lesson（语义可检索，带去重）
     for (const e of events) {
-      await agentmemory.saveLesson(e.content, [e.type], e.confidence);
+      const lr = await agentmemory.saveLessonDeduped(e.content, [e.type], e.confidence);
+      if (!lr.ok) {
+        console.error(`[Praxis] lesson 保存失败: ${lr.error?.message} — ${e.content.slice(0, 50)}`);
+      }
     }
   } else {
     saveLearnings(stored);
