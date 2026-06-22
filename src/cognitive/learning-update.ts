@@ -40,7 +40,7 @@ export interface LearningUpdateMemoryClient {
 // ══════════════════════════════════════════════════════════════════
 
 interface PendingWrite {
-  type: "episodic" | "calibration" | "knowledge_gap";
+  type: "episodic" | "calibration" | "knowledge_gap" | "semantic" | "procedural";
   data: Record<string, unknown>;
   timestamp: number;
 }
@@ -223,7 +223,8 @@ export class LearningUpdateBuilder {
         content: JSON.stringify(sem),
       });
       if (!saveResult.ok) {
-        logDegraded("learning-update", "build", `semantic save failed: ${sem.memoryId}`);
+        this.enqueueToWal({ type: "semantic", data: sem as unknown as Record<string, unknown>, timestamp: Date.now() });
+        logDegraded("learning-update", "build", `semantic save failed — WAL queued: ${sem.memoryId}`);
       }
     }
 
@@ -235,7 +236,8 @@ export class LearningUpdateBuilder {
         content: JSON.stringify(proc),
       });
       if (!saveResult.ok) {
-        logDegraded("learning-update", "build", `procedural save failed: ${proc.memoryId}`);
+        this.enqueueToWal({ type: "procedural", data: proc as unknown as Record<string, unknown>, timestamp: Date.now() });
+        logDegraded("learning-update", "build", `procedural save failed — WAL queued: ${proc.memoryId}`);
       }
     }
 
@@ -284,6 +286,18 @@ export class LearningUpdateBuilder {
         case "knowledge_gap":
           result = await this.memory.lessonSave({
             type: "knowledge_gap",
+            content: JSON.stringify(entry.data),
+          });
+          break;
+        case "semantic":
+          result = await this.memory.lessonSave({
+            type: "semantic",
+            content: JSON.stringify(entry.data),
+          });
+          break;
+        case "procedural":
+          result = await this.memory.lessonSave({
+            type: "procedural",
             content: JSON.stringify(entry.data),
           });
           break;

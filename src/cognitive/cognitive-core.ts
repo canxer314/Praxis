@@ -348,13 +348,17 @@ export class SessionCognitiveCore {
         );
         for (const escalatedDomain of escalatedDomains) {
           try {
-            await this.strategyRegistry.reactivateDormant(
+            const raResult = await this.strategyRegistry.reactivateDormant(
               escalatedDomain,
               `PERSISTENT_GAP detected — ${gapResult.value.escalatedGaps.length} escalated gap(s)`,
             );
+            if (!raResult.ok) {
+              logDegraded("cognitive-core", "finalizeLearning/E4/domain",
+                `reactivation failed for ${escalatedDomain}: ${raResult.error?.message}`);
+            }
           } catch (e) {
             logDegraded("cognitive-core", "finalizeLearning/E4/domain",
-              `reactivation failed for ${escalatedDomain}: ${e instanceof Error ? e.message : String(e)}`);
+              `reactivation threw for ${escalatedDomain}: ${e instanceof Error ? e.message : String(e)}`);
           }
         }
       }
@@ -382,7 +386,7 @@ export class SessionCognitiveCore {
 
           for (const { migration, reason } of degraded) {
             try {
-              await this.crossDomainAnalyzer.rollbackMigration(
+              const rbResult = await this.crossDomainAnalyzer.rollbackMigration(
                 migration.id,
                 reason,
                 async () => {
@@ -394,9 +398,13 @@ export class SessionCognitiveCore {
                   return rb.ok;
                 },
               );
+              if (!rbResult.ok) {
+                logDegraded("cognitive-core", "finalizeLearning/E5/migration",
+                  `rollback failed for ${migration.id}: ${rbResult.error?.message}`);
+              }
             } catch (e) {
               logDegraded("cognitive-core", "finalizeLearning/E5/migration",
-                `rollback failed for ${migration.id}: ${e instanceof Error ? e.message : String(e)}`);
+                `rollback threw for ${migration.id}: ${e instanceof Error ? e.message : String(e)}`);
             }
           }
         }
