@@ -238,7 +238,19 @@ export class CrossDomainAnalyzer {
       };
     }
 
-    const success = await rollbackFn();
+    let success: boolean;
+    try {
+      success = await rollbackFn();
+    } catch (err) {
+      return {
+        ok: false,
+        error: {
+          code: ErrorCode.ROLLBACK_FAILED,
+          message: `rollbackFn threw: ${err instanceof Error ? err.message : String(err)}`,
+        },
+      };
+    }
+
     if (!success) {
       return {
         ok: false,

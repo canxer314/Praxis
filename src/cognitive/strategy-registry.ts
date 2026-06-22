@@ -127,6 +127,7 @@ export class StrategyRegistry {
     strategyId: string,
     toState: StrategyState,
     reason: string,
+    source: StrategyAuditEntry["source"] = "auto_proposed",
   ): Promise<Result<Strategy>> {
     const strategy = this.strategies.get(strategyId);
     if (!strategy) {
@@ -159,7 +160,7 @@ export class StrategyRegistry {
           fromState,
           toState,
           reason,
-          source: "auto_proposed",
+          source,
         },
       ],
     };
@@ -228,7 +229,12 @@ export class StrategyRegistry {
     }
 
     if (reactivated.length > 0) {
-      await this.persist();
+      const persistResult = await this.persist();
+      if (!persistResult.ok) {
+        logDegraded("strategy-registry", "reactivateDormant",
+          `persist failed after reactivating ${reactivated.length} strategies: ${persistResult.error?.message}`);
+        return { ok: false, error: persistResult.error };
+      }
 
       log({
         ts: new Date().toISOString(),
@@ -325,17 +331,23 @@ export class StrategyApplier {
   }
 
   /**
-   * 激活策略 — 先保存 primary + backup 快照。
+   * 激活策略 — 先保存 primary + backup 双快照。
    * 回滚时可用双快照恢复。
    */
   async activate(strategyId: string): Promise<Result<Strategy>> {
-    // 保存快照
+    // 保存 primary + backup 双快照
     const snapshot = this.registry.getAll();
-    await this.memory.setSlot("strategy_snapshot_primary", { strategies: snapshot });
+    await this.memory.setSlot(SLOTS.STRATEGY_SNAPSHOT_PRIMARY, { strategies: snapshot });
+    await this.memory.setSlot(SLOTS.STRATEGY_SNAPSHOT_BACKUP, { strategies: snapshot });
 
-    const result = await this.registry.transition(strategyId, "ACTIVE", "Manual activation");
+    const result = await this.registry.transition(strategyId, "ACTIVE", "Manual activation", "user_approved");
     if (result.ok) {
-      await this.registry.persist();
+      const persistResult = await this.registry.persist();
+      if (!persistResult.ok) {
+        logDegraded("strategy-applier", "activate",
+          `persist failed after activation: ${persistResult.error?.message}`);
+        return { ok: false, error: persistResult.error };
+      }
     }
     return result;
   }
@@ -346,11 +358,11 @@ export class StrategyApplier {
    */
   async rollback(strategyId: string, reason: string): Promise<Result<void>> {
     // 尝试 primary snapshot
-    let snapshotResult = await this.memory.getSlot("strategy_snapshot_primary");
+    let snapshotResult = await this.memory.getSlot(SLOTS.STRATEGY_SNAPSHOT_PRIMARY);
 
     if (!snapshotResult.ok) {
       // 尝试 backup
-      snapshotResult = await this.memory.getSlot("strategy_snapshot_backup");
+      snapshotResult = await this.memory.getSlot(SLOTS.STRATEGY_SNAPSHOT_BACKUP);
     }
 
     if (!snapshotResult.ok) {
@@ -359,7 +371,7 @@ export class StrategyApplier {
       return { ok: false, error: { code: "SLOT_READ_ERROR", message: "Both primary and backup snapshots unavailable; rollback aborted to prevent data loss" } };
     }
 
-    // 恢复快照: 先清空再写入 (E5 fix — rollback is restore, not merge)
+    // 恢复快照: 先清空再写入 (rollback is restore, not merge)
     const snapshot = snapshotResult.value as { strategies?: Strategy[] };
     this.registry.clear();
     if (snapshot?.strategies) {
@@ -368,8 +380,20 @@ export class StrategyApplier {
       }
     }
 
-    await this.registry.transition(strategyId, "ROLLED_BACK", reason);
-    await this.registry.persist();
+    const transitionResult = await this.registry.transition(strategyId, "ROLLED_BACK", reason, "auto_rollback");
+    if (!transitionResult.ok) {
+      logDegraded("strategy-applier", "rollback",
+        `transition to ROLLED_BACK failed: ${transitionResult.error?.message}`);
+      // Continue with persist — snapshot restore is still valid even if individual
+      // strategy transition fails (strategy may not exist in restored snapshot)
+    }
+
+    const persistResult = await this.registry.persist();
+    if (!persistResult.ok) {
+      logDegraded("strategy-applier", "rollback",
+        `persist failed after rollback: ${persistResult.error?.message}`);
+      return { ok: false, error: persistResult.error };
+    }
 
     log({
       ts: new Date().toISOString(),

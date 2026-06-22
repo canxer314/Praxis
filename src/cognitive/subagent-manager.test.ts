@@ -97,16 +97,20 @@ describe("canSpawn", () => {
     expect(mgr.canSpawn()).toBe(true);
   });
 
-  it("returns false when max_parallel is reached", () => {
+  it("returns false when max_parallel is reached", async () => {
     const mgr = new SubagentManager("task_001", makeMockMemory(), { maxParallel: 2 });
-    // Manually fill active_runs
-    const registry = mgr.getRegistry();
-    registry.active_runs = [
-      { run_id: "r1", subtask_id: "s1", session_key: "sk1", status: "running", spawned_at: Date.now(), completed_at: null, retry_count: 0, max_retries: 2 },
-      { run_id: "r2", subtask_id: "s2", session_key: "sk2", status: "running", spawned_at: Date.now(), completed_at: null, retry_count: 0, max_retries: 2 },
-    ];
-    // Use internal state injection — test assumes canSpawn reads registry directly
-    // We spawn to populate active_runs naturally
+    const api = makeMockAPI({
+      run: vi.fn()
+        .mockResolvedValueOnce({ runId: "run_1" })
+        .mockResolvedValueOnce({ runId: "run_2" }),
+    });
+
+    // Spawn 2 agents to fill up to maxParallel
+    const r1 = await mgr.spawnSubagent(makeSubtask({ subtask_name: "s1" }), makeTaskInfo(), [], [], api);
+    const r2 = await mgr.spawnSubagent(makeSubtask({ subtask_name: "s2" }), makeTaskInfo(), [], [], api);
+    expect(r1).not.toBeNull();
+    expect(r2).not.toBeNull();
+    expect(mgr.canSpawn()).toBe(false);
   });
 
   it("returns true when some runs finished and slots are free", async () => {

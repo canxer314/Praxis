@@ -14,10 +14,9 @@ import type { Correction, SessionContext } from "./types";
 /**
  * 判断一次交互是否产生了"真实经验"。
  *
- * 三规则:
+ * 规则:
  *   1. 用户显式修正过 (correctedTo !== what)
- *   2. AI 输出被实质性重写 (编辑距离 > 30%)
- *   3. 用户明确拒绝信号
+ *   2. 用户明确拒绝信号 (hasExplicitRejection)
  *
  * 第一阶段仅追踪 after_tool_call + message_received 中的显式信号。
  * 不做语义级"隐含不满"检测 — 误报率过高。
@@ -31,10 +30,7 @@ export function isRealExperience(
   // 规则 1: 用户显式修正过
   if (correction.correctedTo !== correction.what) return true;
 
-  // 规则 2: AI 输出后用户做了实质性重写（编辑距离 > 30%）
-  if (editDistance(correction.correctedTo, correction.what) > 0.3) return true;
-
-  // 规则 3: 用户明确说"不对"/"错了"/"重新做"
+  // 规则 2: 用户明确说"不对"/"错了"/"重新做"
   if (sessionContext.hasExplicitRejection) return true;
 
   return false;

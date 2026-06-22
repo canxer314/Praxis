@@ -22,6 +22,7 @@ import type {
   KnowledgeGap,
 } from "./types";
 import { log, logDegraded } from "../logger";
+import { SLOTS } from "./constants";
 
 // ══════════════════════════════════════════════════════════════════
 // 依赖接口 (最小化 — 仅需 memoryClient 读写 profile slot)
@@ -36,8 +37,6 @@ export interface MetacognitiveMemoryClient {
 // ══════════════════════════════════════════════════════════════════
 // 默认值
 // ══════════════════════════════════════════════════════════════════
-
-const PROFILE_SLOT = "metacognitive_profile";
 const DEFAULT_SELF_RATING = 0.3;
 const MIN_TASKS_FOR_CALIBRATION = 5;
 const MIN_TASKS_FOR_NEW_DOMAIN = 3;
@@ -190,7 +189,7 @@ export class MetacognitiveEngine {
     }
 
     // 持久化
-    const writeResult = await this.memory.setSlot(PROFILE_SLOT, cloned);
+    const writeResult = await this.memory.setSlot(SLOTS.METACOGNITIVE_PROFILE, cloned);
     if (!writeResult.ok) {
       logDegraded("metacognitive-engine", "calibrate", "profile write failed");
       return writeResult;
@@ -234,8 +233,8 @@ export class MetacognitiveEngine {
         stale: true,
       };
 
-      // 后台异步刷新 profile（不阻塞返回）
-      this.assess(domain).then(
+      // 后台异步刷新 profile（不阻塞返回）— 强制跳过缓存重新读取 slot
+      this.getProfile(true).then(
         () => log({
           ts: new Date().toISOString(),
           module: "metacognitive-engine",
@@ -257,12 +256,12 @@ export class MetacognitiveEngine {
 
   // ---- Profile 读写 ----
 
-  async getProfile(): Promise<Result<MetacognitiveProfile>> {
-    if (this.cachedProfile) {
+  async getProfile(forceReload = false): Promise<Result<MetacognitiveProfile>> {
+    if (!forceReload && this.cachedProfile) {
       return { ok: true, value: this.cachedProfile };
     }
 
-    const result = await this.memory.getSlot(PROFILE_SLOT);
+    const result = await this.memory.getSlot(SLOTS.METACOGNITIVE_PROFILE);
     if (!result.ok) {
       return result;
     }
@@ -290,7 +289,7 @@ export class MetacognitiveEngine {
   }
 
   async saveProfile(profile: MetacognitiveProfile): Promise<Result<void>> {
-    const result = await this.memory.setSlot(PROFILE_SLOT, profile);
+    const result = await this.memory.setSlot(SLOTS.METACOGNITIVE_PROFILE, profile);
     if (result.ok) this.cachedProfile = profile;
     return result;
   }

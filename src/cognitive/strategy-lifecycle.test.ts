@@ -460,3 +460,92 @@ describe("GapDetector → StrategyRegistry coordinator chain", () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe("StrategyApplier", () => {
+  it("activate() writes dual snapshots + transitions to ACTIVE", async () => {
+    const mem = createMockMemory({
+      strategy_registry: {
+        strategies: [{ id: "s1", name: "test", description: "", state: "APPROVED" as StrategyState, domain: "typescript", taskType: "*", config: {}, metrics: { activatedAt: 0, rollbackCount: 0, successRate: 1.0, lastEvaluated: 0 }, auditLog: [] }],
+      },
+    });
+    const registry = new StrategyRegistry(mem);
+    await registry.load();
+    const applier = new StrategyApplier(registry, mem);
+
+    const result = await applier.activate("s1");
+    expect(result.ok).toBe(true);
+
+    // Verify primary snapshot was written
+    expect(mem.setSlot).toHaveBeenCalledWith(
+      "strategy_snapshot_primary",
+      expect.objectContaining({ strategies: expect.any(Array) }),
+    );
+    // Verify backup snapshot was written
+    expect(mem.setSlot).toHaveBeenCalledWith(
+      "strategy_snapshot_backup",
+      expect.objectContaining({ strategies: expect.any(Array) }),
+    );
+    // Verify strategy state
+    const strategy = registry.getAll().find(s => s.id === "s1");
+    expect(strategy?.state).toBe("ACTIVE");
+  });
+
+  it("rollback() restores from primary snapshot", async () => {
+    // Pre-populate primary snapshot
+    const snapshot = {
+      strategies: [{ id: "s1", name: "test", description: "", state: "ACTIVE" as StrategyState, domain: "typescript", taskType: "*", config: {}, metrics: { activatedAt: 0, rollbackCount: 0, successRate: 1.0, lastEvaluated: 0 }, auditLog: [] }],
+    };
+    const mem = createMockMemory({
+      strategy_registry: {
+        strategies: [{ id: "s1", name: "test", description: "", state: "ACTIVE" as StrategyState, domain: "typescript", taskType: "*", config: {}, metrics: { activatedAt: Date.now(), rollbackCount: 0, successRate: 1.0, lastEvaluated: 0 }, auditLog: [] }],
+      },
+      strategy_snapshot_primary: snapshot,
+      strategy_snapshot_backup: snapshot,
+    });
+    const registry = new StrategyRegistry(mem);
+    await registry.load();
+    const applier = new StrategyApplier(registry, mem);
+
+    const result = await applier.rollback("s1", "test rollback");
+    expect(result.ok).toBe(true);
+
+    const strategy = registry.getAll().find(s => s.id === "s1");
+    expect(strategy?.state).toBe("ROLLED_BACK");
+    expect(strategy?.auditLog.some(e => e.toState === "ROLLED_BACK")).toBe(true);
+  });
+
+  it("rollback() falls back to backup when primary unavailable", async () => {
+    const snapshot = {
+      strategies: [{ id: "s1", name: "test", description: "", state: "ACTIVE" as StrategyState, domain: "typescript", taskType: "*", config: {}, metrics: { activatedAt: 0, rollbackCount: 0, successRate: 1.0, lastEvaluated: 0 }, auditLog: [] }],
+    };
+    const mem = createMockMemory({
+      strategy_registry: {
+        strategies: [{ id: "s1", name: "test", description: "", state: "ACTIVE" as StrategyState, domain: "typescript", taskType: "*", config: {}, metrics: { activatedAt: 0, rollbackCount: 0, successRate: 1.0, lastEvaluated: 0 }, auditLog: [] }],
+      },
+      strategy_snapshot_backup: snapshot,
+    });
+    // Primary will fail because it's not in the mock slots
+
+    const registry = new StrategyRegistry(mem);
+    await registry.load();
+    const applier = new StrategyApplier(registry, mem);
+
+    const result = await applier.rollback("s1", "backup fallback test");
+    expect(result.ok).toBe(true);
+  });
+
+  it("rollback() returns error when both snapshots unavailable", async () => {
+    const mem = createMockMemory({
+      strategy_registry: {
+        strategies: [{ id: "s1", name: "test", description: "", state: "ACTIVE" as StrategyState, domain: "typescript", taskType: "*", config: {}, metrics: { activatedAt: 0, rollbackCount: 0, successRate: 1.0, lastEvaluated: 0 }, auditLog: [] }],
+      },
+    });
+    const registry = new StrategyRegistry(mem);
+    await registry.load();
+    const applier = new StrategyApplier(registry, mem);
+
+    const result = await applier.rollback("s1", "should fail");
+    expect(result.ok).toBe(false);
+    expect((result as { ok: false; error: { code: string } }).error.code).toBe("SLOT_READ_ERROR");
+  });
+});

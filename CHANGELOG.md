@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.6.0.1] - 2026-06-23
+
+### Fixed
+- **C1:** TaskScheduler 首次触发死锁 — `first_trigger_of_task` 确认检查基于 `confirmed_at` 而非 trigger count，添加 `confirmTask()` 方法
+- **C2:** SubagentManager retrySubagent spawn 失败时数据丢失 — 旧 run 现在保存到 completed_runs
+- **C3:** StrategyApplier backup 快照从未写入 — `activate()` 现在同时写 primary + backup 双快照
+- **C4:** StrategyApplier rollback() 吞掉 transition() 失败 — 现在检查 transition + persist 结果
+- **C5:** StrategyRegistry reactivateDormant() 忽略 persist() 失败 — 现在传播错误
+- **C7:** StrategyRegistry transition() 硬编码 source="auto_proposed" — 添加 `source` 参数
+- **H1:** isRealExperience 规则 2 死代码（永不可达）— 已移除
+- **H4:** GapDetector 无 null guard — 添加 `??` 默认值防护
+- **H7:** cachedAssess 后台刷新从不更新缓存 — 添加 `getProfile(forceReload)` 参数并在后台刷新中跳过缓存
+- **M5:** rollbackMigration() 不捕获 rollbackFn 异常 — 添加 try/catch
+- **M8:** metacognitive-engine 使用硬编码 slot 字符串 — 改用 SLOTS.METACOGNITIVE_PROFILE 常量
+- **M9:** estimateTokens() 未导出 — 添加 public export
+
+### Added
+- StrategyApplier 测试 (4 个): activate 双快照、rollback 主快照恢复、backup 降级、双快照不可用
+- 修复 subagent-manager 无效测试 (canSpawn max_parallel 现在实际 spawn agent)
+
 ## [0.6.0.0] - 2026-06-23
 
 ### Added

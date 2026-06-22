@@ -231,19 +231,31 @@ export class TaskScheduler {
       await this.cancelTrigger(ctx.task_id, duplicate.trigger_id);
     }
 
-    // 首次触发确认检查
+    // 首次触发确认检查 — 基于 confirmed_at 而非 trigger count
+    // (trigger count 在 saveTrigger 之前永远为 0，会导致死锁)
     if (this.config.require_user_confirmation_for.includes("first_trigger_of_task")) {
       const existingSchedule = await this.loadSchedule(ctx.task_id);
-      const totalTriggers = existingSchedule?.pending_triggers.length ?? 0;
-      if (totalTriggers === 0) {
-        // 首次触发需用户确认 — 暂不自动触发
+      if (!existingSchedule?.confirmed_at) {
+        // 首次触发需用户确认 — 保存空 schedule (confirmed_at=null) 但不创建 trigger
+        // 这样 confirmTask() 能找到 schedule 并设置 confirmed_at
+        if (!existingSchedule) {
+          const placeholder: TaskSchedule = {
+            task_id: ctx.task_id,
+            pending_triggers: [],
+            last_trigger_at: null,
+            next_trigger_at: null,
+            active_cron_job_ids: [],
+            confirmed_at: null,
+          };
+          await this.persistSchedule(ctx.task_id, placeholder);
+        }
         log({
           ts: new Date().toISOString(),
           module: "task-scheduler",
           op: "executeTrigger",
           duration_ms: 0,
           outcome: "skipped",
-          error: `First trigger for task ${ctx.task_id} — awaiting user confirmation`,
+          error: `First trigger for task ${ctx.task_id} awaiting user confirmation — call confirmTask() to enable`,
         });
         return null;
       }
@@ -325,6 +337,7 @@ export class TaskScheduler {
       last_trigger_at: null,
       next_trigger_at: null,
       active_cron_job_ids: [],
+      confirmed_at: null,
     };
 
     schedule.pending_triggers.push(trigger);
@@ -382,6 +395,24 @@ export class TaskScheduler {
     }
 
     return cleaned;
+  }
+
+  /** 确认任务自动触发 — 解除 first_trigger_of_task 限制 */
+  async confirmTask(taskId: string): Promise<void> {
+    const schedule = await this.loadSchedule(taskId);
+    if (!schedule) return;
+
+    schedule.confirmed_at = Date.now();
+    await this.persistSchedule(taskId, schedule);
+
+    log({
+      ts: new Date().toISOString(),
+      module: "task-scheduler",
+      op: "confirmTask",
+      duration_ms: 0,
+      outcome: "success",
+      error: `task ${taskId} confirmed for auto-triggering`,
+    });
   }
 
   // ---- 内部 ----

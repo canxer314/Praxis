@@ -581,7 +581,7 @@ describe("executeTrigger", () => {
     expect(adapter.scheduleTurn).not.toHaveBeenCalled();
   });
 
-  it("allows second trigger when first was skipped due to confirmation", async () => {
+  it("allows second trigger after confirmTask() unlocks first_trigger_of_task guard", async () => {
     const memory2 = makeMockMemory();
     const confirmScheduler = new TaskScheduler(memory2, {
       enabled: true,
@@ -590,26 +590,16 @@ describe("executeTrigger", () => {
 
     const decision = confirmScheduler.evaluateTrigger(ctx);
 
-    // First: skipped due to first_trigger_of_task
+    // First: skipped due to first_trigger_of_task (trigger saved but not fired)
     const t1 = await confirmScheduler.executeTrigger(decision, ctx, adapter, "sk");
     expect(t1).toBeNull();
 
-    // Manually seed the schedule to simulate a prior trigger having existed
-    await confirmScheduler.saveTrigger("task_001", {
-      trigger_id: "trig_manual",
-      trigger_source: "cron:scheduled",
-      scheduled_at: Date.now() - 3600000, // 1 hour ago, so dedup doesn't fire
-      mechanism: "scheduleSessionTurn",
-      reason: "some_old_trigger",
-      status: "fired",
-      created_at: Date.now() - 3600000,
-    });
+    // User confirms auto-triggering for this task
+    await confirmScheduler.confirmTask("task_001");
 
-    // Second attempt: schedule now has 1 trigger → not "first" anymore → should proceed
-    // Use a new adapter to get clean call counts
+    // Second attempt: confirmed_at is now set → should proceed past the gate
     const adapter2 = makeMockAdapter();
     const t2 = await confirmScheduler.executeTrigger(decision, ctx, adapter2, "sk");
-    // Now it proceeds past the first_trigger check, creates the trigger
     expect(t2).not.toBeNull();
     expect(adapter2.scheduleTurn).toHaveBeenCalled(); // confirmed: no first-trigger block
   });

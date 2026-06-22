@@ -57,17 +57,23 @@ export class GapDetector {
     if (!profileResult.ok) return profileResult;
 
     const profile = profileResult.value;
+
+    // Null-guard: malformed profile data (corrupted slot, schema drift)
+    const proficiencies = profile.domainProficiencies ?? {};
+    const knowledgeGaps = profile.knowledgeGaps ?? [];
+    const calibrationHistory = profile.calibrationHistory ?? [];
+
     const gaps: KnowledgeGap[] = [];
     const escalatedGaps: GapDetectionResult["escalatedGaps"] = [];
     const contextReminders: string[] = [];
 
-    for (const [domain, prof] of Object.entries(profile.domainProficiencies)) {
+    for (const [domain, prof] of Object.entries(proficiencies)) {
       // 条件: selfRating < 阈值 且 taskCount 足够
       if (
         prof.selfRating < LOW_SELF_RATING_THRESHOLD &&
         prof.taskCount >= MIN_TASK_COUNT_FOR_GAP
       ) {
-        const existingGap = profile.knowledgeGaps.find(
+        const existingGap = knowledgeGaps.find(
           (g) => g.context.includes(domain) && !g.resolved,
         );
 
@@ -83,7 +89,7 @@ export class GapDetector {
         }
 
         // 检查是否需要升级
-        const calibrationEntries = profile.calibrationHistory.filter(
+        const calibrationEntries = calibrationHistory.filter(
           (c) => c.domain === domain,
         );
         const recentEntries = calibrationEntries.slice(-SESSIONS_NO_IMPROVEMENT_FOR_ESCALATION);
