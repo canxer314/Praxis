@@ -87,6 +87,10 @@ export type { TaskSchedulerMemoryClient, SchedulerTaskContext, SchedulerSubtask 
 export { SubagentManager, buildSubagentContext } from "./subagent-manager";
 export type { SubagentMemoryClient, SubagentExecutionAPI, SubagentTaskInfo } from "./subagent-manager";
 
+// V13: Active Driving — 心跳监控 (Phase 3c)
+export { HeartbeatMonitor } from "./heartbeat-monitor";
+export type { HeartbeatMemoryClient, HeartbeatTaskContext, HeartbeatCheckResult, StallInterventionCallback } from "./heartbeat-monitor";
+
 // 常量
 export { SLOTS } from "./constants";
 
