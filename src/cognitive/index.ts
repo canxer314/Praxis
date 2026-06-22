@@ -83,6 +83,10 @@ export { CrossDomainAnalyzer } from "./cross-domain-analyzer";
 export { TaskScheduler, isInQuietHours, canParallelize, countTodayTriggers, DEFAULT_TRIGGERING_CONFIG } from "./task-scheduler";
 export type { TaskSchedulerMemoryClient, SchedulerTaskContext, SchedulerSubtask } from "./task-scheduler";
 
+// V13: 子 Agent 管理 (Phase 3b)
+export { SubagentManager, buildSubagentContext } from "./subagent-manager";
+export type { SubagentMemoryClient, SubagentExecutionAPI, SubagentTaskInfo } from "./subagent-manager";
+
 // 常量
 export { SLOTS } from "./constants";
 
