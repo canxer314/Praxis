@@ -191,6 +191,51 @@ export class StrategyRegistry {
     this.strategies.clear();
   }
 
+  /**
+   * E4: 重新激活 DORMANT 策略 (Phase 2.1)
+   *
+   * 当 GapDetector 在某个领域检测到 PERSISTENT_GAP 时，
+   * 将匹配领域（含通配符 "*"）的 DORMANT 策略转回 PROPOSED。
+   *
+   * 设计意图: 缺口复现说明之前被搁置的策略可能需要重新评估——
+   * 系统不应"忘记"自己曾经尝试过什么，而应在类似困境中重新提出。
+   *
+   * @returns 成功重新激活的策略列表（可能为空）
+   */
+  async reactivateDormant(domain: string, reason: string): Promise<Result<Strategy[]>> {
+    const dormant = this.getByState("DORMANT");
+    const matching = dormant.filter(
+      (s) => s.domain === domain || s.domain === "*",
+    );
+
+    const reactivated: Strategy[] = [];
+    for (const strategy of matching) {
+      const result = await this.transition(
+        strategy.id,
+        "PROPOSED",
+        `Gap-triggered reactivation (domain: ${domain}): ${reason}`,
+      );
+      if (result.ok) {
+        reactivated.push(result.value);
+      }
+    }
+
+    if (reactivated.length > 0) {
+      await this.persist();
+
+      log({
+        ts: new Date().toISOString(),
+        module: "strategy-registry",
+        op: "reactivateDormant",
+        duration_ms: 0,
+        outcome: "success",
+        error: `Reactivated ${reactivated.length} DORMANT strategies: ${reactivated.map((s) => s.id).join(", ")}`,
+      });
+    }
+
+    return { ok: true, value: reactivated };
+  }
+
   // ---- 内部 ----
 
   private loadDefaults(): void {

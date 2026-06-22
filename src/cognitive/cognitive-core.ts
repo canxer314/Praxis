@@ -51,6 +51,8 @@ import { TaskAssessmentBuilder, TaskAssessmentMemoryClient } from "./task-assess
 import { ExecutionFeedbackCollector } from "./execution-feedback";
 import { LearningUpdateBuilder, LearningUpdateMemoryClient } from "./learning-update";
 import { LearningLoop } from "./learning-loop";
+import { GapDetector } from "./gap-detector";
+import { StrategyRegistry } from "./strategy-registry";
 import { log } from "../logger";
 
 // ══════════════════════════════════════════════════════════════════
@@ -74,6 +76,8 @@ export interface CognitiveCoreDeps {
 
 export class CognitiveCore {
   readonly metacognitive: MetacognitiveEngine;
+  readonly strategyRegistry: StrategyRegistry;
+  readonly gapDetector: GapDetector;
   private readonly memoryClient: CognitiveCoreMemoryClient;
   private readonly walFilePath?: string;
 
@@ -85,6 +89,8 @@ export class CognitiveCore {
     this.walFilePath = deps.walFilePath;
 
     this.metacognitive = new MetacognitiveEngine(deps.memoryClient);
+    this.strategyRegistry = new StrategyRegistry(deps.memoryClient);
+    this.gapDetector = new GapDetector(this.metacognitive);
   }
 
   // ---- Session 隔离 (T2) ----
@@ -99,7 +105,14 @@ export class CognitiveCore {
    * @param sessionId 唯一 session 标识
    */
   createSession(sessionId: string): SessionCognitiveCore {
-    return new SessionCognitiveCore(sessionId, this.metacognitive, this.memoryClient, this.walFilePath);
+    return new SessionCognitiveCore(
+      sessionId,
+      this.metacognitive,
+      this.memoryClient,
+      this.walFilePath,
+      this.gapDetector,
+      this.strategyRegistry,
+    );
   }
 
   // ---- 跨 session 操作 ----
@@ -150,18 +163,24 @@ export class SessionCognitiveCore {
   readonly sessionId: string;
   readonly metacognitive: MetacognitiveEngine;
   private readonly loop: LearningLoop;
+  private readonly gapDetector: GapDetector;
+  private readonly strategyRegistry: StrategyRegistry;
 
   constructor(
     sessionId: string,
     metacognitive: MetacognitiveEngine,
     memoryClient: CognitiveCoreMemoryClient,
     walFilePath?: string,
+    gapDetector?: GapDetector,
+    strategyRegistry?: StrategyRegistry,
   ) {
     if (!sessionId || typeof sessionId !== "string" || sessionId.length > 128) {
       throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP, "sessionId must be a non-empty string ≤ 128 chars");
     }
     this.sessionId = sessionId;
     this.metacognitive = metacognitive;
+    this.gapDetector = gapDetector ?? new GapDetector(metacognitive);
+    this.strategyRegistry = strategyRegistry ?? new StrategyRegistry(memoryClient);
 
     const taskAssessment = new TaskAssessmentBuilder(metacognitive, memoryClient);
     const executionFeedback = new ExecutionFeedbackCollector();
@@ -206,13 +225,35 @@ export class SessionCognitiveCore {
     return this.loop.getFeedbackSnapshot();
   }
 
-  /** Phase 3: Session 结束 — 学习 + 持久化 */
+  /** Phase 3: Session 结束 — 学习 + 持久化 + E4 缺口→策略重新激活 */
   async finalizeLearning(
     sessionContext: SessionContext,
     domain: string,
   ): Promise<Result<LearningUpdate>> {
     _validateInput("domain", domain);
-    return this.loop.sessionEnd(sessionContext, domain);
+    const result = await this.loop.sessionEnd(sessionContext, domain);
+
+    // E4 (Phase 2.1): 缺口猎取 → DORMANT 策略重新激活
+    // 学习持久化后检查该领域是否有 PERSISTENT_GAP，
+    // 若有则将匹配的 DORMANT 策略转回 PROPOSED。
+    try {
+      const gapResult = await this.gapDetector.detect();
+      if (gapResult.ok && gapResult.value.escalatedGaps.length > 0) {
+        const escalatedDomains = new Set(
+          gapResult.value.escalatedGaps.map((g) => g.gap.context),
+        );
+        for (const escalatedDomain of escalatedDomains) {
+          await this.strategyRegistry.reactivateDormant(
+            escalatedDomain,
+            `PERSISTENT_GAP detected — ${gapResult.value.escalatedGaps.length} escalated gap(s)`,
+          );
+        }
+      }
+    } catch {
+      // E4 reactivation is best-effort — failure must not break the learning loop
+    }
+
+    return result;
   }
 
   /** 重放本 session 的 WAL */
