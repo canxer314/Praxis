@@ -258,20 +258,25 @@ describe("retrySubagent", () => {
     mgr = new SubagentManager("task_001", makeMockMemory(), { maxRetries: 2 });
   });
 
-  it("retries a failed subagent within retry limit", async () => {
+  it("retries a failed subagent and carries forward retry_count", async () => {
     const api = makeMockAPI();
     const subtask = makeSubtask();
     const taskInfo = makeTaskInfo();
 
     // First spawn
     const run = await mgr.spawnSubagent(subtask, taskInfo, [], [], api);
+    expect(run!.retry_count).toBe(0);
     // Mark as failed
     run!.status = "failed";
 
-    // Retry — should spawn a new run
+    // Retry — should spawn a new run with retry_count=1
     const retried = await mgr.retrySubagent(run!, subtask, taskInfo, [], [], api);
     expect(retried).not.toBeNull();
-    expect(run!.retry_count).toBe(1);
+    expect(retried!.retry_count).toBe(1); // carried forward
+
+    // Old run is removed from active
+    expect(mgr.getActiveRuns()).toHaveLength(1);
+    expect(mgr.getActiveRuns()[0].run_id).toBe(retried!.run_id);
   });
 
   it("stops retrying when max_retries is reached", async () => {

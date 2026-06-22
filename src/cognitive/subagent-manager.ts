@@ -218,7 +218,7 @@ export class SubagentManager {
    * 重试失败的子 Agent。
    *
    * 超过 max_retries → 标记最终失败
-   * 未超过 → retry_count++ → 重新 spawn
+   * 未超过 → 移除旧 run → 重新 spawn → 继承 retry_count
    */
   async retrySubagent(
     run: SubagentRun,
@@ -241,7 +241,12 @@ export class SubagentManager {
       return run;
     }
 
-    run.retry_count++;
+    // Remove old failed run from registry — new spawn creates fresh run
+    this.registry.active_runs = this.registry.active_runs.filter(
+      (r) => r.run_id !== run.run_id,
+    );
+
+    const retryCount = run.retry_count + 1;
 
     log({
       ts: new Date().toISOString(),
@@ -249,10 +254,16 @@ export class SubagentManager {
       op: "retrySubagent",
       duration_ms: 0,
       outcome: "degraded",
-      error: `Retry ${run.retry_count}/${run.max_retries} for ${subtask.subtask_name}`,
+      error: `Retry ${retryCount}/${run.max_retries} for ${subtask.subtask_name}`,
     });
 
-    return this.spawnSubagent(subtask, taskInfo, criteria, allowedOps, api);
+    const newRun = await this.spawnSubagent(subtask, taskInfo, criteria, allowedOps, api);
+    if (newRun) {
+      // Carry forward retry count — spawnSubagent always starts at 0
+      newRun.retry_count = retryCount;
+      newRun.max_retries = run.max_retries;
+    }
+    return newRun;
   }
 
   // ---- 结果聚合 ----
