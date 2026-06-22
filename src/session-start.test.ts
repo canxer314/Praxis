@@ -1,18 +1,25 @@
 /**
- * session-start 测试 — Phase 1A, TDD
+ * session-start 测试 — Phase 1A + T8
  *
  * 覆盖路径:
- *   - 正常: AgentMemory 可用 → 加载 competency_model → 构建 ContextInjection
- *   - 降级: AgentMemory 不可用 → 使用默认 competency model → stale 标记
- *   - 空模型: competency_model 为空 → 返回最小上下文
- *   - Schema 不匹配: slot 返回格式错误 → 降级到默认值
- *   - 多 skills: 正确格式化所有技能
- *   - best_practices/anti_patterns: 空和非空两种场景
+ *   Phase 1A (原路径):
+ *     - 正常: AgentMemory 可用 → 加载 competency_model → 构建 ContextInjection
+ *     - 降级: AgentMemory 不可用 → 使用默认 competency model → stale 标记
+ *     - 空模型: competency_model 为空 → 返回最小上下文
+ *     - Schema 不匹配: slot 返回格式错误 → 降级到默认值
+ *     - 多 skills / best_practices / anti_patterns
+ *   T8 (CognitiveCore 路径):
+ *     - 正常: CognitiveCore 可用 → 缓存 profile 快速注入
+ *     - 空 profile: domainProficiencies 为空 → 回退默认 skills
+ *     - getProfile 失败: → 降级到默认模型
+ *     - 知识缺口 + 校准历史: 全部输出
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SessionStartHandler, SessionStartDeps } from "./session-start";
 import { Result } from "./platform-adapter";
+import type { CognitiveCore } from "./cognitive/cognitive-core";
+import type { MetacognitiveProfile } from "./cognitive/types";
 
 describe("SessionStartHandler", () => {
   let deps: SessionStartDeps;
@@ -185,6 +192,148 @@ describe("SessionStartHandler", () => {
       expect(result.value.systemPromptAddition).toContain("规则2");
       expect(result.value.systemPromptAddition).toContain("规则3");
       expect(result.value.systemPromptAddition).toContain("陷阱A");
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // T8: CognitiveCore 路径
+  // ══════════════════════════════════════════════════════════════════
+
+  function makeProfile(overrides: Partial<MetacognitiveProfile> = {}): MetacognitiveProfile {
+    return {
+      domainProficiencies: {},
+      knowledgeGaps: [],
+      calibrationHistory: [],
+      inferredPreferences: { learnsBy: "instruction", needsConfirmationFor: [] },
+      ...overrides,
+    };
+  }
+
+  function makeMockCognitiveCore(
+    profileResult: Result<MetacognitiveProfile>,
+  ): CognitiveCore {
+    return {
+      getProfile: vi.fn().mockResolvedValue(profileResult),
+    } as unknown as CognitiveCore;
+  }
+
+  it("T8: CognitiveCore 可用时使用 profile 数据注入", async () => {
+    const profile = makeProfile({
+      domainProficiencies: {
+        typescript: {
+          selfRating: 0.75,
+          actualAccuracy: 0.8,
+          taskCount: 12,
+          lastCalibrated: Date.now(),
+        },
+        python: {
+          selfRating: 0.4,
+          actualAccuracy: 0.35,
+          taskCount: 5,
+          lastCalibrated: Date.now(),
+        },
+      },
+      knowledgeGaps: [
+        { topic: "async generators", context: "迭代大量数据时内存溢出", resolved: false },
+        { topic: "decorator patterns", context: "想用但不确定最佳实践", resolved: true },
+      ],
+      calibrationHistory: [
+        { domain: "typescript", selfRating: 0.7, actualOutcome: "success" },
+        { domain: "typescript", selfRating: 0.7, actualOutcome: "failure" },
+        { domain: "typescript", selfRating: 0.75, actualOutcome: "success" },
+      ],
+    });
+
+    const depsWithCore: SessionStartDeps = {
+      getSlot,
+      cognitiveCore: makeMockCognitiveCore({ ok: true, value: profile }),
+    };
+
+    const handler = new SessionStartHandler(depsWithCore);
+    const result = await handler.handle("t8-1");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const ctx = result.value;
+      expect(ctx.tier).toBe("A");
+      expect(ctx.systemPromptAddition).toContain("typescript: 0.75");
+      expect(ctx.systemPromptAddition).toContain("competent");
+      expect(ctx.systemPromptAddition).toContain("12 次任务");
+      expect(ctx.systemPromptAddition).toContain("python: 0.40");
+      expect(ctx.systemPromptAddition).toContain("beginner");
+      // 按 selfRating 降序排列 → typescript 在 python 前面
+      const tsIdx = ctx.systemPromptAddition.indexOf("typescript");
+      const pyIdx = ctx.systemPromptAddition.indexOf("python");
+      expect(tsIdx).toBeLessThan(pyIdx);
+      // 未解决的缺口
+      expect(ctx.systemPromptAddition).toContain("async generators");
+      expect(ctx.systemPromptAddition).toContain("内存溢出");
+      // 已解决的缺口不应出现
+      expect(ctx.systemPromptAddition).not.toContain("decorator patterns");
+      // 校准状态
+      expect(ctx.systemPromptAddition).toContain("67%");
+    }
+  });
+
+  it("T8: profile domainProficiencies 为空时回退默认 skills", async () => {
+    const profile = makeProfile(); // 空的 domainProficiencies
+
+    const depsWithCore: SessionStartDeps = {
+      getSlot,
+      cognitiveCore: makeMockCognitiveCore({ ok: true, value: profile }),
+    };
+
+    const handler = new SessionStartHandler(depsWithCore);
+    const result = await handler.handle("t8-empty");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.systemPromptAddition).toContain("TypeScript");
+      expect(result.value.systemPromptAddition).toContain("系统架构设计");
+      expect(result.value.systemPromptAddition).toContain("AI Agent 系统");
+    }
+  });
+
+  it("T8: getProfile 失败时降级到默认模型", async () => {
+    const depsWithCore: SessionStartDeps = {
+      getSlot,
+      cognitiveCore: makeMockCognitiveCore({
+        ok: false,
+        error: { code: "SLOT_READ_ERROR", message: "network timeout" },
+      }),
+    };
+
+    const handler = new SessionStartHandler(depsWithCore);
+    const result = await handler.handle("t8-degraded");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.tier).toBe("C");
+      expect(result.value.systemPromptAddition).toContain("缓存数据");
+    }
+  });
+
+  it("T8: 无 cognitiveCore 时保持原 slot 路径行为", async () => {
+    // 确保原路径不退化
+    getSlot.mockResolvedValue({
+      ok: true,
+      value: {
+        skills: [{ id: "rust", name: "Rust", proficiency: 0.5, level: "competent" }],
+        best_practices: [],
+        anti_patterns: [],
+      },
+    } as Result<unknown>);
+
+    const handler = new SessionStartHandler(deps);
+    const result = await handler.handle("no-core");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.tier).toBe("A");
+      expect(result.value.systemPromptAddition).toContain("Rust");
+      // 不应该包含 T8 特有区块
+      expect(result.value.systemPromptAddition).not.toContain("待解决的知识缺口");
+      expect(result.value.systemPromptAddition).not.toContain("校准状态");
     }
   });
 });

@@ -204,6 +204,9 @@ export class MetacognitiveEngine {
   /**
    * 先用缓存的 selfRating 返回，后台触发 LLM 更新。
    * 保证 session_start < 1s 延迟。
+   *
+   * 有缓存 profile → 立即返回 (stale: true)，后台异步刷新
+   * 无缓存 profile → 同步 assess（首次 session，无法避免）
    */
   async cachedAssess(
     domain: string,
@@ -216,13 +219,39 @@ export class MetacognitiveEngine {
       stale: boolean;
     }>
   > {
-    // TODO: T8 — 先用缓存 profile 返回，后台异步更新
+    // 快速路径: profile 已缓存 → 立即返回，后台异步更新
+    if (this.cachedProfile) {
+      const prof = this.cachedProfile.domainProficiencies[domain];
+
+      const fastResult = {
+        selfRating: prof?.selfRating ?? DEFAULT_SELF_RATING,
+        gapFlags: this.findOpenGaps(this.cachedProfile, domain),
+        recommendedMode:
+          (prof?.selfRating ?? 0) >= 0.8 ? "autonomous" as const
+          : (prof?.selfRating ?? 0) >= 0.5 ? "guided" as const
+          : "exploratory" as const,
+        stale: true,
+      };
+
+      // 后台异步刷新 profile（不阻塞返回）
+      this.assess(domain, taskType).then(
+        () => log({
+          ts: new Date().toISOString(),
+          module: "metacognitive-engine",
+          op: "cachedAssess:background",
+          duration_ms: 0,
+          outcome: "success",
+        }),
+        () => {}, // 后台刷新失败——静默，不崩主流程
+      );
+
+      return { ok: true, value: fastResult };
+    }
+
+    // 慢速路径: 无缓存 → 必须同步 assess
     const result = await this.assess(domain, taskType);
     if (!result.ok) return result;
-    return {
-      ok: true,
-      value: { ...result.value, stale: false },
-    };
+    return { ok: true, value: { ...result.value, stale: false } };
   }
 
   // ---- Profile 读写 ----
