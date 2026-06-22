@@ -178,6 +178,7 @@ export class CrossDomainAnalyzer {
    * @returns 标记为 accepted 的建议列表（可能为空）
    */
   selectAutoApplyCandidates(analysis: CrossDomainAnalysis): CrossDomainSuggestion[] {
+    if (!analysis || !Array.isArray(analysis.suggestions)) return [];
     return analysis.suggestions
       .filter(
         (s) =>

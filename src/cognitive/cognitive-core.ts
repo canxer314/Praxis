@@ -55,7 +55,7 @@ import { GapDetector } from "./gap-detector";
 import { StrategyRegistry } from "./strategy-registry";
 import { CrossDomainAnalyzer } from "./cross-domain-analyzer";
 import type { CrossDomainAnalysis, CrossDomainMigration } from "./types";
-import { log } from "../logger";
+import { log, logDegraded } from "../logger";
 
 // ══════════════════════════════════════════════════════════════════
 // 组合依赖接口 — 使用者无需翻 3 个文件
@@ -88,8 +88,8 @@ export class CognitiveCore {
   private readonly walFilePath?: string;
 
   constructor(deps: CognitiveCoreDeps) {
-    if (!deps.memoryClient) {
-      throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP, "memoryClient is required");
+    if (!deps || !deps.memoryClient) {
+      throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP, "deps.memoryClient is required");
     }
     this.memoryClient = deps.memoryClient;
     this.walFilePath = deps.walFilePath;
@@ -146,6 +146,9 @@ export class CognitiveCore {
   async applyCrossDomainMigrations(
     analysis: CrossDomainAnalysis,
   ): Promise<Result<CrossDomainMigration[]>> {
+    // 确保策略注册表已从持久化 slot 加载（否则 reactivateDormant 等操作将无数据）
+    await this.strategyRegistry.load();
+
     const candidates = this.crossDomainAnalyzer.selectAutoApplyCandidates(analysis);
     if (candidates.length === 0) return { ok: true, value: [] };
 
@@ -162,10 +165,11 @@ export class CognitiveCore {
     const existing = existingResult.ok ? existingResult.value : [];
     const newMigrations: CrossDomainMigration[] = [];
 
-    for (const candidate of candidates) {
+    for (const [idx, candidate] of candidates.entries()) {
       // 在目标领域创建策略
+      const ts = Date.now();
       const strategy = {
-        id: `e5_migrate_${candidate.targetDomain}_${Date.now()}`,
+        id: `e5_migrate_${candidate.targetDomain}_${ts}_${idx}`,
         name: `Cross-domain: ${candidate.pattern}`,
         description: `Auto-migrated from ${candidate.sourceDomain} (similarity: ${candidate.similarity.toFixed(2)}): ${candidate.applicabilityRationale}`,
         state: "PROPOSED" as const,
@@ -184,7 +188,7 @@ export class CognitiveCore {
       this.strategyRegistry.addProposal(strategy);
 
       const migration: CrossDomainMigration = {
-        id: `mig_${Date.now()}_${candidate.targetDomain}`,
+        id: `mig_${ts}_${candidate.targetDomain}_${idx}`,
         sourceDomain: candidate.sourceDomain,
         targetDomain: candidate.targetDomain,
         strategyId: strategy.id,
@@ -196,7 +200,12 @@ export class CognitiveCore {
       newMigrations.push(migration);
     }
 
-    await this.strategyRegistry.persist();
+    const persistResult = await this.strategyRegistry.persist();
+    if (!persistResult.ok) {
+      logDegraded("cognitive-core", "applyCrossDomainMigrations",
+        `persist failed: ${persistResult.error?.message} — migrations not saved`);
+      return { ok: false, error: persistResult.error };
+    }
     await this.crossDomainAnalyzer.saveMigrations([...existing, ...newMigrations]);
 
     log({
@@ -205,7 +214,9 @@ export class CognitiveCore {
       op: "applyCrossDomainMigrations",
       duration_ms: 0,
       outcome: "success",
-      error: `Applied ${newMigrations.length} cross-domain migrations`,
+      ...(newMigrations.length > 0
+        ? { error: `Applied ${newMigrations.length} cross-domain migrations` }
+        : {}),
     });
 
     return { ok: true, value: newMigrations };
@@ -318,7 +329,13 @@ export class SessionCognitiveCore {
     domain: string,
   ): Promise<Result<LearningUpdate>> {
     _validateInput("domain", domain);
+
+    // 确保策略注册表已加载，使 E4/E5 操作有数据可用
+    await this.strategyRegistry.load();
+
+    // E4.5: 仅在学习更新成功后才执行 E4/E5
     const result = await this.loop.sessionEnd(sessionContext, domain);
+    if (!result.ok) return result;
 
     // E4 (Phase 2.1): 缺口猎取 → DORMANT 策略重新激活
     // 学习持久化后检查该领域是否有 PERSISTENT_GAP，
@@ -330,14 +347,20 @@ export class SessionCognitiveCore {
           gapResult.value.escalatedGaps.map((g) => g.gap.context),
         );
         for (const escalatedDomain of escalatedDomains) {
-          await this.strategyRegistry.reactivateDormant(
-            escalatedDomain,
-            `PERSISTENT_GAP detected — ${gapResult.value.escalatedGaps.length} escalated gap(s)`,
-          );
+          try {
+            await this.strategyRegistry.reactivateDormant(
+              escalatedDomain,
+              `PERSISTENT_GAP detected — ${gapResult.value.escalatedGaps.length} escalated gap(s)`,
+            );
+          } catch (e) {
+            logDegraded("cognitive-core", "finalizeLearning/E4/domain",
+              `reactivation failed for ${escalatedDomain}: ${e instanceof Error ? e.message : String(e)}`);
+          }
         }
       }
-    } catch {
-      // E4 reactivation is best-effort — failure must not break the learning loop
+    } catch (e) {
+      logDegraded("cognitive-core", "finalizeLearning/E4",
+        `E4 reactivation skipped: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     // E5 (Phase 2.2): 跨领域迁移回滚检测
@@ -358,23 +381,29 @@ export class SessionCognitiveCore {
           );
 
           for (const { migration, reason } of degraded) {
-            await this.crossDomainAnalyzer.rollbackMigration(
-              migration.id,
-              reason,
-              async () => {
-                const rb = await this.strategyRegistry.transition(
-                  migration.strategyId,
-                  "DORMANT",
-                  `E5 auto-rollback: ${reason}`,
-                );
-                return rb.ok;
-              },
-            );
+            try {
+              await this.crossDomainAnalyzer.rollbackMigration(
+                migration.id,
+                reason,
+                async () => {
+                  const rb = await this.strategyRegistry.transition(
+                    migration.strategyId,
+                    "DORMANT",
+                    `E5 auto-rollback: ${reason}`,
+                  );
+                  return rb.ok;
+                },
+              );
+            } catch (e) {
+              logDegraded("cognitive-core", "finalizeLearning/E5/migration",
+                `rollback failed for ${migration.id}: ${e instanceof Error ? e.message : String(e)}`);
+            }
           }
         }
       }
-    } catch {
-      // E5 rollback is best-effort — failure must not break the learning loop
+    } catch (e) {
+      logDegraded("cognitive-core", "finalizeLearning/E5",
+        `E5 rollback check skipped: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     return result;
