@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.0.2] - 2026-06-23
+
+### Fixed
+- 语义/程序性记忆保存失败现在入队到 WAL（与 episodic 一致），WAL 重放支持 semantic/procedural 类型（#M8）
+- `getMigrations()` 在 slot 值损坏时记录 `logDegraded`（#M7）
+- `reactivateDormant()` / `rollbackMigration()` 返回值在 `finalizeLearning()` 中被检查（#M5）
+- `StrategyApplier.rollback()` 双快照不可用时拒绝破坏性工厂重置——返回错误而非销毁所有策略（#L1）
+- 字符串 error code `"NOT_FOUND"` / `"ROLLBACK_FAILED"` 替换为集中 `ErrorCode` 常量（#L2）
+- `GapDetector` 依赖窄 `ProfileProvider` 接口，不再导入完整 `MetacognitiveEngine` 类（#L3）
+
 ## [0.3.0.1] - 2026-06-23
 
 ### Fixed
