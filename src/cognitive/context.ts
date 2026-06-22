@@ -134,7 +134,7 @@ function emptyInjection(): ContextInjection {
  * 这是一个保守估算（上限估计），实际 token 数通常低于此估算值。
  * 精确值需要通过实际 tokenizer 获取；此函数用于上下文 token 预算控制。
  */
-function estimateTokens(text: string): number {
+export function estimateTokens(text: string): number {
   let tokens = 0;
   for (const ch of text) {
     const cp = ch.codePointAt(0)!;

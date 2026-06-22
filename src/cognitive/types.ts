@@ -321,6 +321,8 @@ export interface TaskSchedule {
   last_trigger_at: number | null;
   next_trigger_at: number | null;
   active_cron_job_ids: string[];
+  /** 用户确认自动触发的时间戳 (null = 未确认, >0 = 已确认) */
+  confirmed_at: number | null;
 }
 
 /** 单个调度触发记录 */

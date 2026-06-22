@@ -262,8 +262,15 @@ export class SubagentManager {
       // Carry forward retry count — spawnSubagent always starts at 0
       newRun.retry_count = retryCount;
       newRun.max_retries = run.max_retries;
+      return newRun;
     }
-    return newRun;
+
+    // spawnSubagent returned null (e.g. parallel limit reached) → preserve old run
+    run.retry_count = retryCount;
+    run.status = "failed";
+    this.registry.completed_runs.push(run);
+    await this.persistRegistry();
+    return run;
   }
 
   // ---- 结果聚合 ----

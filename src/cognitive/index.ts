@@ -65,7 +65,7 @@ export { LearningUpdateBuilder } from "./learning-update";
 
 // 纯函数
 export { isRealExperience, editDistance } from "./heuristics";
-export { buildContextInjection } from "./context";
+export { buildContextInjection, estimateTokens } from "./context";
 export type { BuildContextInput } from "./context";
 
 // 记忆巩固 (Phase 2.3)
