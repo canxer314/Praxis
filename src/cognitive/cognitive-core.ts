@@ -63,9 +63,6 @@ export interface CognitiveCoreMemoryClient
 
 export interface CognitiveCoreDeps {
   memoryClient: CognitiveCoreMemoryClient;
-  llmClient?: {
-    analyze(prompt: string): Promise<Result<string>>;
-  };
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -74,13 +71,13 @@ export interface CognitiveCoreDeps {
 
 export class CognitiveCore {
   readonly metacognitive: MetacognitiveEngine;
-  private readonly deps: CognitiveCoreDeps;
+  private readonly memoryClient: CognitiveCoreMemoryClient;
 
   constructor(deps: CognitiveCoreDeps) {
     if (!deps.memoryClient) {
       throw new Error("memoryClient is required");
     }
-    this.deps = deps;
+    this.memoryClient = deps.memoryClient;
 
     this.metacognitive = new MetacognitiveEngine(deps.memoryClient);
   }
@@ -97,7 +94,7 @@ export class CognitiveCore {
    * @param sessionId 唯一 session 标识
    */
   createSession(sessionId: string): SessionCognitiveCore {
-    return new SessionCognitiveCore(sessionId, this.metacognitive, this.deps);
+    return new SessionCognitiveCore(sessionId, this.metacognitive, this.memoryClient);
   }
 
   // ---- 跨 session 操作 ----
@@ -115,7 +112,7 @@ export class CognitiveCore {
   /** 重放上次 session 未持久化的记忆 */
   async replayPendingWrites(): Promise<Result<number>> {
     // 跨 session 的 WAL 重放 — 使用临时 LearningUpdateBuilder
-    const lu = new LearningUpdateBuilder(this.metacognitive, this.deps.memoryClient);
+    const lu = new LearningUpdateBuilder(this.metacognitive, this.memoryClient);
     return lu.replayWal();
   }
 
@@ -152,14 +149,14 @@ export class SessionCognitiveCore {
   constructor(
     sessionId: string,
     metacognitive: MetacognitiveEngine,
-    deps: CognitiveCoreDeps,
+    memoryClient: CognitiveCoreMemoryClient,
   ) {
     this.sessionId = sessionId;
     this.metacognitive = metacognitive;
 
-    const taskAssessment = new TaskAssessmentBuilder(metacognitive, deps.memoryClient);
+    const taskAssessment = new TaskAssessmentBuilder(metacognitive, memoryClient);
     const executionFeedback = new ExecutionFeedbackCollector();
-    const learningUpdate = new LearningUpdateBuilder(metacognitive, deps.memoryClient);
+    const learningUpdate = new LearningUpdateBuilder(metacognitive, memoryClient);
 
     this.loop = new LearningLoop(metacognitive, taskAssessment, executionFeedback, learningUpdate);
   }

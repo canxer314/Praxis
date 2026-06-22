@@ -32,10 +32,6 @@ export interface CrossDomainMemoryClient {
   getSlot(name: string): Promise<Result<unknown>>;
 }
 
-export interface CrossDomainLlmClient {
-  analyze(prompt: string): Promise<Result<string>>;
-}
-
 // ══════════════════════════════════════════════════════════════════
 // 阈值常量
 // ══════════════════════════════════════════════════════════════════
@@ -50,12 +46,10 @@ const CRON_HEALTH_SLOT = "cron_health";
 
 export class CrossDomainAnalyzer {
   private readonly memory: CrossDomainMemoryClient;
-  private readonly llm: CrossDomainLlmClient | null;
 
-  constructor(memory: CrossDomainMemoryClient, llm?: CrossDomainLlmClient) {
+  constructor(memory: CrossDomainMemoryClient) {
     if (!memory) throw new Error("CrossDomainMemoryClient is required");
     this.memory = memory;
-    this.llm = llm ?? null;
   }
 
   /**

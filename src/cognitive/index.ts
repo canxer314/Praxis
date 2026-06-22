@@ -76,5 +76,8 @@ export { GapDetector } from "./gap-detector";
 export { StrategyRegistry, StrategyProposer, StrategyApplier } from "./strategy-registry";
 export { CrossDomainAnalyzer } from "./cross-domain-analyzer";
 
+// 开发工具
+export { InMemoryMemoryClient } from "./inmemory-client";
+
 // 全部类型
 export type * from "./types";

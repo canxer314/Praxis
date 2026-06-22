@@ -54,10 +54,6 @@ function createMockMemoryClient() {
   };
 }
 
-function createMockLlmClient() {
-  return { analyze: vi.fn().mockResolvedValue({ ok: true, value: "" }) };
-}
-
 // ══════════════════════════════════════════════════════════════════
 // CognitiveCore — 构造注入
 // ══════════════════════════════════════════════════════════════════
@@ -75,20 +71,12 @@ describe("CognitiveCore", () => {
     ).toThrow("memoryClient is required");
   });
 
-  it("creates with valid memoryClient (llmClient optional)", () => {
+  it("creates with valid memoryClient", () => {
     const core = new CognitiveCore({
       memoryClient: createMockMemoryClient(),
     });
     expect(core).toBeInstanceOf(CognitiveCore);
     expect(core.metacognitive).toBeInstanceOf(MetacognitiveEngine);
-  });
-
-  it("accepts optional llmClient", () => {
-    const core = new CognitiveCore({
-      memoryClient: createMockMemoryClient(),
-      llmClient: createMockLlmClient(),
-    });
-    expect(core).toBeInstanceOf(CognitiveCore);
   });
 
   it("internally wires MetacognitiveEngine to valid instance", () => {
@@ -384,14 +372,8 @@ describe("CrossDomainAnalyzer", () => {
     );
   });
 
-  it("creates with valid memory (llm optional)", () => {
+  it("creates with valid memory client", () => {
     const analyzer = new CrossDomainAnalyzer(mockMem);
-    expect(analyzer).toBeInstanceOf(CrossDomainAnalyzer);
-  });
-
-  it("accepts optional llm client", () => {
-    const mockLlm = { analyze: vi.fn().mockResolvedValue({ ok: true, value: "" }) };
-    const analyzer = new CrossDomainAnalyzer(mockMem, mockLlm);
     expect(analyzer).toBeInstanceOf(CrossDomainAnalyzer);
   });
 });

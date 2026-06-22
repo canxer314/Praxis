@@ -46,7 +46,7 @@ function createCognitiveCore(): CognitiveCore {
     },
   };
 
-  return new CognitiveCore({ memoryClient, llmClient });
+  return new CognitiveCore({ memoryClient });
 }
 
 // ---- 搜索（AgentMemory 语义搜索） ----

@@ -67,9 +67,9 @@ export function buildContextInjection(input: BuildContextInput): ContextInjectio
     for (const pitfall of input.frequentPitfalls) {
       const safe = sanitizePromptFragment(pitfall);
       const line = `- ${safe}`;
-      if (estimatedTokens + line.length / 4 > budget) break;
+      if (estimatedTokens + estimateTokens(line) > budget) break;
       lines.push(line);
-      estimatedTokens += line.length / 4;
+      estimatedTokens += estimateTokens(line);
     }
     lines.push("");
     tier = "A";
@@ -81,9 +81,9 @@ export function buildContextInjection(input: BuildContextInput): ContextInjectio
     for (const gap of input.openGaps) {
       const safe = sanitizePromptFragment(`${gap.topic}: ${gap.context}`);
       const line = `- ${safe}`;
-      if (estimatedTokens + line.length / 4 > budget) break;
+      if (estimatedTokens + estimateTokens(line) > budget) break;
       lines.push(line);
-      estimatedTokens += line.length / 4;
+      estimatedTokens += estimateTokens(line);
     }
     lines.push("");
     if (tier !== "A") tier = "B";
@@ -96,9 +96,9 @@ export function buildContextInjection(input: BuildContextInput): ContextInjectio
     for (const mem of recent) {
       const safe = sanitizePromptFragment(`${mem.observation.situation}: ${mem.observation.outcome}`);
       const line = `- ${safe}`;
-      if (estimatedTokens + line.length / 4 > budget) break;
+      if (estimatedTokens + estimateTokens(line) > budget) break;
       lines.push(line);
-      estimatedTokens += line.length / 4;
+      estimatedTokens += estimateTokens(line);
     }
     lines.push("");
   }
@@ -118,4 +118,34 @@ function emptyInjection(): ContextInjection {
     tier: "C",
     tokenCount: 0,
   };
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Token 估算 (E11: CJK 修正)
+// ══════════════════════════════════════════════════════════════════
+
+/**
+ * 估算一段文本的 token 数。
+ *
+ * CJK 字符 (中文/日文/韩文汉字): ~1 token/字符
+ * 其他字符 (英文/数字/符号): ~0.25 token/字符 (≈4 字符/token)
+ */
+function estimateTokens(text: string): number {
+  let tokens = 0;
+  for (const ch of text) {
+    const cp = ch.codePointAt(0)!;
+    // CJK Unified Ideographs + Extensions + Compatibility
+    if ((cp >= 0x4E00 && cp <= 0x9FFF) || // CJK Unified
+        (cp >= 0x3400 && cp <= 0x4DBF) || // CJK Extension A
+        (cp >= 0x20000 && cp <= 0x2A6DF) || // CJK Extension B
+        (cp >= 0xF900 && cp <= 0xFAFF) || // CJK Compatibility
+        (cp >= 0x3040 && cp <= 0x309F) || // Hiragana
+        (cp >= 0x30A0 && cp <= 0x30FF) || // Katakana
+        (cp >= 0xAC00 && cp <= 0xD7AF)) { // Hangul
+      tokens += 1;
+    } else {
+      tokens += 0.25;
+    }
+  }
+  return Math.ceil(tokens);
 }
