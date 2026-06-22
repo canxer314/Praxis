@@ -103,16 +103,19 @@ export class TaskScheduler {
    *   2. 任务已结束 → false
    *   3. 静默时段 → skip (不强制阻止)
    *   4. 超过每日触发上限 → false
-   *   5. 距上次触发过短 → skip
+   *   5. 距上次触发过短 → skip (不强制阻止)
    *   6. 无待执行子任务 → false
    *   7. 可并行 → subagent_run
    *   8. 短任务(<1h) → scheduleSessionTurn (delay)
    *   9. 中任务(1-24h) → scheduleSessionTurn (at)
    *   10. 长任务(>24h) → cron_job
+   *
+   * @param schedule 可选的任务调度状态 — 提供则启用基于持久化数据的 guard (每日上限 + 最小间隔)
    */
   evaluateTrigger(
     ctx: SchedulerTaskContext,
     currentTime: number = Date.now(),
+    schedule?: TaskSchedule | null,
   ): TriggerDecision {
     const skipReasons: string[] = [];
 
@@ -131,19 +134,30 @@ export class TaskScheduler {
       skipReasons.push("当前在静默时段");
     }
 
-    // 4. 每日触发上限
-    const todayCount = this.countTodayTriggers(currentTime);
-    if (todayCount >= this.config.max_triggers_per_day) {
-      return { should_trigger: false, mechanism: "none", reason: "daily_limit", skip_reasons: ["已达每日触发上限"] };
+    // 4. 每日触发上限 (需要 schedule 数据才能准确计数)
+    if (schedule) {
+      const todayCount = countTodayTriggers(schedule, currentTime);
+      if (todayCount >= this.config.max_triggers_per_day) {
+        return { should_trigger: false, mechanism: "none", reason: "daily_limit", skip_reasons: ["已达每日触发上限"] };
+      }
+
+      // 5. 最小触发间隔 (需要 schedule 数据)
+      if (schedule.last_trigger_at != null) {
+        const elapsed = currentTime - schedule.last_trigger_at;
+        const minIntervalMs = this.config.min_interval_between_triggers_minutes * 60 * 1000;
+        if (elapsed < minIntervalMs) {
+          skipReasons.push("距上次触发时间过短");
+        }
+      }
     }
 
-    // 5. 检查是否有待执行子任务
+    // 6. 检查是否有待执行子任务
     const nextSubtask = ctx.pending_subtasks[0];
     if (!nextSubtask) {
       return { should_trigger: false, mechanism: "none", reason: "no_pending", skip_reasons: ["没有待执行的子任务"] };
     }
 
-    // 6. 可并行 → subagent_run
+    // 7. 可并行 → subagent_run
     if (this.config.allow_subagent_spawn && canParallelize(nextSubtask)) {
       return {
         should_trigger: true,
@@ -153,7 +167,7 @@ export class TaskScheduler {
       };
     }
 
-    // 7. 按估计时间选择机制
+    // 8. 按估计时间选择机制
     const estimatedMs = (nextSubtask.estimated_duration_minutes ?? 60) * 60 * 1000;
 
     if (estimatedMs < 60 * 60 * 1000) {
@@ -387,12 +401,8 @@ export class TaskScheduler {
     }
   }
 
-  /** 计算今日已创建触发数 */
-  private countTodayTriggers(now: number): number {
-    // 从 local state 中无法计数跨重启的触发，这里返回 0
-    // Phase 3 的 schedule 持久化后从 schedule 中实时计数
-    return 0;
-  }
+  /** 计算今日已创建触发数 (需要 schedule 数据) */
+  // countTodayTriggers 现在是纯函数 — 见文件底部
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -437,4 +447,22 @@ export function canParallelize(subtask: SchedulerSubtask): boolean {
     subtask.parallelizable === true &&
     (!subtask.depends_on || subtask.depends_on.length === 0)
   );
+}
+
+/**
+ * 计算今日已创建的触发数。
+ *
+ * 基于持久化的 schedule 数据，按 created_at 过滤当天 00:00 之后的触发。
+ *
+ * @param schedule 任务的调度状态
+ * @param now 当前时间戳 (ms)
+ */
+export function countTodayTriggers(schedule: TaskSchedule, now: number = Date.now()): number {
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const todayStartMs = todayStart.getTime();
+
+  return schedule.pending_triggers.filter(
+    (t) => t.created_at >= todayStartMs,
+  ).length;
 }

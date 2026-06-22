@@ -16,6 +16,7 @@ import {
   TaskScheduler,
   isInQuietHours,
   canParallelize,
+  countTodayTriggers,
   DEFAULT_TRIGGERING_CONFIG,
 } from "./task-scheduler";
 import type {
@@ -252,6 +253,74 @@ describe("evaluateTrigger — decision matrix", () => {
     expect(decision.mechanism).toBe("scheduleSessionTurn");
     expect(decision.at_time).toBe(now + 60 * 60 * 1000);
     expect(decision.delay_ms).toBeUndefined();
+  });
+
+  // Schedule-aware guards (min_interval + daily_limit) — guards 4 & 5
+  it("blocks when daily trigger limit is reached (schedule provided)", () => {
+    const now = Date.now();
+    const schedule: TaskSchedule = {
+      task_id: "task_001",
+      pending_triggers: Array.from({ length: 8 }, (_, i) => ({
+        trigger_id: `trig_${i}`,
+        trigger_source: "cron:scheduled" as const,
+        scheduled_at: now + i * 60000,
+        mechanism: "scheduleSessionTurn" as const,
+        reason: `trigger ${i}`,
+        status: "pending" as const,
+        created_at: now,
+      })),
+      last_trigger_at: null,
+      next_trigger_at: null,
+      active_cron_job_ids: [],
+    };
+    const decision = scheduler.evaluateTrigger(makeContext(), now, schedule);
+    expect(decision.should_trigger).toBe(false);
+    expect(decision.reason).toBe("daily_limit");
+  });
+
+  it("allows triggers when daily count is below limit (schedule provided)", () => {
+    const now = Date.now();
+    const schedule: TaskSchedule = {
+      task_id: "task_001",
+      pending_triggers: [
+        {
+          trigger_id: "trig_1",
+          trigger_source: "cron:scheduled" as const,
+          scheduled_at: now,
+          mechanism: "scheduleSessionTurn" as const,
+          reason: "only one",
+          status: "pending" as const,
+          created_at: now,
+        },
+      ],
+      last_trigger_at: null,
+      next_trigger_at: null,
+      active_cron_job_ids: [],
+    };
+    const decision = scheduler.evaluateTrigger(makeContext(), now, schedule);
+    expect(decision.should_trigger).toBe(true);
+  });
+
+  it("adds skip_reason when min_interval is not met (schedule provided)", () => {
+    const now = Date.now();
+    const schedule: TaskSchedule = {
+      task_id: "task_001",
+      pending_triggers: [],
+      last_trigger_at: now - 5 * 60 * 1000, // 5 min ago, < 30 min default
+      next_trigger_at: null,
+      active_cron_job_ids: [],
+    };
+    const decision = scheduler.evaluateTrigger(makeContext(), now, schedule);
+    expect(decision.skip_reasons).toContain("距上次触发时间过短");
+    // min_interval is non-blocking (skip only)
+    expect(decision.should_trigger).toBe(true);
+  });
+
+  it("min_interval and daily_limit are skipped when schedule is not provided", () => {
+    const decision = scheduler.evaluateTrigger(makeContext());
+    // Without schedule, guards are skipped (conservative: don't block without data)
+    expect(decision.should_trigger).toBe(true);
+    expect(decision.reason).not.toBe("daily_limit");
   });
 });
 
@@ -714,5 +783,85 @@ describe("DEFAULT_TRIGGERING_CONFIG", () => {
     expect(DEFAULT_TRIGGERING_CONFIG.quiet_hours).toBe("22:00-08:00");
     expect(DEFAULT_TRIGGERING_CONFIG.stall_threshold_multiplier).toBe(2.0);
     expect(DEFAULT_TRIGGERING_CONFIG.require_user_confirmation_for).toContain("first_trigger_of_task");
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════
+// countTodayTriggers — 纯函数
+// ══════════════════════════════════════════════════════════════════
+
+describe("countTodayTriggers", () => {
+  it("returns 0 for empty schedule", () => {
+    const schedule: TaskSchedule = {
+      task_id: "task_001",
+      pending_triggers: [],
+      last_trigger_at: null,
+      next_trigger_at: null,
+      active_cron_job_ids: [],
+    };
+    expect(countTodayTriggers(schedule)).toBe(0);
+  });
+
+  it("counts triggers created today", () => {
+    const now = Date.now();
+    const schedule: TaskSchedule = {
+      task_id: "task_001",
+      pending_triggers: [
+        {
+          trigger_id: "trig_1",
+          trigger_source: "cron:scheduled",
+          scheduled_at: now,
+          mechanism: "scheduleSessionTurn",
+          reason: "t1",
+          status: "pending",
+          created_at: now,
+        },
+        {
+          trigger_id: "trig_2",
+          trigger_source: "cron:scheduled",
+          scheduled_at: now,
+          mechanism: "scheduleSessionTurn",
+          reason: "t2",
+          status: "pending",
+          created_at: now - 1000,
+        },
+      ],
+      last_trigger_at: null,
+      next_trigger_at: null,
+      active_cron_job_ids: [],
+    };
+    expect(countTodayTriggers(schedule, now)).toBe(2);
+  });
+
+  it("excludes triggers from previous days", () => {
+    const now = Date.now();
+    const yesterday = now - 24 * 60 * 60 * 1000;
+    const schedule: TaskSchedule = {
+      task_id: "task_001",
+      pending_triggers: [
+        {
+          trigger_id: "trig_old",
+          trigger_source: "cron:scheduled",
+          scheduled_at: yesterday,
+          mechanism: "scheduleSessionTurn",
+          reason: "old",
+          status: "pending",
+          created_at: yesterday,
+        },
+        {
+          trigger_id: "trig_new",
+          trigger_source: "cron:scheduled",
+          scheduled_at: now,
+          mechanism: "scheduleSessionTurn",
+          reason: "new",
+          status: "pending",
+          created_at: now,
+        },
+      ],
+      last_trigger_at: null,
+      next_trigger_at: null,
+      active_cron_job_ids: [],
+    };
+    expect(countTodayTriggers(schedule, now)).toBe(1);
   });
 });

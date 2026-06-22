@@ -80,7 +80,7 @@ export { StrategyRegistry, StrategyProposer, StrategyApplier } from "./strategy-
 export { CrossDomainAnalyzer } from "./cross-domain-analyzer";
 
 // V13: 任务调度 (Phase 3)
-export { TaskScheduler, isInQuietHours, canParallelize, DEFAULT_TRIGGERING_CONFIG } from "./task-scheduler";
+export { TaskScheduler, isInQuietHours, canParallelize, countTodayTriggers, DEFAULT_TRIGGERING_CONFIG } from "./task-scheduler";
 export type { TaskSchedulerMemoryClient, SchedulerTaskContext, SchedulerSubtask } from "./task-scheduler";
 
 // 常量
