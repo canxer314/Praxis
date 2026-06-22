@@ -51,6 +51,10 @@ import { TaskAssessmentBuilder, TaskAssessmentMemoryClient } from "./task-assess
 import { ExecutionFeedbackCollector } from "./execution-feedback";
 import { LearningUpdateBuilder, LearningUpdateMemoryClient } from "./learning-update";
 import { LearningLoop } from "./learning-loop";
+import { GapDetector } from "./gap-detector";
+import { StrategyRegistry } from "./strategy-registry";
+import { CrossDomainAnalyzer } from "./cross-domain-analyzer";
+import type { CrossDomainAnalysis, CrossDomainMigration } from "./types";
 import { log } from "../logger";
 
 // ══════════════════════════════════════════════════════════════════
@@ -60,7 +64,10 @@ import { log } from "../logger";
 export interface CognitiveCoreMemoryClient
   extends MetacognitiveMemoryClient,
     TaskAssessmentMemoryClient,
-    LearningUpdateMemoryClient {}
+    LearningUpdateMemoryClient {
+  /** E5: 跨领域分析需要的 lesson 批量召回 */
+  lessonRecall(query: Record<string, unknown>): Promise<Result<unknown[]>>;
+}
 
 export interface CognitiveCoreDeps {
   memoryClient: CognitiveCoreMemoryClient;
@@ -74,6 +81,9 @@ export interface CognitiveCoreDeps {
 
 export class CognitiveCore {
   readonly metacognitive: MetacognitiveEngine;
+  readonly strategyRegistry: StrategyRegistry;
+  readonly gapDetector: GapDetector;
+  readonly crossDomainAnalyzer: CrossDomainAnalyzer;
   private readonly memoryClient: CognitiveCoreMemoryClient;
   private readonly walFilePath?: string;
 
@@ -85,6 +95,9 @@ export class CognitiveCore {
     this.walFilePath = deps.walFilePath;
 
     this.metacognitive = new MetacognitiveEngine(deps.memoryClient);
+    this.strategyRegistry = new StrategyRegistry(deps.memoryClient);
+    this.gapDetector = new GapDetector(this.metacognitive);
+    this.crossDomainAnalyzer = new CrossDomainAnalyzer(deps.memoryClient);
   }
 
   // ---- Session 隔离 (T2) ----
@@ -99,7 +112,15 @@ export class CognitiveCore {
    * @param sessionId 唯一 session 标识
    */
   createSession(sessionId: string): SessionCognitiveCore {
-    return new SessionCognitiveCore(sessionId, this.metacognitive, this.memoryClient, this.walFilePath);
+    return new SessionCognitiveCore(
+      sessionId,
+      this.metacognitive,
+      this.memoryClient,
+      this.walFilePath,
+      this.gapDetector,
+      this.strategyRegistry,
+      this.crossDomainAnalyzer,
+    );
   }
 
   // ---- 跨 session 操作 ----
@@ -112,6 +133,82 @@ export class CognitiveCore {
   /** 手动触发校准 */
   async calibrate(entry: CalibrationEntry): Promise<Result<void>> {
     return this.metacognitive.calibrate(entry);
+  }
+
+  /**
+   * E5 (Phase 2.2): 对跨领域分析结果自动应用高置信度迁移。
+   *
+   * Cron 调用方在 analyze() 后调用此方法，为高相似度建议
+   * 创建目标领域策略并追踪迁移记录。
+   *
+   * @returns 本次创建的迁移记录
+   */
+  async applyCrossDomainMigrations(
+    analysis: CrossDomainAnalysis,
+  ): Promise<Result<CrossDomainMigration[]>> {
+    const candidates = this.crossDomainAnalyzer.selectAutoApplyCandidates(analysis);
+    if (candidates.length === 0) return { ok: true, value: [] };
+
+    // 获取当前 profile 中的 selfRatings（baseline 记录用）
+    const profileResult = await this.metacognitive.getProfile();
+    const ratings = new Map<string, number>();
+    if (profileResult.ok) {
+      for (const [domain, prof] of Object.entries(profileResult.value.domainProficiencies)) {
+        ratings.set(domain, prof.selfRating);
+      }
+    }
+
+    const existingResult = await this.crossDomainAnalyzer.getMigrations();
+    const existing = existingResult.ok ? existingResult.value : [];
+    const newMigrations: CrossDomainMigration[] = [];
+
+    for (const candidate of candidates) {
+      // 在目标领域创建策略
+      const strategy = {
+        id: `e5_migrate_${candidate.targetDomain}_${Date.now()}`,
+        name: `Cross-domain: ${candidate.pattern}`,
+        description: `Auto-migrated from ${candidate.sourceDomain} (similarity: ${candidate.similarity.toFixed(2)}): ${candidate.applicabilityRationale}`,
+        state: "PROPOSED" as const,
+        domain: candidate.targetDomain,
+        taskType: "*",
+        config: { sourceDomain: candidate.sourceDomain, similarity: candidate.similarity },
+        metrics: {
+          activatedAt: 0,
+          rollbackCount: 0,
+          successRate: 1.0,
+          lastEvaluated: Date.now(),
+        },
+        auditLog: [],
+      };
+
+      this.strategyRegistry.addProposal(strategy);
+
+      const migration: CrossDomainMigration = {
+        id: `mig_${Date.now()}_${candidate.targetDomain}`,
+        sourceDomain: candidate.sourceDomain,
+        targetDomain: candidate.targetDomain,
+        strategyId: strategy.id,
+        similarity: candidate.similarity,
+        pattern: candidate.pattern,
+        appliedAt: Date.now(),
+        baselineRating: ratings.get(candidate.targetDomain) ?? 0.5,
+      };
+      newMigrations.push(migration);
+    }
+
+    await this.strategyRegistry.persist();
+    await this.crossDomainAnalyzer.saveMigrations([...existing, ...newMigrations]);
+
+    log({
+      ts: new Date().toISOString(),
+      module: "cognitive-core",
+      op: "applyCrossDomainMigrations",
+      duration_ms: 0,
+      outcome: "success",
+      error: `Applied ${newMigrations.length} cross-domain migrations`,
+    });
+
+    return { ok: true, value: newMigrations };
   }
 
   /** 重放上次 session 未持久化的记忆 */
@@ -150,18 +247,27 @@ export class SessionCognitiveCore {
   readonly sessionId: string;
   readonly metacognitive: MetacognitiveEngine;
   private readonly loop: LearningLoop;
+  private readonly gapDetector: GapDetector;
+  private readonly strategyRegistry: StrategyRegistry;
+  private readonly crossDomainAnalyzer: CrossDomainAnalyzer;
 
   constructor(
     sessionId: string,
     metacognitive: MetacognitiveEngine,
     memoryClient: CognitiveCoreMemoryClient,
     walFilePath?: string,
+    gapDetector?: GapDetector,
+    strategyRegistry?: StrategyRegistry,
+    crossDomainAnalyzer?: CrossDomainAnalyzer,
   ) {
     if (!sessionId || typeof sessionId !== "string" || sessionId.length > 128) {
       throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP, "sessionId must be a non-empty string ≤ 128 chars");
     }
     this.sessionId = sessionId;
     this.metacognitive = metacognitive;
+    this.gapDetector = gapDetector ?? new GapDetector(metacognitive);
+    this.strategyRegistry = strategyRegistry ?? new StrategyRegistry(memoryClient);
+    this.crossDomainAnalyzer = crossDomainAnalyzer ?? new CrossDomainAnalyzer(memoryClient);
 
     const taskAssessment = new TaskAssessmentBuilder(metacognitive, memoryClient);
     const executionFeedback = new ExecutionFeedbackCollector();
@@ -206,13 +312,72 @@ export class SessionCognitiveCore {
     return this.loop.getFeedbackSnapshot();
   }
 
-  /** Phase 3: Session 结束 — 学习 + 持久化 */
+  /** Phase 3: Session 结束 — 学习 + 持久化 + E4 缺口→策略重新激活 */
   async finalizeLearning(
     sessionContext: SessionContext,
     domain: string,
   ): Promise<Result<LearningUpdate>> {
     _validateInput("domain", domain);
-    return this.loop.sessionEnd(sessionContext, domain);
+    const result = await this.loop.sessionEnd(sessionContext, domain);
+
+    // E4 (Phase 2.1): 缺口猎取 → DORMANT 策略重新激活
+    // 学习持久化后检查该领域是否有 PERSISTENT_GAP，
+    // 若有则将匹配的 DORMANT 策略转回 PROPOSED。
+    try {
+      const gapResult = await this.gapDetector.detect();
+      if (gapResult.ok && gapResult.value.escalatedGaps.length > 0) {
+        const escalatedDomains = new Set(
+          gapResult.value.escalatedGaps.map((g) => g.gap.context),
+        );
+        for (const escalatedDomain of escalatedDomains) {
+          await this.strategyRegistry.reactivateDormant(
+            escalatedDomain,
+            `PERSISTENT_GAP detected — ${gapResult.value.escalatedGaps.length} escalated gap(s)`,
+          );
+        }
+      }
+    } catch {
+      // E4 reactivation is best-effort — failure must not break the learning loop
+    }
+
+    // E5 (Phase 2.2): 跨领域迁移回滚检测
+    // 若已应用跨领域迁移导致目标领域退步 → 自动撤回。
+    try {
+      const migrationsResult = await this.crossDomainAnalyzer.getMigrations();
+      if (migrationsResult.ok && migrationsResult.value.length > 0) {
+        const profileResult = await this.metacognitive.getProfile();
+        if (profileResult.ok) {
+          const ratings = new Map<string, number>();
+          for (const [d, p] of Object.entries(profileResult.value.domainProficiencies)) {
+            ratings.set(d, p.selfRating);
+          }
+
+          const degraded = this.crossDomainAnalyzer.findDegradedMigrations(
+            migrationsResult.value,
+            ratings,
+          );
+
+          for (const { migration, reason } of degraded) {
+            await this.crossDomainAnalyzer.rollbackMigration(
+              migration.id,
+              reason,
+              async () => {
+                const rb = await this.strategyRegistry.transition(
+                  migration.strategyId,
+                  "DORMANT",
+                  `E5 auto-rollback: ${reason}`,
+                );
+                return rb.ok;
+              },
+            );
+          }
+        }
+      }
+    } catch {
+      // E5 rollback is best-effort — failure must not break the learning loop
+    }
+
+    return result;
   }
 
   /** 重放本 session 的 WAL */

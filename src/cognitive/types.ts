@@ -276,6 +276,23 @@ export interface CronHealthSlot {
   suggestionsGenerated: number;
 }
 
+/** E5 (Phase 2.2): 跨领域迁移追踪 — 记录已应用的自动迁移 */
+export interface CrossDomainMigration {
+  id: string;
+  sourceDomain: string;
+  targetDomain: string;
+  strategyId: string;
+  similarity: number;
+  pattern: string;
+  appliedAt: number;
+  /** 应用时目标领域的 selfRating（用于回滚判断） */
+  baselineRating: number;
+  /** 回滚时间 (非空表示已撤回) */
+  rolledBackAt?: number;
+  /** 回滚原因 */
+  rollbackReason?: string;
+}
+
 // ══════════════════════════════════════════════════════════════════
 // E6: 缺口猎取 (CEO Review)
 // ══════════════════════════════════════════════════════════════════

@@ -82,4 +82,17 @@ export class InMemoryMemoryClient implements CognitiveCoreMemoryClient {
     });
     return { ok: true, value: undefined };
   }
+
+  // ---- E5: CrossDomainMemoryClient ----
+
+  async lessonRecall(_query: Record<string, unknown>): Promise<Result<unknown[]>> {
+    // 返回所有 lessons（简化实现：忽略 query 过滤）
+    const results = this.lessons.map((l) => ({
+      content: l.content,
+      type: l.type,
+      tags: l.tags,
+      timestamp: l.timestamp,
+    }));
+    return { ok: true, value: results as unknown[] };
+  }
 }

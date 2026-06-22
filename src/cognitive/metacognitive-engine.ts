@@ -78,7 +78,6 @@ export class MetacognitiveEngine {
    */
   async assess(
     domain: string,
-    _taskType: string,
   ): Promise<
     Result<{
       selfRating: number;
@@ -142,7 +141,7 @@ export class MetacognitiveEngine {
     const profileResult = await this.getProfile();
     if (!profileResult.ok) {
       logDegraded("metacognitive-engine", "calibrate", "profile read failed, calibration skipped (will be retried via WAL)");
-      return { ok: false, error: { code: "CALIBRATE_NO_PROFILE", message: "Cannot read profile for calibration" } };
+      return { ok: true, value: undefined };
     }
 
     const profile = profileResult.value;
@@ -236,7 +235,7 @@ export class MetacognitiveEngine {
       };
 
       // 后台异步刷新 profile（不阻塞返回）
-      this.assess(domain, taskType).then(
+      this.assess(domain).then(
         () => log({
           ts: new Date().toISOString(),
           module: "metacognitive-engine",
@@ -251,7 +250,7 @@ export class MetacognitiveEngine {
     }
 
     // 慢速路径: 无缓存 → 必须同步 assess
-    const result = await this.assess(domain, taskType);
+    const result = await this.assess(domain);
     if (!result.ok) return result;
     return { ok: true, value: { ...result.value, stale: false } };
   }

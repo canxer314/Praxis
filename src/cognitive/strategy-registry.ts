@@ -19,6 +19,7 @@ import type {
   StrategyAuditEntry,
 } from "./types";
 import { log, logDegraded } from "../logger";
+import { SLOTS } from "./constants";
 
 // ══════════════════════════════════════════════════════════════════
 // 依赖接口
@@ -82,7 +83,6 @@ const FACTORY_DEFAULT_STRATEGIES: Strategy[] = [
 export class StrategyRegistry {
   private readonly memory: StrategyMemoryClient;
   private strategies: Map<string, Strategy> = new Map();
-  private readonly slotName = "strategy_registry";
 
   constructor(memory: StrategyMemoryClient) {
     if (!memory) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"StrategyMemoryClient is required");
@@ -91,7 +91,7 @@ export class StrategyRegistry {
 
   /** 从 AgentMemory 加载策略注册表 */
   async load(): Promise<Result<void>> {
-    const result = await this.memory.getSlot(this.slotName);
+    const result = await this.memory.getSlot(SLOTS.STRATEGY_REGISTRY);
 
     if (!result.ok) {
       // 降级: 使用工厂默认策略
@@ -178,7 +178,7 @@ export class StrategyRegistry {
   /** 持久化 */
   async persist(): Promise<Result<void>> {
     const data = { strategies: [...this.strategies.values()] };
-    return this.memory.setSlot(this.slotName, data);
+    return this.memory.setSlot(SLOTS.STRATEGY_REGISTRY, data);
   }
 
   /** 获取所有策略 (只读) */
@@ -189,6 +189,51 @@ export class StrategyRegistry {
   /** 清除所有策略 (rollback/factoryReset 使用) */
   clear(): void {
     this.strategies.clear();
+  }
+
+  /**
+   * E4: 重新激活 DORMANT 策略 (Phase 2.1)
+   *
+   * 当 GapDetector 在某个领域检测到 PERSISTENT_GAP 时，
+   * 将匹配领域（含通配符 "*"）的 DORMANT 策略转回 PROPOSED。
+   *
+   * 设计意图: 缺口复现说明之前被搁置的策略可能需要重新评估——
+   * 系统不应"忘记"自己曾经尝试过什么，而应在类似困境中重新提出。
+   *
+   * @returns 成功重新激活的策略列表（可能为空）
+   */
+  async reactivateDormant(domain: string, reason: string): Promise<Result<Strategy[]>> {
+    const dormant = this.getByState("DORMANT");
+    const matching = dormant.filter(
+      (s) => s.domain === domain || s.domain === "*",
+    );
+
+    const reactivated: Strategy[] = [];
+    for (const strategy of matching) {
+      const result = await this.transition(
+        strategy.id,
+        "PROPOSED",
+        `Gap-triggered reactivation (domain: ${domain}): ${reason}`,
+      );
+      if (result.ok) {
+        reactivated.push(result.value);
+      }
+    }
+
+    if (reactivated.length > 0) {
+      await this.persist();
+
+      log({
+        ts: new Date().toISOString(),
+        module: "strategy-registry",
+        op: "reactivateDormant",
+        duration_ms: 0,
+        outcome: "success",
+        error: `Reactivated ${reactivated.length} DORMANT strategies: ${reactivated.map((s) => s.id).join(", ")}`,
+      });
+    }
+
+    return { ok: true, value: reactivated };
   }
 
   // ---- 内部 ----
