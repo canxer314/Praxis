@@ -132,7 +132,7 @@ export class MemoryClient {
       return { code: "TIMEOUT", message: "AgentMemory MCP 调用超时" };
     }
     if (msg.includes("NOT_FOUND") || msg.includes("not found")) {
-      return { code: "NOT_FOUND", message };
+      return { code: "NOT_FOUND", message: msg };
     }
     if (msg.includes("connection refused") || msg.includes("ECONNREFUSED")) {
       return { code: "AGENTMEMORY_UNAVAILABLE", message: "AgentMemory 连接被拒绝" };
