@@ -14,9 +14,7 @@ import { PraxisErrorThrowable, ErrorCode } from "../platform-adapter";
 import type {
   MetacognitiveProfile,
   KnowledgeGap,
-  DomainProficiency,
   GapDetectionResult,
-  GapSeverity,
 } from "./types";
 import type { MetacognitiveEngine } from "./metacognitive-engine";
 import { log } from "../logger";
@@ -118,20 +116,5 @@ export class GapDetector {
       ok: true,
       value: { gaps, escalatedGaps, contextReminders },
     };
-  }
-
-  /**
-   * 判定缺口严重程度。
-   */
-  assessSeverity(
-    prof: DomainProficiency,
-    sessionsWithNoImprovement: number,
-  ): GapSeverity {
-    if (sessionsWithNoImprovement >= SESSIONS_NO_IMPROVEMENT_FOR_ESCALATION) {
-      return "PERSISTENT_GAP";
-    }
-    if (prof.selfRating < 0.15) return "HIGH";
-    if (prof.selfRating < LOW_SELF_RATING_THRESHOLD) return "MEDIUM";
-    return "LOW";
   }
 }

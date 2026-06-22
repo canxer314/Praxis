@@ -141,6 +141,7 @@ export class MetacognitiveEngine {
   async calibrate(entry: CalibrationEntry): Promise<Result<void>> {
     const profileResult = await this.getProfile();
     if (!profileResult.ok) {
+      logDegraded("metacognitive-engine", "calibrate", "profile read failed, calibration skipped (will be retried via WAL)");
       return { ok: false, error: { code: "CALIBRATE_NO_PROFILE", message: "Cannot read profile for calibration" } };
     }
 

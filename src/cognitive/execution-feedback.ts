@@ -79,9 +79,4 @@ export class ExecutionFeedbackCollector {
       },
     };
   }
-
-  /** 是否有值得保留的修正 */
-  hasMeaningfulCorrections(): boolean {
-    return this.corrections.length > 0;
-  }
 }

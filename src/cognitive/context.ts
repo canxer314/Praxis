@@ -127,8 +127,12 @@ function emptyInjection(): ContextInjection {
 /**
  * 估算一段文本的 token 数。
  *
- * CJK 字符 (中文/日文/韩文汉字): ~1 token/字符
- * 其他字符 (英文/数字/符号): ~0.25 token/字符 (≈4 字符/token)
+ * 基于 cl100k_base (GPT-4/Claude) tokenizer 的大致比率：
+ *   CJK 字符 (中日韩统一表意文字/平假名/片假名/谚文): ~1 token/字符
+ *   其他字符 (英文/数字/符号): ~0.25 token/字符 (≈4 字符/token)
+ *
+ * 这是一个保守估算（上限估计），实际 token 数通常低于此估算值。
+ * 精确值需要通过实际 tokenizer 获取；此函数用于上下文 token 预算控制。
  */
 function estimateTokens(text: string): number {
   let tokens = 0;

@@ -153,7 +153,11 @@ export class LearningUpdateBuilder {
         : "statistical_anomaly",
     };
 
-    await this.metacognitive.calibrate(calibration);
+    const calResult = await this.metacognitive.calibrate(calibration);
+    if (!calResult.ok) {
+      logDegraded("learning-update", "build", `calibration write failed: ${calResult.error?.message}`);
+      this.enqueueToWal({ type: "calibration", data: calibration as unknown as Record<string, unknown>, timestamp: Date.now() });
+    }
 
     // 3. 检测新知识缺口
     const newGaps: KnowledgeGap[] = [];
@@ -199,7 +203,28 @@ export class LearningUpdateBuilder {
     const pending = [...this.wal];
 
     for (const entry of pending) {
-      const result = await this.writeEpisode(entry.data as unknown as EpisodicMemory);
+      let result: Result<unknown>;
+      switch (entry.type) {
+        case "episodic":
+          result = await this.writeEpisode(entry.data as unknown as EpisodicMemory);
+          break;
+        case "calibration":
+          result = await this.memory.lessonSave({
+            type: "calibration",
+            content: JSON.stringify(entry.data),
+          });
+          break;
+        case "knowledge_gap":
+          result = await this.memory.lessonSave({
+            type: "knowledge_gap",
+            content: JSON.stringify(entry.data),
+          });
+          break;
+        default:
+          // Unknown entry type — skip silently
+          this.wal = this.wal.filter((w) => w !== entry);
+          continue;
+      }
       if (result.ok) {
         replayed++;
         this.wal = this.wal.filter((w) => w !== entry);

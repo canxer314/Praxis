@@ -157,6 +157,9 @@ export class SessionCognitiveCore {
     memoryClient: CognitiveCoreMemoryClient,
     walFilePath?: string,
   ) {
+    if (!sessionId || typeof sessionId !== "string" || sessionId.length > 128) {
+      throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP, "sessionId must be a non-empty string ≤ 128 chars");
+    }
     this.sessionId = sessionId;
     this.metacognitive = metacognitive;
 
@@ -175,6 +178,8 @@ export class SessionCognitiveCore {
     domain: string,
     opts?: { classificationConfidence?: number },
   ): Promise<Result<TaskAssessment>> {
+    _validateInput("taskType", taskType);
+    _validateInput("domain", domain);
     return this.loop.taskReceive(taskType, domain, opts);
   }
 
@@ -206,11 +211,22 @@ export class SessionCognitiveCore {
     sessionContext: SessionContext,
     domain: string,
   ): Promise<Result<LearningUpdate>> {
+    _validateInput("domain", domain);
     return this.loop.sessionEnd(sessionContext, domain);
   }
 
   /** 重放本 session 的 WAL */
   async replayPendingWrites(): Promise<Result<number>> {
     return this.loop.replayPendingWrites();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Input validation (MED-4)
+// ══════════════════════════════════════════════════════════════════
+
+function _validateInput(name: string, value: string): void {
+  if (!value || typeof value !== "string" || value.length === 0 || value.length > 128) {
+    throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP, `${name} must be a non-empty string ≤ 128 chars`);
   }
 }

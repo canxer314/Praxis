@@ -22,6 +22,7 @@ import { agentmemory } from "./agentmemory-client";
 import { Result, LearningEvent } from "./platform-adapter";
 import { CognitiveCore } from "./cognitive/cognitive-core";
 import type { CognitiveCoreMemoryClient } from "./cognitive/cognitive-core";
+import { SLOTS } from "./cognitive/constants";
 
 // ---- CognitiveCore 工厂 (T8) ----
 
@@ -249,7 +250,7 @@ if (cmd === "inject") {
 
     // T1: E5 cron 健康检查 — 检测跨领域分析 cron 是否静默失败
     let cronWarning = "";
-    const healthResult = await agentmemory.getSlot("cron_health");
+    const healthResult = await agentmemory.getSlot(SLOTS.CRON_HEALTH);
     if (healthResult.ok && healthResult.value) {
       const health = healthResult.value as Record<string, unknown>;
       const lastStatus = health.lastRunStatus as string | undefined;
