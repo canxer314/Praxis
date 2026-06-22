@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0.1] - 2026-06-23
+
+### Fixed
+- **CRITICAL:** `StrategyRegistry.load()` 现在在 `applyCrossDomainMigrations()` 和 `finalizeLearning()` 中被调用——修复了 E4 策略重新激活在运行时为死代码的问题（autoplan Phase 2 审查 #C1）
+- `transition()` 现在先克隆 Strategy 对象再修改状态，防止 persist 失败导致内存/持久化不一致（#H1）
+- 5 个空 catch 块现在记录 `logDegraded` 日志，提供错误可见性（#H2）
+- `CognitiveCore` 构造函数现在检查 `deps` 本身是否为 null/undefined（#H4）
+- `selectAutoApplyCandidates()` 添加 null/undefined 防护（#H5）
+- `MemoryConsolidator` 使用可选链处理丢失的 `context`/`signals` 字段（#H6）
+- `finalizeLearning()` 在学习更新失败时提前返回，不再错误地执行 E4/E5（#M4）
+- `applyCrossDomainMigrations()` 在保存迁移记录前检查 persist 结果（#M1）
+- `Date.now()` 策略 ID 现在包含循环索引以防止碰撞（#M2）
+- E4/E5 循环改为逐条目 try/catch，单个条目失败不影响其他（#M6）
+
 ## [0.3.0.0] - 2026-06-22
 
 ### Added
