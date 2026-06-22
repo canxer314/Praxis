@@ -13,12 +13,15 @@ import { PraxisErrorThrowable, ErrorCode } from "../platform-adapter";
 import type {
   LearningUpdate as LearningUpdateType,
   EpisodicMemory,
+  ProceduralMemory,
+  SemanticMemory,
   CalibrationEntry,
   KnowledgeGap,
   Correction,
   SessionContext,
 } from "./types";
 import type { MetacognitiveEngine } from "./metacognitive-engine";
+import { MemoryConsolidator } from "./memory-consolidator";
 import { isRealExperience } from "./heuristics";
 import { log, logDegraded } from "../logger";
 import * as fs from "fs";
@@ -172,7 +175,64 @@ export class LearningUpdateBuilder {
       }
     }
 
-    // 4. 持久化 — 写入 AgentMemory
+    // 4. Phase 2.3: 记忆间一致性 — Episodic → Semantic → Procedural 提炼
+    const consolidator = new MemoryConsolidator();
+
+    // 检索已有语义/程序记忆（用于去重）
+    let existingSemantic: SemanticMemory[] = [];
+    let existingProcedural: ProceduralMemory[] = [];
+    try {
+      const semResult = await this.memory.smartSearch("type:semantic", { limit: 50 });
+      if (semResult.ok) {
+        existingSemantic = (semResult.value as unknown[])
+          .filter((r): r is SemanticMemory & Record<string, unknown> =>
+            typeof r === "object" && r !== null && (r as Record<string, unknown>).memoryId !== undefined,
+          )
+          .map((r) => r as unknown as SemanticMemory);
+      }
+      const procResult = await this.memory.smartSearch("type:procedural", { limit: 50 });
+      if (procResult.ok) {
+        existingProcedural = (procResult.value as unknown[])
+          .filter((r): r is ProceduralMemory & Record<string, unknown> =>
+            typeof r === "object" && r !== null && (r as Record<string, unknown>).memoryId !== undefined,
+          )
+          .map((r) => r as unknown as ProceduralMemory);
+      }
+    } catch {
+      // 检索失败 → 用空列表降级巩固（仍可工作，只是可能产生重复）
+    }
+
+    const { newSemantic, newProcedural } = consolidator.consolidate(
+      newEpisodic,
+      existingSemantic,
+      existingProcedural,
+    );
+
+    // 持久化新语义记忆
+    for (const sem of newSemantic) {
+      const saveResult = await this.memory.lessonSave({
+        type: "semantic",
+        tags: [sem.subject, "semantic"],
+        content: JSON.stringify(sem),
+      });
+      if (!saveResult.ok) {
+        logDegraded("learning-update", "build", `semantic save failed: ${sem.memoryId}`);
+      }
+    }
+
+    // 持久化新程序记忆
+    for (const proc of newProcedural) {
+      const saveResult = await this.memory.lessonSave({
+        type: "procedural",
+        tags: [proc.domain, "procedural"],
+        content: JSON.stringify(proc),
+      });
+      if (!saveResult.ok) {
+        logDegraded("learning-update", "build", `procedural save failed: ${proc.memoryId}`);
+      }
+    }
+
+    // 5. 持久化情景记忆 — 写入 AgentMemory
     for (const memory of newEpisodic) {
       const writeResult = await this.writeEpisode(memory);
       if (!writeResult.ok) {
@@ -191,7 +251,7 @@ export class LearningUpdateBuilder {
 
     return {
       ok: true,
-      value: { newEpisodic, newProcedural: [], calibration, newGaps },
+      value: { newEpisodic, newProcedural, calibration, newGaps },
     };
   }
 

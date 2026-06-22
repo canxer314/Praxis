@@ -68,6 +68,9 @@ export { isRealExperience, editDistance } from "./heuristics";
 export { buildContextInjection } from "./context";
 export type { BuildContextInput } from "./context";
 
+// 记忆巩固 (Phase 2.3)
+export { MemoryConsolidator } from "./memory-consolidator";
+
 // 安全
 export { sanitizePromptFragment } from "./sanitize";
 
