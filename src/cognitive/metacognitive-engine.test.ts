@@ -38,7 +38,7 @@ describe("MetacognitiveEngine.assess", () => {
     const mem = makeMockMem(profile);
     const engine = new MetacognitiveEngine(mem);
 
-    const result = await engine.assess("new_domain", "bug_fix");
+    const result = await engine.assess("new_domain");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.selfRating).toBe(0.3);
@@ -55,7 +55,7 @@ describe("MetacognitiveEngine.assess", () => {
     const mem = makeMockMem(profile);
     const engine = new MetacognitiveEngine(mem);
 
-    const result = await engine.assess("typescript", "bug_fix");
+    const result = await engine.assess("typescript");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.selfRating).toBe(0.3);
@@ -72,7 +72,7 @@ describe("MetacognitiveEngine.assess", () => {
     const mem = makeMockMem(profile);
     const engine = new MetacognitiveEngine(mem);
 
-    const result = await engine.assess("typescript", "refactor");
+    const result = await engine.assess("typescript");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.selfRating).toBe(0.75);
@@ -88,7 +88,7 @@ describe("MetacognitiveEngine.assess", () => {
     const mem = makeMockMem(profile);
     const engine = new MetacognitiveEngine(mem);
 
-    const result = await engine.assess("expert_domain", "design");
+    const result = await engine.assess("expert_domain");
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.recommendedMode).toBe("autonomous");
   });
@@ -102,7 +102,7 @@ describe("MetacognitiveEngine.assess", () => {
     const mem = makeMockMem(profile);
     const engine = new MetacognitiveEngine(mem);
 
-    const result = await engine.assess("weak_domain", "bug_fix");
+    const result = await engine.assess("weak_domain");
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.recommendedMode).toBe("exploratory");
   });
@@ -111,7 +111,7 @@ describe("MetacognitiveEngine.assess", () => {
     const mem = makeMockMem(); // 无 profile
     const engine = new MetacognitiveEngine(mem);
 
-    const result = await engine.assess("any_domain", "task");
+    const result = await engine.assess("any_domain");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.selfRating).toBe(0.3);
@@ -212,7 +212,7 @@ describe("MetacognitiveEngine.calibrate", () => {
     }
   });
 
-  it("profile 读取失败 → 返回错误", async () => {
+  it("profile 读取失败 → 优雅跳过 (ok: true)", async () => {
     const mem = {
       getSlot: vi.fn(async () => ({ ok: false, error: { code: "DOWN", message: "unavailable" } } as Result<unknown>)),
       setSlot: vi.fn(),
@@ -229,7 +229,7 @@ describe("MetacognitiveEngine.calibrate", () => {
     };
 
     const result = await engine.calibrate(entry);
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
   });
 });
 

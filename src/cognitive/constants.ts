@@ -15,6 +15,8 @@ export const SLOTS = {
   STRATEGY_SNAPSHOT_BACKUP: "strategy_snapshot_backup",
   /** E5 cron 健康检查 (CrossDomainAnalyzer) */
   CRON_HEALTH: "cron_health",
+  /** E5 跨领域迁移追踪 (CrossDomainAnalyzer) */
+  CROSS_DOMAIN_MIGRATIONS: "cross_domain_migrations",
   /** Phase 1A 学习记录 */
   PRAXIS_LEARNINGS: "praxis_learnings",
   /** 进度日志 (Phase 1A) */

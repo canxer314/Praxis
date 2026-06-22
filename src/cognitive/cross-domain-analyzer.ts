@@ -22,6 +22,7 @@ import type {
   CronHealthSlot,
 } from "./types";
 import { log, logDegraded } from "../logger";
+import { SLOTS } from "./constants";
 
 // ══════════════════════════════════════════════════════════════════
 // 依赖接口
@@ -42,8 +43,8 @@ const MIN_LESSONS_FOR_ANALYSIS = 20;
 const AUTO_SKIP_TIMEOUT_DAYS = 7;
 const AUTO_MIGRATE_SIMILARITY_THRESHOLD = 0.7;
 const MIGRATION_DEGRADATION_THRESHOLD = -0.1;
-const CRON_HEALTH_SLOT = "cron_health";
-const MIGRATIONS_SLOT = "cross_domain_migrations";
+const CRON_HEALTH_SLOT = SLOTS.CRON_HEALTH;
+const MIGRATIONS_SLOT = SLOTS.CROSS_DOMAIN_MIGRATIONS;
 
 // ══════════════════════════════════════════════════════════════════
 // CrossDomainAnalyzer

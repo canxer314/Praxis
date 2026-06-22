@@ -19,6 +19,7 @@ import type {
   StrategyAuditEntry,
 } from "./types";
 import { log, logDegraded } from "../logger";
+import { SLOTS } from "./constants";
 
 // ══════════════════════════════════════════════════════════════════
 // 依赖接口
@@ -82,7 +83,6 @@ const FACTORY_DEFAULT_STRATEGIES: Strategy[] = [
 export class StrategyRegistry {
   private readonly memory: StrategyMemoryClient;
   private strategies: Map<string, Strategy> = new Map();
-  private readonly slotName = "strategy_registry";
 
   constructor(memory: StrategyMemoryClient) {
     if (!memory) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"StrategyMemoryClient is required");
@@ -91,7 +91,7 @@ export class StrategyRegistry {
 
   /** 从 AgentMemory 加载策略注册表 */
   async load(): Promise<Result<void>> {
-    const result = await this.memory.getSlot(this.slotName);
+    const result = await this.memory.getSlot(SLOTS.STRATEGY_REGISTRY);
 
     if (!result.ok) {
       // 降级: 使用工厂默认策略
@@ -178,7 +178,7 @@ export class StrategyRegistry {
   /** 持久化 */
   async persist(): Promise<Result<void>> {
     const data = { strategies: [...this.strategies.values()] };
-    return this.memory.setSlot(this.slotName, data);
+    return this.memory.setSlot(SLOTS.STRATEGY_REGISTRY, data);
   }
 
   /** 获取所有策略 (只读) */
