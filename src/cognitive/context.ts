@@ -22,7 +22,7 @@ export interface BuildContextInput {
   procedural?: ProceduralMemory[];
   frequentPitfalls?: string[];
   openGaps?: KnowledgeGap[];
-  /** 注入片段 token 预算上限 (默认 500) */
+  /** 注入片段 token 预算上限 (默认 1500，设计文档 T4 修正) */
   tokenBudget?: number;
   /** AgentMemory 是否可用 */
   memoryAvailable: boolean;
@@ -39,7 +39,7 @@ export interface BuildContextInput {
  * 如果 retrieval 返回 < 2 条结果，返回空注入 (低信息量的噪声 > 无信息)。
  */
 export function buildContextInjection(input: BuildContextInput): ContextInjection {
-  const budget = input.tokenBudget ?? 500;
+  const budget = input.tokenBudget ?? 1500;
   const lines: string[] = [];
   let estimatedTokens = 0;
   let tier: ContextInjection["tier"] = "C";
