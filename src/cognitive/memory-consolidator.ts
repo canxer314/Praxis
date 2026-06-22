@@ -47,7 +47,8 @@ export class MemoryConsolidator {
     // 按 (taskType, domain) 分组
     const groups = new Map<string, EpisodicMemory[]>();
     for (const ep of episodic) {
-      const key = `${ep.context.taskType}::${ep.context.domain}`;
+      const ctx = ep.context || {};
+      const key = `${ctx.taskType || "unknown"}::${ctx.domain || "unknown"}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(ep);
     }
@@ -201,11 +202,11 @@ export class MemoryConsolidator {
 
   /** 基于情景记忆推断语义关系类型 */
   private inferRelation(episodes: EpisodicMemory[]): string {
-    const allCorrected = episodes.every((e) => e.signals.wasCorrected);
+    const allCorrected = episodes.every((e) => e.signals?.wasCorrected === true);
     if (allCorrected) return "should_be_replaced_by";
 
     const anyNewKnowledge = episodes.some(
-      (e) => e.signals.deviationFromExpected === "isNewKnowledge",
+      (e) => e.signals?.deviationFromExpected === "isNewKnowledge",
     );
     if (anyNewKnowledge) return "is_equivalent_to";
 

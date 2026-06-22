@@ -86,7 +86,8 @@ export class LearningUpdateBuilder {
             });
           }
         }
-      } catch {
+      } catch (e) {
+          logDegraded("learning-update", "WAL", `disk read failed: ${e instanceof Error ? e.message : String(e)}`);
         logDegraded("learning-update", "walRestore", "failed to restore WAL from disk, starting fresh");
       }
     }
@@ -186,7 +187,9 @@ export class LearningUpdateBuilder {
       if (semResult.ok) {
         existingSemantic = (semResult.value as unknown[])
           .filter((r): r is SemanticMemory & Record<string, unknown> =>
-            typeof r === "object" && r !== null && (r as Record<string, unknown>).memoryId !== undefined,
+            typeof r === "object" && r !== null
+            && (r as Record<string, unknown>).memoryId !== undefined
+            && typeof (r as Record<string, unknown>).subject === "string",
           )
           .map((r) => r as unknown as SemanticMemory);
       }
@@ -194,11 +197,15 @@ export class LearningUpdateBuilder {
       if (procResult.ok) {
         existingProcedural = (procResult.value as unknown[])
           .filter((r): r is ProceduralMemory & Record<string, unknown> =>
-            typeof r === "object" && r !== null && (r as Record<string, unknown>).memoryId !== undefined,
+            typeof r === "object" && r !== null
+            && (r as Record<string, unknown>).memoryId !== undefined
+            && typeof (r as Record<string, unknown>).taskType === "string",
           )
           .map((r) => r as unknown as ProceduralMemory);
       }
-    } catch {
+    } catch (e) {
+      logDegraded("learning-update", "consolidation:smartSearch",
+        `search failed: ${e instanceof Error ? e.message : String(e)}`);
       // 检索失败 → 用空列表降级巩固（仍可工作，只是可能产生重复）
     }
 
@@ -318,8 +325,9 @@ export class LearningUpdateBuilder {
     if (!this.walFilePath) return;
     try {
       fs.writeFileSync(this.walFilePath, JSON.stringify(this.wal), "utf-8");
-    } catch {
-      // 静默 — WAL 落盘失败不应阻塞主流程
+    } catch (e) {
+      logDegraded("learning-update", "persistWalToDisk",
+        `disk write failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }

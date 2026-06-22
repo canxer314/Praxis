@@ -148,16 +148,23 @@ export class StrategyRegistry {
       };
     }
 
-    strategy.state = toState;
-    strategy.auditLog.push({
-      timestamp: Date.now(),
-      fromState,
-      toState,
-      reason,
-      source: "auto_proposed",
-    });
+    // 克隆后修改 — 防止 persist 失败时内存状态与持久化状态不一致
+    const updated: Strategy = {
+      ...strategy,
+      state: toState,
+      auditLog: [
+        ...strategy.auditLog,
+        {
+          timestamp: Date.now(),
+          fromState,
+          toState,
+          reason,
+          source: "auto_proposed",
+        },
+      ],
+    };
 
-    this.strategies.set(strategyId, strategy);
+    this.strategies.set(strategyId, updated);
 
     log({
       ts: new Date().toISOString(),
@@ -167,7 +174,7 @@ export class StrategyRegistry {
       outcome: "success",
     });
 
-    return { ok: true, value: strategy };
+    return { ok: true, value: updated };
   }
 
   /** 新增 proposal */
