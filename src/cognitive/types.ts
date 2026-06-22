@@ -4,6 +4,7 @@
  * 所有认知架构的 TypeScript 接口定义。
  * Phase 1: 核心学习环路 (4 记忆类型 + 元认知 + 任务评估)
  * Phase 2: E4/E5/E6 扩展类型 (策略生命周期 + 跨领域分析 + 缺口猎取)
+ * Phase 3: V13 任务调度类型 (TaskSchedule + TriggerDecision + SubagentRun + HeartbeatState)
  *
  * 通用性: 不绑定 Claude Code 或任何特定平台。
  */
@@ -307,4 +308,123 @@ export interface GapDetectionResult {
     sessionsWithNoImprovement: number;
   }>;
   contextReminders: string[];
+}
+
+// ══════════════════════════════════════════════════════════════════
+// V13: 任务调度类型 (Phase 3)
+// ══════════════════════════════════════════════════════════════════
+
+/** 任务调度持久化状态 */
+export interface TaskSchedule {
+  task_id: string;
+  pending_triggers: ScheduledTrigger[];
+  last_trigger_at: number | null;
+  next_trigger_at: number | null;
+  active_cron_job_ids: string[];
+}
+
+/** 单个调度触发记录 */
+export interface ScheduledTrigger {
+  trigger_id: string;
+  trigger_source: 'cron:scheduled' | 'heartbeat:wake';
+  scheduled_at: number;
+  mechanism: 'scheduleSessionTurn' | 'cron_job';
+  cron_job_id?: string;
+  reason: string;
+  subtask_id?: string;
+  status: 'pending' | 'fired' | 'cancelled';
+  created_at: number;
+}
+
+/** 触发决策结果 */
+export interface TriggerDecision {
+  should_trigger: boolean;
+  mechanism: 'scheduleSessionTurn' | 'cron_job' | 'subagent_run' | 'none';
+  delay_ms?: number;
+  at_time?: number;
+  reason: string;
+  skip_reasons: string[];
+}
+
+/** TriggerAdapter — 抽象定时触发机制 (bundled vs cron fallback) */
+export interface TriggerAdapter {
+  scheduleTurn(params: {
+    sessionKey: string;
+    message: string;
+    at?: number;
+    delayMs?: number;
+    cron?: string;
+    tag: string;
+  }): Promise<{ jobId: string } | null>;
+  cancelTurn(jobId: string): Promise<void>;
+}
+
+/** 子 Agent 运行记录 */
+export interface SubagentRun {
+  run_id: string;
+  subtask_id: string;
+  session_key: string;
+  status: 'spawning' | 'running' | 'completed' | 'failed' | 'timeout';
+  spawned_at: number;
+  completed_at: number | null;
+  result?: SubagentResult;
+  retry_count: number;
+  max_retries: number;
+}
+
+/** 子 Agent 运行结果 */
+export interface SubagentResult {
+  run_id: string;
+  status: 'ok' | 'error' | 'timeout';
+  verification_results?: Record<string, unknown>;
+  artifacts?: Record<string, unknown>[];
+  transcript_summary?: string;
+}
+
+/** 子 Agent 注册表 */
+export interface SubagentRegistry {
+  task_id: string;
+  active_runs: SubagentRun[];
+  completed_runs: SubagentRun[];
+  max_parallel: number;
+}
+
+/** 心跳监控状态 */
+export interface HeartbeatState {
+  task_id: string;
+  subtask_id: string;
+  subtask_started_at: number;
+  estimated_duration_ms: number;
+  last_progress_at: number;
+  stall_threshold_ms: number;
+  heartbeat_count: number;
+  interventions: HeartbeatIntervention[];
+}
+
+/** 心跳干预记录 */
+export interface HeartbeatIntervention {
+  triggered_at: number;
+  type: 'nudge' | 'escalate' | 'replan';
+  reason: string;
+  action: 'request_heartbeat' | 'cancel_subtask' | 'notify_user';
+  outcome?: string;
+}
+
+/** 主动触发治理配置 */
+export interface ActiveTriggeringConfig {
+  enabled: boolean;
+  allow_schedule_session_turn: boolean;
+  allow_subagent_spawn: boolean;
+  allow_heartbeat_monitor: boolean;
+  allow_background_service: boolean;
+  max_parallel_subagents: number;
+  min_interval_between_triggers_minutes: number;
+  max_triggers_per_day: number;
+  quiet_hours: string;
+  quiet_hours_timezone: string;
+  require_user_confirmation_for: string[];
+  stall_threshold_multiplier: number;
+  auto_cancel_stalled_after_hours: number;
+  max_heartbeat_checks_per_hour: number;
+  trigger_failure_backoff_minutes: number;
 }

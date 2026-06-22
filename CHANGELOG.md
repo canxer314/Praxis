@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0.0] - 2026-06-23
+
+### Added
+- **Phase 3 Task Scheduling 模块：** 主动触发决策引擎——Praxis 从被动响应 Hook 进化为主动调度任务
+  - `TaskScheduler` 类：10 分支决策矩阵（静默时段 + 每日上限 + 最小间隔 + 并行化 + 按估计时间选择机制）
+  - `isInQuietHours()` 纯函数：支持跨午夜静默时段检测
+  - `canParallelize()` 纯函数：基于 depends_on 判断子任务并行可行性
+  - `countTodayTriggers()` 纯函数：基于持久化 schedule 的每日触发计数
+  - `evaluateTrigger()` 现在接受可选 `TaskSchedule` 参数以启用基于持久化数据的 guard（每日上限 + 最小间隔）
+  - Schedule 生命周期管理：loadSchedule / saveTrigger / markTriggerFired / cancelTrigger / cleanupExpiredTriggers
+  - `DEFAULT_TRIGGERING_CONFIG`：保守默认配置（enabled=false, max_triggers_per_day=8, quiet_hours=22:00-08:00）
+- V13 类型定义：`TaskSchedule`, `ScheduledTrigger`, `TriggerDecision`, `TriggerAdapter`, `SubagentRun`, `SubagentResult`, `SubagentRegistry`, `HeartbeatState`, `HeartbeatIntervention`, `ActiveTriggeringConfig`
+- Slot 常量：`TASK_SCHEDULE`, `SUBAGENT_REGISTRY`, `HEARTBEAT_STATE`
+- 55 个单元测试覆盖全部决策分支 + 边界条件 + schedule-aware guard
+
 ## [0.3.0.2] - 2026-06-23
 
 ### Fixed
