@@ -61,34 +61,24 @@ describe("E4 Rollback Recovery (T3)", () => {
     };
   }
 
-  it("双快照均不可用时回滚触发 factory reset", async () => {
+  it("双快照均不可用时回滚拒绝——保护自定义策略", async () => {
     const mem = createMockMemory();
     const registry = new StrategyRegistry(mem);
     await registry.load(); // 加载默认策略
 
     const applier = new StrategyApplier(registry, mem);
 
-    // 清除所有策略，验证状态干净
+    // 验证当前有策略
     const strategiesBefore = registry.getAll();
     expect(strategiesBefore.length).toBeGreaterThan(0);
 
-    // 回滚 — 两个快照都不存在 → factory reset
+    // 回滚 — 两个快照都不存在 → 拒绝 factory reset，返回错误以保护数据
     const result = await applier.rollback("nonexistent_strategy", "test rollback");
+    expect(result.ok).toBe(false);
 
-    // 应成功（factory reset 静默恢复）
-    expect(result.ok).toBe(true);
-
-    // Factory reset 后应恢复默认策略
+    // 策略不应被删除
     const strategiesAfter = registry.getAll();
-    expect(strategiesAfter.length).toBe(2); // 2 个默认策略
-    expect(strategiesAfter.map((s) => s.id).sort()).toEqual([
-      "default_calibration",
-      "default_learning",
-    ]);
-    // 默认策略应均为 ACTIVE
-    for (const s of strategiesAfter) {
-      expect(s.state).toBe("ACTIVE");
-    }
+    expect(strategiesAfter.length).toBe(strategiesBefore.length);
   });
 
   it("primary 快照可用时从 primary 恢复", async () => {

@@ -276,9 +276,9 @@ describe("LearningLoop", () => {
 describe("GapDetector", () => {
   const mockMeta = new MetacognitiveEngine(createMockMemoryClient());
 
-  it("throws when metacognitive is null", () => {
+  it("throws when profile provider is null", () => {
     expect(() => new GapDetector(null!)).toThrow(
-      "MetacognitiveEngine is required",
+      "ProfileProvider is required",
     );
   });
 

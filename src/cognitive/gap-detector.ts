@@ -16,8 +16,12 @@ import type {
   KnowledgeGap,
   GapDetectionResult,
 } from "./types";
-import type { MetacognitiveEngine } from "./metacognitive-engine";
 import { log } from "../logger";
+
+// GapDetector 仅需 getProfile()——窄接口，避免依赖完整的 MetacognitiveEngine
+export interface ProfileProvider {
+  getProfile(): Promise<Result<MetacognitiveProfile>>;
+}
 
 // ══════════════════════════════════════════════════════════════════
 // 阈值常量
@@ -32,11 +36,11 @@ const SESSIONS_NO_IMPROVEMENT_FOR_ESCALATION = 3;
 // ══════════════════════════════════════════════════════════════════
 
 export class GapDetector {
-  private readonly metacognitive: MetacognitiveEngine;
+  private readonly profileProvider: ProfileProvider;
 
-  constructor(metacognitive: MetacognitiveEngine) {
-    if (!metacognitive) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"MetacognitiveEngine is required");
-    this.metacognitive = metacognitive;
+  constructor(profileProvider: ProfileProvider) {
+    if (!profileProvider) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"ProfileProvider is required");
+    this.profileProvider = profileProvider;
   }
 
   /**
@@ -49,7 +53,7 @@ export class GapDetector {
   async detect(): Promise<Result<GapDetectionResult>> {
     const start = Date.now();
 
-    const profileResult = await this.metacognitive.getProfile();
+    const profileResult = await this.profileProvider.getProfile();
     if (!profileResult.ok) return profileResult;
 
     const profile = profileResult.value;

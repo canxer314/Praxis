@@ -196,6 +196,7 @@ export class CrossDomainAnalyzer {
     if (!result.ok) return { ok: true, value: [] };
     const stored = result.value;
     if (Array.isArray(stored)) return { ok: true, value: stored as CrossDomainMigration[] };
+    logDegraded("cross-domain-analyzer", "getMigrations", "stored value is not an array, returning empty");
     return { ok: true, value: [] };
   }
 
@@ -231,7 +232,7 @@ export class CrossDomainAnalyzer {
       return {
         ok: false,
         error: {
-          code: "NOT_FOUND",
+          code: ErrorCode.NOT_FOUND,
           message: `Migration ${migrationId} not found or already rolled back`,
         },
       };
@@ -242,7 +243,7 @@ export class CrossDomainAnalyzer {
       return {
         ok: false,
         error: {
-          code: "ROLLBACK_FAILED",
+          code: ErrorCode.ROLLBACK_FAILED,
           message: `Strategy rollback for migration ${migrationId} failed`,
         },
       };

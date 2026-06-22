@@ -354,10 +354,9 @@ export class StrategyApplier {
     }
 
     if (!snapshotResult.ok) {
-      // Factory reset
-      logDegraded("strategy-applier", "rollback", "both snapshots unavailable, factory reset");
-      await this.factoryReset();
-      return { ok: true, value: undefined };
+      // 双快照均不可用 — 拒绝工厂重置以避免误删所有自定义策略
+      logDegraded("strategy-applier", "rollback", "both snapshots unavailable, refusing factory reset to preserve custom strategies");
+      return { ok: false, error: { code: "SLOT_READ_ERROR", message: "Both primary and backup snapshots unavailable; rollback aborted to prevent data loss" } };
     }
 
     // 恢复快照: 先清空再写入 (E5 fix — rollback is restore, not merge)
