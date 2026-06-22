@@ -249,13 +249,13 @@ if (cmd === "inject") {
 
     // T1: E5 cron 健康检查 — 检测跨领域分析 cron 是否静默失败
     let cronWarning = "";
-    const healthResult = await agentmemory.getSlot("cross_domain_cron_health");
+    const healthResult = await agentmemory.getSlot("cron_health");
     if (healthResult.ok && healthResult.value) {
       const health = healthResult.value as Record<string, unknown>;
       const lastStatus = health.lastRunStatus as string | undefined;
       const lastError = health.lastError as string | undefined;
       const lastRunAt = health.lastRunAt as number | undefined;
-      if (lastStatus === "error" || lastStatus === "degraded") {
+      if (lastStatus === "FAILED") {
         const ago = lastRunAt ? Math.round((Date.now() - lastRunAt) / 3600_000) : "?";
         cronWarning = `\n⚠️ E5 跨领域分析 cron 异常 (${ago}h 前): ${lastError || "unknown error"}\n`;
         console.error(`[Praxis] ${cronWarning.trim()}`);

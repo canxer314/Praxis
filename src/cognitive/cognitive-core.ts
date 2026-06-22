@@ -117,7 +117,7 @@ export class CognitiveCore {
   /** 重放上次 session 未持久化的记忆 */
   async replayPendingWrites(): Promise<Result<number>> {
     // 跨 session 的 WAL 重放 — 使用临时 LearningUpdateBuilder
-    const lu = new LearningUpdateBuilder(this.metacognitive, this.memoryClient);
+    const lu = new LearningUpdateBuilder(this.metacognitive, this.memoryClient, { walFilePath: this.walFilePath });
     return lu.replayWal();
   }
 
