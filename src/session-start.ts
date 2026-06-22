@@ -1,19 +1,23 @@
 /**
- * SessionStartHandler — Phase 1A
+ * SessionStartHandler — Phase 1A + T8
  *
  * 职责:
  *   - 在 session_start 事件时加载 competency_model
  *   - 构建 ContextInjection（Tier A/B/C 取决于 AgentMemory 可用性）
  *   - 降级模式：AgentMemory 不可用时使用默认 competency model
  *   - 宽松 schema 检查：格式错误时降级
+ *   - T8: 支持 CognitiveCore 可选依赖 → 使用缓存 profile 零延迟注入
  */
 
 import { Result, ContextInjection } from "./platform-adapter";
+import type { CognitiveCore } from "./cognitive/cognitive-core";
 
 // ---- 依赖注入 ----
 
 export interface SessionStartDeps {
   getSlot: (name: string) => Promise<Result<unknown>>;
+  /** T8: 可选 — 提供时走认知核心快速路径 (缓存 profile，零网络延迟) */
+  cognitiveCore?: CognitiveCore;
 }
 
 // ---- 内部类型 ----
@@ -47,28 +51,108 @@ const DEFAULT_MODEL: CompetencyModel = {
 
 export class SessionStartHandler {
   private readonly getSlot: SessionStartDeps["getSlot"];
+  private readonly cognitiveCore?: CognitiveCore;
 
   constructor(deps: SessionStartDeps) {
     this.getSlot = deps.getSlot;
+    this.cognitiveCore = deps.cognitiveCore;
   }
 
   async handle(sessionId: string): Promise<Result<ContextInjection>> {
+    // T8: 有 CognitiveCore 时走快速路径 (缓存 profile，零网络延迟)
+    if (this.cognitiveCore) {
+      return this.handleWithCognitive(sessionId);
+    }
+
+    // 降级: 原 slot 读取路径 (Phase 1A 兼容)
     const slotResult = await this.getSlot("competency_model");
     const degraded = !slotResult.ok || !slotResult.value;
 
-    let model: CompetencyModel;
+    let model: CompetencyModel | null;
 
     if (!degraded) {
       model = this.parseModel(slotResult.value!);
       if (!model) {
-        // 格式错误 → 降级
-        model = DEFAULT_MODEL;
-        return this.buildContext(model, "C", true);
+        return this.buildContext(DEFAULT_MODEL, "C", true);
       }
       return this.buildContext(model, "A", false);
     }
 
     return this.buildContext(DEFAULT_MODEL, "C", true);
+  }
+
+  // ---- T8 快速路径: CognitiveCore 缓存 profile ----
+
+  private async handleWithCognitive(
+    _sessionId: string,
+  ): Promise<Result<ContextInjection>> {
+    const profileResult = await this.cognitiveCore!.getProfile();
+
+    if (!profileResult.ok) {
+      // Profile 完全不可用 → 退化到默认值
+      return this.buildContext(DEFAULT_MODEL, "C", true);
+    }
+
+    const profile = profileResult.value;
+    const lines: string[] = ["## Praxis Context", ""];
+
+    // 1. 领域熟练度
+    const domains = Object.entries(profile.domainProficiencies);
+    if (domains.length > 0) {
+      lines.push("### 能力概况");
+      for (const [domain, prof] of domains.sort(
+        (a, b) => b[1].selfRating - a[1].selfRating,
+      )) {
+        const level =
+          prof.selfRating >= 0.8 ? "proficient"
+          : prof.selfRating >= 0.5 ? "competent"
+          : "beginner";
+        lines.push(`- ${domain}: ${prof.selfRating.toFixed(2)} (${level}, ${prof.taskCount} 次任务)`);
+      }
+      lines.push("");
+    } else {
+      // 无数据 → 默认 skills
+      lines.push("### 能力概况");
+      for (const s of DEFAULT_MODEL.skills) {
+        lines.push(`- ${s.name}: ${s.proficiency.toFixed(2)} (${s.level})`);
+      }
+      lines.push("");
+    }
+
+    // 2. 知识缺口
+    const openGaps = (profile.knowledgeGaps ?? []).filter((g) => !g.resolved);
+    if (openGaps.length > 0) {
+      lines.push("### 待解决的知识缺口");
+      for (const gap of openGaps.slice(0, 8)) {
+        lines.push(`- ${gap.topic}: ${gap.context}`);
+      }
+      lines.push("");
+    }
+
+    // 3. 校准摘要
+    const history = profile.calibrationHistory ?? [];
+    if (history.length > 0) {
+      const recent = history.slice(-10);
+      const accuracy =
+        recent.filter((c) => c.actualOutcome === "success").length /
+        recent.length;
+      lines.push("### 校准状态");
+      lines.push(
+        `- 最近 ${recent.length} 次任务实际成功率: ${(accuracy * 100).toFixed(0)}%`,
+      );
+      lines.push("");
+    }
+
+    const systemPromptAddition = lines.join("\n");
+
+    return {
+      ok: true,
+      value: {
+        systemPromptAddition,
+        tier: "A",
+        tokenCount: Math.ceil(systemPromptAddition.length / 4),
+      },
+    };
   }
 
   // ---- 内部 ----

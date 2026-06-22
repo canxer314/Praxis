@@ -20,6 +20,37 @@ import { TranscriptAnalyzerV2 } from "./transcript-analyzer-v2";
 import { llmClient } from "./llm-client";
 import { agentmemory } from "./agentmemory-client";
 import { Result, LearningEvent } from "./platform-adapter";
+import { CognitiveCore } from "./cognitive/cognitive-core";
+import type { CognitiveCoreMemoryClient } from "./cognitive/cognitive-core";
+import { SLOTS } from "./cognitive/constants";
+
+// ---- CognitiveCore 工厂 (T8) ----
+
+function createCognitiveCore(): CognitiveCore {
+  const memoryClient: CognitiveCoreMemoryClient = {
+    // Phase 1A agentmemory 直接满足 MetacognitiveMemoryClient
+    getSlot: (name: string) => agentmemory.getSlot(name),
+    setSlot: (name: string, data: unknown) => agentmemory.setSlot(name, data),
+    // smartSearch: agentmemory 返回裸数组，包装为 Result
+    smartSearch: async (query: string, opts?: { limit?: number }) => {
+      const results = await agentmemory.smartSearch(query, opts?.limit ?? 5);
+      return { ok: true as const, value: results as unknown[] };
+    },
+    // lessonSave: agentmemory 返回 Result<void>，映射为 Result<unknown>
+    lessonSave: async (data: Record<string, unknown>) => {
+      const content = String(data.content || "");
+      const tags = Array.isArray(data.tags) ? data.tags.map(String) : [];
+      const confidence = Number(data.confidence ?? 0.8);
+      const result = await agentmemory.saveLesson(content, tags, confidence);
+      if (result.ok) return { ok: true, value: undefined };
+      return result as unknown as Result<unknown>;
+    },
+  };
+
+  // E10: WAL 落盘路径 — 进程重启后恢复未写入的记忆
+  const walFilePath = path.join(MEMORY_DIR, "wal.json");
+  return new CognitiveCore({ memoryClient, walFilePath });
+}
 
 // ---- 搜索（AgentMemory 语义搜索） ----
 
@@ -208,10 +239,38 @@ const cmd = process.argv[2];
 
 if (cmd === "inject") {
   (async () => {
-    const handler = new SessionStartHandler({ getSlot: getSlotForInjection });
+    // T8: 创建 CognitiveCore 实例（缓存 profile，零网络延迟快速注入）
+    const core = createCognitiveCore();
+
+    // T1: WAL 重放 — 恢复上次 session 写入失败的记忆
+    const walResult = await core.replayPendingWrites();
+    if (walResult.ok && walResult.value > 0) {
+      console.error(`[Praxis] WAL 重放: ${walResult.value} 条记忆恢复`);
+    }
+
+    // T1: E5 cron 健康检查 — 检测跨领域分析 cron 是否静默失败
+    let cronWarning = "";
+    const healthResult = await agentmemory.getSlot(SLOTS.CRON_HEALTH);
+    if (healthResult.ok && healthResult.value) {
+      const health = healthResult.value as Record<string, unknown>;
+      const lastStatus = health.lastRunStatus as string | undefined;
+      const lastError = health.lastError as string | undefined;
+      const lastRunAt = health.lastRunAt as number | undefined;
+      if (lastStatus === "FAILED") {
+        const ago = lastRunAt ? Math.round((Date.now() - lastRunAt) / 3600_000) : "?";
+        cronWarning = `\n⚠️ E5 跨领域分析 cron 异常 (${ago}h 前): ${lastError || "unknown error"}\n`;
+        console.error(`[Praxis] ${cronWarning.trim()}`);
+      }
+    }
+
+    const handler = new SessionStartHandler({
+      getSlot: getSlotForInjection,
+      cognitiveCore: core,
+    });
     const result = await handler.handle(`session-${getSessionCount()}`);
     if (result.ok) {
-      console.log(result.value.systemPromptAddition);
+      const injection = result.value.systemPromptAddition + cronWarning;
+      console.log(injection);
       console.log("\n[Praxis Phase1A] 注入验证码: PRAXIS-1A-OK-8f3a");
       logSession(getSessionCount(), "context_injected");
     } else {
