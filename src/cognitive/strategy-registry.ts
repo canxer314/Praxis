@@ -11,6 +11,7 @@
  */
 
 import type { Result } from "../platform-adapter";
+import { PraxisErrorThrowable, ErrorCode } from "../platform-adapter";
 import type {
   Strategy,
   StrategyProposal,
@@ -84,7 +85,7 @@ export class StrategyRegistry {
   private readonly slotName = "strategy_registry";
 
   constructor(memory: StrategyMemoryClient) {
-    if (!memory) throw new Error("StrategyMemoryClient is required");
+    if (!memory) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"StrategyMemoryClient is required");
     this.memory = memory;
   }
 
@@ -222,7 +223,7 @@ export class StrategyProposer {
   private readonly registry: StrategyRegistry;
 
   constructor(registry: StrategyRegistry) {
-    if (!registry) throw new Error("StrategyRegistry is required");
+    if (!registry) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"StrategyRegistry is required");
     this.registry = registry;
   }
 
@@ -265,8 +266,8 @@ export class StrategyApplier {
   private readonly memory: StrategyMemoryClient;
 
   constructor(registry: StrategyRegistry, memory: StrategyMemoryClient) {
-    if (!registry) throw new Error("StrategyRegistry is required");
-    if (!memory) throw new Error("StrategyMemoryClient is required");
+    if (!registry) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"StrategyRegistry is required");
+    if (!memory) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"StrategyMemoryClient is required");
     this.registry = registry;
     this.memory = memory;
   }

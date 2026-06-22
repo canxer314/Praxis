@@ -36,6 +36,7 @@
  */
 
 import type { Result } from "../platform-adapter";
+import { PraxisErrorThrowable, ErrorCode } from "../platform-adapter";
 import type {
   TaskAssessment,
   ExecutionFeedback as ExecutionFeedbackType,
@@ -63,6 +64,8 @@ export interface CognitiveCoreMemoryClient
 
 export interface CognitiveCoreDeps {
   memoryClient: CognitiveCoreMemoryClient;
+  /** E10: 可选 WAL 文件路径 — 进程重启后从磁盘恢复未写入的记忆 */
+  walFilePath?: string;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -72,12 +75,14 @@ export interface CognitiveCoreDeps {
 export class CognitiveCore {
   readonly metacognitive: MetacognitiveEngine;
   private readonly memoryClient: CognitiveCoreMemoryClient;
+  private readonly walFilePath?: string;
 
   constructor(deps: CognitiveCoreDeps) {
     if (!deps.memoryClient) {
-      throw new Error("memoryClient is required");
+      throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP, "memoryClient is required");
     }
     this.memoryClient = deps.memoryClient;
+    this.walFilePath = deps.walFilePath;
 
     this.metacognitive = new MetacognitiveEngine(deps.memoryClient);
   }
@@ -94,7 +99,7 @@ export class CognitiveCore {
    * @param sessionId 唯一 session 标识
    */
   createSession(sessionId: string): SessionCognitiveCore {
-    return new SessionCognitiveCore(sessionId, this.metacognitive, this.memoryClient);
+    return new SessionCognitiveCore(sessionId, this.metacognitive, this.memoryClient, this.walFilePath);
   }
 
   // ---- 跨 session 操作 ----
@@ -150,13 +155,14 @@ export class SessionCognitiveCore {
     sessionId: string,
     metacognitive: MetacognitiveEngine,
     memoryClient: CognitiveCoreMemoryClient,
+    walFilePath?: string,
   ) {
     this.sessionId = sessionId;
     this.metacognitive = metacognitive;
 
     const taskAssessment = new TaskAssessmentBuilder(metacognitive, memoryClient);
     const executionFeedback = new ExecutionFeedbackCollector();
-    const learningUpdate = new LearningUpdateBuilder(metacognitive, memoryClient);
+    const learningUpdate = new LearningUpdateBuilder(metacognitive, memoryClient, { walFilePath });
 
     this.loop = new LearningLoop(metacognitive, taskAssessment, executionFeedback, learningUpdate);
   }

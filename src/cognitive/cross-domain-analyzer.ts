@@ -14,6 +14,7 @@
  */
 
 import type { Result } from "../platform-adapter";
+import { PraxisErrorThrowable, ErrorCode } from "../platform-adapter";
 import type {
   CrossDomainAnalysis,
   CrossDomainSuggestion,
@@ -48,7 +49,7 @@ export class CrossDomainAnalyzer {
   private readonly memory: CrossDomainMemoryClient;
 
   constructor(memory: CrossDomainMemoryClient) {
-    if (!memory) throw new Error("CrossDomainMemoryClient is required");
+    if (!memory) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"CrossDomainMemoryClient is required");
     this.memory = memory;
   }
 
@@ -129,6 +130,7 @@ export class CrossDomainAnalyzer {
             pattern: `从 ${sourceDomain} 迁移模式到 ${targetDomain}`,
             applicabilityRationale: `领域名称相似度 ${similarity.toFixed(2)}`,
             status: "pending_review",
+            generatedAt: Date.now(),
           });
         }
       }
@@ -205,7 +207,12 @@ export class CrossDomainAnalyzer {
     return union.size === 0 ? 0 : intersection.size / union.size;
   }
 
-  /** 自动跳过 7 天未审核的建议 */
+  /**
+   * 自动跳过 7 天未审核的建议。
+   *
+   * 使用 reviewedAt（最近一次审核时间）或 generatedAt（生成时间）中较晚者
+   * 判断是否过期。未审核的建议 reviewedAt 为 undefined — 用 generatedAt 兜底。
+   */
   private async cleanupStaleSuggestions(
     suggestions: CrossDomainSuggestion[],
   ): Promise<CrossDomainSuggestion[]> {
@@ -213,10 +220,10 @@ export class CrossDomainAnalyzer {
     const timeout = AUTO_SKIP_TIMEOUT_DAYS * 24 * 60 * 60 * 1000;
 
     return suggestions.map((s) => {
+      const lastActivity = s.reviewedAt ?? s.generatedAt;
       if (
         s.status === "pending_review" &&
-        s.reviewedAt &&
-        now - s.reviewedAt > timeout
+        now - lastActivity > timeout
       ) {
         return { ...s, status: "skipped" as const };
       }

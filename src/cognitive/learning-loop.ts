@@ -10,6 +10,7 @@
  */
 
 import type { Result } from "../platform-adapter";
+import { PraxisErrorThrowable, ErrorCode } from "../platform-adapter";
 import type {
   TaskAssessment,
   ExecutionFeedback as ExecutionFeedbackType,
@@ -39,10 +40,10 @@ export class LearningLoop {
     executionFeedback: ExecutionFeedbackCollector,
     learningUpdate: LearningUpdateBuilder,
   ) {
-    if (!metacognitive) throw new Error("MetacognitiveEngine is required");
-    if (!taskAssessment) throw new Error("TaskAssessmentBuilder is required");
-    if (!executionFeedback) throw new Error("ExecutionFeedbackCollector is required");
-    if (!learningUpdate) throw new Error("LearningUpdateBuilder is required");
+    if (!metacognitive) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"MetacognitiveEngine is required");
+    if (!taskAssessment) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"TaskAssessmentBuilder is required");
+    if (!executionFeedback) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"ExecutionFeedbackCollector is required");
+    if (!learningUpdate) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"LearningUpdateBuilder is required");
 
     this.metacognitive = metacognitive;
     this.taskAssessment = taskAssessment;

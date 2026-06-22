@@ -18,20 +18,35 @@ import { Result } from "./platform-adapter";
 
 const BASE = process.env.AGENTMEMORY_URL || "http://localhost:3111";
 
-// ---- HTTP helpers ----
+// ---- HTTP helpers (E13: 5s timeout guards) ----
+
+const FETCH_TIMEOUT_MS = 5000;
 
 async function restGet(path: string): Promise<Record<string, unknown>> {
-  const res = await fetch(`${BASE}${path}`);
-  return (await res.json()) as Record<string, unknown>;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${BASE}${path}`, { signal: controller.signal });
+    return (await res.json()) as Record<string, unknown>;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function restPost(path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const res = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return (await res.json()) as Record<string, unknown>;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    return (await res.json()) as Record<string, unknown>;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ---- 健康检查缓存 ----

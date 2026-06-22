@@ -9,6 +9,7 @@
  */
 
 import type { Result } from "../platform-adapter";
+import { PraxisErrorThrowable, ErrorCode } from "../platform-adapter";
 import type {
   LearningUpdate as LearningUpdateType,
   EpisodicMemory,
@@ -20,6 +21,7 @@ import type {
 import type { MetacognitiveEngine } from "./metacognitive-engine";
 import { isRealExperience } from "./heuristics";
 import { log, logDegraded } from "../logger";
+import * as fs from "fs";
 
 // ══════════════════════════════════════════════════════════════════
 // 依赖接口
@@ -49,12 +51,42 @@ export class LearningUpdateBuilder {
   private readonly memory: LearningUpdateMemoryClient;
   /** Write-Ahead Log — 写入失败时的本地队列 */
   private wal: PendingWrite[] = [];
+  /** E10: 可选的 WAL 文件路径 — 进程重启后恢复 */
+  private readonly walFilePath?: string;
 
-  constructor(metacognitive: MetacognitiveEngine, memory: LearningUpdateMemoryClient) {
-    if (!metacognitive) throw new Error("MetacognitiveEngine is required");
-    if (!memory) throw new Error("LearningUpdateMemoryClient is required");
+  constructor(
+    metacognitive: MetacognitiveEngine,
+    memory: LearningUpdateMemoryClient,
+    opts?: { walFilePath?: string },
+  ) {
+    if (!metacognitive) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP, "MetacognitiveEngine is required");
+    if (!memory) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP, "LearningUpdateMemoryClient is required");
     this.metacognitive = metacognitive;
     this.memory = memory;
+    this.walFilePath = opts?.walFilePath;
+
+    // E10: 构造时从文件恢复 WAL
+    if (this.walFilePath) {
+      try {
+        if (fs.existsSync(this.walFilePath)) {
+          const raw = fs.readFileSync(this.walFilePath, "utf-8");
+          const entries = JSON.parse(raw) as PendingWrite[];
+          if (Array.isArray(entries) && entries.length > 0) {
+            this.wal = entries;
+            log({
+              ts: new Date().toISOString(),
+              module: "learning-update",
+              op: "walRestore",
+              duration_ms: 0,
+              outcome: "success",
+              error: `recovered ${entries.length} WAL entries from disk`,
+            });
+          }
+        }
+      } catch {
+        logDegraded("learning-update", "walRestore", "failed to restore WAL from disk, starting fresh");
+      }
+    }
   }
 
   /**
@@ -174,6 +206,9 @@ export class LearningUpdateBuilder {
       }
     }
 
+    // E10: 重放后持久化更新后的 WAL
+    if (replayed > 0) this.persistWalToDisk();
+
     return { ok: true, value: replayed };
   }
 
@@ -190,5 +225,16 @@ export class LearningUpdateBuilder {
 
   private enqueueToWal(entry: PendingWrite): void {
     this.wal.push(entry);
+    this.persistWalToDisk();
+  }
+
+  /** E10: 将 WAL 序列化到磁盘 */
+  private persistWalToDisk(): void {
+    if (!this.walFilePath) return;
+    try {
+      fs.writeFileSync(this.walFilePath, JSON.stringify(this.wal), "utf-8");
+    } catch {
+      // 静默 — WAL 落盘失败不应阻塞主流程
+    }
   }
 }

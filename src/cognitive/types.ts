@@ -256,6 +256,7 @@ export interface CrossDomainSuggestion {
   pattern: string;
   applicabilityRationale: string;
   status: "pending_review" | "accepted" | "rejected" | "skipped";
+  generatedAt: number;
   reviewedAt?: number;
 }
 

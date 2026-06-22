@@ -46,7 +46,9 @@ function createCognitiveCore(): CognitiveCore {
     },
   };
 
-  return new CognitiveCore({ memoryClient });
+  // E10: WAL 落盘路径 — 进程重启后恢复未写入的记忆
+  const walFilePath = path.join(MEMORY_DIR, "wal.json");
+  return new CognitiveCore({ memoryClient, walFilePath });
 }
 
 // ---- 搜索（AgentMemory 语义搜索） ----

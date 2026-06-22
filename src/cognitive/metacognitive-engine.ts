@@ -14,6 +14,7 @@
  */
 
 import type { Result } from "../platform-adapter";
+import { PraxisErrorThrowable, ErrorCode } from "../platform-adapter";
 import type {
   MetacognitiveProfile,
   CalibrationEntry,
@@ -62,7 +63,7 @@ export class MetacognitiveEngine {
   private cachedProfile: MetacognitiveProfile | null = null;
 
   constructor(memory: MetacognitiveMemoryClient) {
-    if (!memory) throw new Error("MetacognitiveMemoryClient is required");
+    if (!memory) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"MetacognitiveMemoryClient is required");
     this.memory = memory;
   }
 

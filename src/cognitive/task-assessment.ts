@@ -8,6 +8,7 @@
  */
 
 import type { Result } from "../platform-adapter";
+import { PraxisErrorThrowable, ErrorCode } from "../platform-adapter";
 import type {
   TaskAssessment as TaskAssessmentType,
   EpisodicMemory,
@@ -34,8 +35,8 @@ export class TaskAssessmentBuilder {
   private readonly memory: TaskAssessmentMemoryClient;
 
   constructor(metacognitive: MetacognitiveEngine, memory: TaskAssessmentMemoryClient) {
-    if (!metacognitive) throw new Error("MetacognitiveEngine is required");
-    if (!memory) throw new Error("TaskAssessmentMemoryClient is required");
+    if (!metacognitive) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"MetacognitiveEngine is required");
+    if (!memory) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"TaskAssessmentMemoryClient is required");
     this.metacognitive = metacognitive;
     this.memory = memory;
   }

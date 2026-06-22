@@ -10,6 +10,7 @@
  */
 
 import type { Result } from "../platform-adapter";
+import { PraxisErrorThrowable, ErrorCode } from "../platform-adapter";
 import type {
   MetacognitiveProfile,
   KnowledgeGap,
@@ -36,7 +37,7 @@ export class GapDetector {
   private readonly metacognitive: MetacognitiveEngine;
 
   constructor(metacognitive: MetacognitiveEngine) {
-    if (!metacognitive) throw new Error("MetacognitiveEngine is required");
+    if (!metacognitive) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP,"MetacognitiveEngine is required");
     this.metacognitive = metacognitive;
   }
 

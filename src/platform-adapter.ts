@@ -52,6 +52,50 @@ export interface PraxisError {
   message: string;
 }
 
+/**
+ * 可抛出的 Error 子类，满足 PraxisError 接口。
+ * 用于构造函数中的依赖检查 — D4。
+ *
+ * 注意：Result<T, E> 的 E 参数使用 PraxisError 接口（结构类型），
+ * 而 throw 使用此类（满足接口 + 保留 Error 原型链）。
+ */
+export class PraxisErrorThrowable extends Error implements PraxisError {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "PraxisError";
+    this.code = code;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 错误码注册表 (M7)
+// ══════════════════════════════════════════════════════════════════
+
+export const ErrorCode = {
+  // 依赖注入
+  MISSING_DEP: "MISSING_DEP",
+  // 数据访问
+  NOT_FOUND: "NOT_FOUND",
+  EMPTY_SLOT: "EMPTY_SLOT",
+  SLOT_READ_ERROR: "SLOT_READ_ERROR",
+  SLOT_WRITE_ERROR: "SLOT_WRITE_ERROR",
+  // AgentMemory
+  AGENTMEMORY_ERROR: "AGENTMEMORY_ERROR",
+  AGENTMEMORY_UNAVAILABLE: "AGENTMEMORY_UNAVAILABLE",
+  // 会话
+  SESSION_NOT_STARTED: "SESSION_NOT_STARTED",
+  SESSION_ALREADY_STARTED: "SESSION_ALREADY_STARTED",
+  // 校准
+  CALIBRATE_NO_PROFILE: "CALIBRATE_NO_PROFILE",
+  // 策略
+  STRATEGY_NOT_FOUND: "STRATEGY_NOT_FOUND",
+  INVALID_TRANSITION: "INVALID_TRANSITION",
+  // 通用
+  UNKNOWN_EVENT: "UNKNOWN_EVENT",
+  TIMEOUT: "TIMEOUT",
+} as const;
+
 export interface EventResult {
   autonomyDecision?: AutonomyDecision;
   contextInjection?: ContextInjection;
@@ -94,8 +138,8 @@ export class PlatformAdapter {
   private sessionStarted = false;
 
   constructor(am: AgentMemoryClient, llm: LlmClient, transcriptAnalyzer?: TranscriptAnalyzerLike) {
-    if (!am) throw new Error("AgentMemoryClient is required");
-    if (!llm) throw new Error("LlmClient is required");
+    if (!am) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP, "AgentMemoryClient is required");
+    if (!llm) throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP, "LlmClient is required");
     this.am = am;
     this.llm = llm;
     this.transcriptAnalyzer = transcriptAnalyzer;
