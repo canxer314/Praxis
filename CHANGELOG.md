@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0.0] - 2026-06-23
+
+### Added
+- **Phase 3b SubagentManager — 并行子 Agent 生命周期管理**
+  - `SubagentManager` 类: spawnSubagent / waitForCompletion / retrySubagent / aggregateResults
+  - 并行上限控制: canSpawn() 检查 max_parallel（默认 3）
+  - `SubagentExecutionAPI` 接口: 抽象平台层子 Agent 执行（run / waitForRun）
+  - `buildSubagentContext()` 纯函数: 构建精简子 Agent 上下文（任务名 + 验收标准 + 陷阱预警）
+  - Persistence: loadRegistry / persistRegistry / clear
+  - retry_count 跨重试继承（修复 spawnSubagent 重置计数的问题）
+
+### Fixed
+- retrySubagent 现在正确将 retry_count 从旧 run 继承到新 spawn 的 run
+
 ## [0.4.0.0] - 2026-06-23
 
 ### Added
