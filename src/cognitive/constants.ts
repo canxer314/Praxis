@@ -21,4 +21,10 @@ export const SLOTS = {
   PRAXIS_LEARNINGS: "praxis_learnings",
   /** 进度日志 (Phase 1A) */
   PROGRESS_LOG: "progress_log",
+  /** V13: 任务调度状态 */
+  TASK_SCHEDULE: "task_schedule",
+  /** V13: 子 Agent 注册表 */
+  SUBAGENT_REGISTRY: "subagent_registry",
+  /** V13: 心跳监控状态 */
+  HEARTBEAT_STATE: "heartbeat_state",
 } as const;

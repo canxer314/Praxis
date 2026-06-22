@@ -79,6 +79,10 @@ export { GapDetector } from "./gap-detector";
 export { StrategyRegistry, StrategyProposer, StrategyApplier } from "./strategy-registry";
 export { CrossDomainAnalyzer } from "./cross-domain-analyzer";
 
+// V13: 任务调度 (Phase 3)
+export { TaskScheduler, isInQuietHours, canParallelize, DEFAULT_TRIGGERING_CONFIG } from "./task-scheduler";
+export type { TaskSchedulerMemoryClient, SchedulerTaskContext, SchedulerSubtask } from "./task-scheduler";
+
 // 常量
 export { SLOTS } from "./constants";
 
