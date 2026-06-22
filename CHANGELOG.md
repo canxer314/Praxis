@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.0.0] - 2026-06-23
+
+### Added
+- **Phase 3c Heartbeat Monitor — Active Driving 停滞检测 + 分级介入**
+  - `HeartbeatMonitor` 类: runHeartbeatCheck (正常/运行超时/停滞) + handleStalledTasks (3 级响应)
+  - NUDGE (活跃 session 注入提醒) → WAKE (创建新 session) → ESCALATE (>24h 标记 BLOCKED)
+  - 防重复介入: 1h 内已有 nudge → 自动跳过
+  - `StallInterventionCallback` 接口: 抽象平台层介入实现
+  - `HeartbeatTaskContext` 精简接口: 心跳检查不依赖完整任务编排器
+  - Persistence: loadHeartbeatState / saveHeartbeatState / saveIntervention
+
 ## [0.5.0.0] - 2026-06-23
 
 ### Added
