@@ -45,6 +45,16 @@ function createCognitiveCore(): CognitiveCore {
       if (result.ok) return { ok: true, value: undefined };
       return result as unknown as Result<unknown>;
     },
+    // E5: lessonRecall — 批量召回（供 CrossDomainAnalyzer 使用）
+    lessonRecall: async (_query: Record<string, unknown>) => {
+      const result = await agentmemory.smartSearch("", 100);
+      return { ok: true as const, value: result.map((r: Record<string, unknown>) => ({
+        content: r.content,
+        type: r.source ?? "lesson",
+        tags: r.tags ?? [],
+        domain: r.domain ?? "unknown",
+      })) };
+    },
   };
 
   // E10: WAL 落盘路径 — 进程重启后恢复未写入的记忆

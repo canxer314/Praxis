@@ -18,6 +18,7 @@ import { PraxisErrorThrowable, ErrorCode } from "../platform-adapter";
 import type {
   CrossDomainAnalysis,
   CrossDomainSuggestion,
+  CrossDomainMigration,
   CronHealthSlot,
 } from "./types";
 import { log, logDegraded } from "../logger";
@@ -39,7 +40,10 @@ export interface CrossDomainMemoryClient {
 
 const MIN_LESSONS_FOR_ANALYSIS = 20;
 const AUTO_SKIP_TIMEOUT_DAYS = 7;
+const AUTO_MIGRATE_SIMILARITY_THRESHOLD = 0.7;
+const MIGRATION_DEGRADATION_THRESHOLD = -0.1;
 const CRON_HEALTH_SLOT = "cron_health";
+const MIGRATIONS_SLOT = "cross_domain_migrations";
 
 // ══════════════════════════════════════════════════════════════════
 // CrossDomainAnalyzer
@@ -158,6 +162,141 @@ export class CrossDomainAnalyzer {
     });
 
     return { ok: true, value: analysis };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // E5 Phase 2.2: 自动迁移
+  // ══════════════════════════════════════════════════════════════
+
+  /**
+   * 从分析结果中筛选高置信度建议并标记为 accepted。
+   *
+   * 不直接创建策略——由调用方（CognitiveCore coordinator）负责策略创建，
+   * 以保持 CrossDomainAnalyzer 与 StrategyRegistry 解耦。
+   *
+   * @returns 标记为 accepted 的建议列表（可能为空）
+   */
+  selectAutoApplyCandidates(analysis: CrossDomainAnalysis): CrossDomainSuggestion[] {
+    return analysis.suggestions
+      .filter(
+        (s) =>
+          s.status === "pending_review" &&
+          s.similarity >= AUTO_MIGRATE_SIMILARITY_THRESHOLD,
+      )
+      .map((s) => ({ ...s, status: "accepted" as const, reviewedAt: Date.now() }));
+  }
+
+  /**
+   * 读取所有已应用的跨领域迁移记录。
+   */
+  async getMigrations(): Promise<Result<CrossDomainMigration[]>> {
+    const result = await this.memory.getSlot(MIGRATIONS_SLOT);
+    if (!result.ok) return { ok: true, value: [] };
+    const stored = result.value;
+    if (Array.isArray(stored)) return { ok: true, value: stored as CrossDomainMigration[] };
+    return { ok: true, value: [] };
+  }
+
+  /**
+   * 持久化迁移记录。
+   */
+  async saveMigrations(migrations: CrossDomainMigration[]): Promise<Result<void>> {
+    return this.memory.setSlot(MIGRATIONS_SLOT, migrations);
+  }
+
+  /**
+   * 回滚一次跨领域迁移。
+   *
+   * 标记迁移记录为已回滚，实际策略回滚由调用方通过 callback 完成。
+   *
+   * @param migrationId 迁移记录 ID
+   * @param reason 回滚原因
+   * @param rollbackFn 执行策略回滚的回调（返回 true 表示回滚成功）
+   */
+  async rollbackMigration(
+    migrationId: string,
+    reason: string,
+    rollbackFn: () => Promise<boolean>,
+  ): Promise<Result<CrossDomainMigration | null>> {
+    const migrationsResult = await this.getMigrations();
+    if (!migrationsResult.ok) return migrationsResult;
+
+    const migrations = migrationsResult.value;
+    const idx = migrations.findIndex(
+      (m) => m.id === migrationId && !m.rolledBackAt,
+    );
+    if (idx === -1) {
+      return {
+        ok: false,
+        error: {
+          code: "NOT_FOUND",
+          message: `Migration ${migrationId} not found or already rolled back`,
+        },
+      };
+    }
+
+    const success = await rollbackFn();
+    if (!success) {
+      return {
+        ok: false,
+        error: {
+          code: "ROLLBACK_FAILED",
+          message: `Strategy rollback for migration ${migrationId} failed`,
+        },
+      };
+    }
+
+    migrations[idx] = {
+      ...migrations[idx],
+      rolledBackAt: Date.now(),
+      rollbackReason: reason,
+    };
+
+    const saveResult = await this.saveMigrations(migrations);
+    if (!saveResult.ok) return saveResult;
+
+    log({
+      ts: new Date().toISOString(),
+      module: "cross-domain-analyzer",
+      op: "rollbackMigration",
+      duration_ms: 0,
+      outcome: "success",
+      error: `Rolled back migration ${migrationId}: ${reason}`,
+    });
+
+    return { ok: true, value: migrations[idx] };
+  }
+
+  /**
+   * 检测迁移是否导致目标领域退步。
+   *
+   * 比较当前 selfRating 与迁移时的 baselineRating，
+   * 降幅超过阈值 → 建议回滚。
+   *
+   * @returns 需要回滚的迁移记录 ID 列表
+   */
+  findDegradedMigrations(
+    migrations: CrossDomainMigration[],
+    domainRatings: Map<string, number>,
+  ): Array<{ migration: CrossDomainMigration; reason: string }> {
+    const degraded: Array<{ migration: CrossDomainMigration; reason: string }> = [];
+
+    for (const m of migrations) {
+      if (m.rolledBackAt) continue;
+
+      const currentRating = domainRatings.get(m.targetDomain);
+      if (currentRating === undefined) continue;
+
+      const delta = currentRating - m.baselineRating;
+      if (delta < MIGRATION_DEGRADATION_THRESHOLD) {
+        degraded.push({
+          migration: m,
+          reason: `Target domain ${m.targetDomain} degraded: ${m.baselineRating.toFixed(2)} → ${currentRating.toFixed(2)} (Δ${delta.toFixed(2)})`,
+        });
+      }
+    }
+
+    return degraded;
   }
 
   /**
