@@ -65,6 +65,7 @@ export { LearningUpdateBuilder } from "./learning-update";
 
 // 纯函数
 export { isRealExperience } from "./utils/signal-quality";
+export { detectCorrection } from "./signal-detector";
 export { buildContextInjection, estimateTokens } from "./context";
 export type { BuildContextInput } from "./context";
 
