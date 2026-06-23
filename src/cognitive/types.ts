@@ -430,3 +430,58 @@ export interface ActiveTriggeringConfig {
   max_heartbeat_checks_per_hour: number;
   trigger_failure_backoff_minutes: number;
 }
+
+// ══════════════════════════════════════════════════════════════════
+// Governor: 任务状态机类型 (Phase 1)
+// ══════════════════════════════════════════════════════════════════
+
+/** 外层循环: 任务级状态 */
+export enum TaskState {
+  TASK_NOT_STARTED = "TASK_NOT_STARTED",
+  TASK_ASSESSING = "TASK_ASSESSING",
+  TASK_PLAN_GENERATING = "TASK_PLAN_GENERATING",
+  TASK_IN_PROGRESS = "TASK_IN_PROGRESS",
+  TASK_VERIFYING = "TASK_VERIFYING",
+  TASK_ITERATING = "TASK_ITERATING",
+  TASK_COMPLETE = "TASK_COMPLETE",
+  TASK_ABANDONED = "TASK_ABANDONED",
+}
+
+/** 内层循环: 子任务级状态 */
+export enum SubtaskState {
+  SUBTASK_PENDING = "SUBTASK_PENDING",
+  SUBTASK_ACTIVE = "SUBTASK_ACTIVE",
+  SUBTASK_COMPLETING = "SUBTASK_COMPLETING",
+  SUBTASK_VERIFIED = "SUBTASK_VERIFIED",
+  SUBTASK_FAILED = "SUBTASK_FAILED",
+  SUBTASK_BLOCKED = "SUBTASK_BLOCKED",
+}
+
+/** 任务级事件 */
+export type TaskEvent =
+  | "task_start"
+  | "assessment_complete"
+  | "plan_ready"
+  | "all_subtasks_done"
+  | "verification_passed"
+  | "verification_failed"
+  | "user_abort"
+  | "max_iterations";
+
+/** 子任务级事件 */
+export type SubtaskEvent =
+  | "subtask_start"
+  | "subtask_done"
+  | "verification_passed"
+  | "verification_failed"
+  | "max_retries"
+  | "user_correction_3x"
+  | "tool_violation_3x";
+
+/** Governor 对外暴露的置信度视图 (不暴露内部原始评分) */
+export interface ConfidenceView {
+  domain: string;
+  selfRating: number;
+  source: "profile" | "default";
+  gapFlags: string[];
+}

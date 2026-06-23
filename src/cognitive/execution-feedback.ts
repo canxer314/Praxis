@@ -15,7 +15,7 @@ import type {
   Correction,
   SessionContext,
 } from "./types";
-import { isRealExperience } from "./heuristics";
+import { isRealExperience } from "./utils/signal-quality";
 import { log } from "../logger";
 
 // ══════════════════════════════════════════════════════════════════

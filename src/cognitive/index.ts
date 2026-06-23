@@ -64,9 +64,41 @@ export { ExecutionFeedbackCollector } from "./execution-feedback";
 export { LearningUpdateBuilder } from "./learning-update";
 
 // 纯函数
-export { isRealExperience, editDistance } from "./heuristics";
+export { isRealExperience } from "./utils/signal-quality";
 export { buildContextInjection, estimateTokens } from "./context";
 export type { BuildContextInput } from "./context";
+
+// Governor: 学习决策编排器 (Phase 1)
+export { Governor } from "./governor";
+export type {
+  ClassifiedSignal,
+  GatedSignal,
+  LearningDecision,
+  GovernorStats,
+} from "./governor";
+
+// Governor 子模块 (Phase 1)
+export { classify, isKnownSignalType, listSignalTypes } from "./timing-controller";
+export type { TimingDecision, SignalType, TimingResult } from "./timing-controller";
+export {
+  advanceTask,
+  advanceSubtask,
+  isTaskTerminal,
+  isSubtaskTerminal,
+  listTaskTransitions,
+  listSubtaskTransitions,
+} from "./task-state-machine";
+export type { TaskTransitionResult, SubtaskTransitionResult } from "./task-state-machine";
+
+// ProtoTask: 零样本任务模板 (Phase 1)
+export {
+  bootstrapProtoTask,
+  getCachedProtoTask,
+  invalidateProtoTaskCache,
+  clearProtoTaskCache,
+  shouldInjectProtoTask,
+} from "./proto-task";
+export type { ProtoTask, ProtoTaskPhase, ProtoTaskPitfall, ProtoTaskLLMClient } from "./proto-task";
 
 // 记忆巩固 (Phase 2.3)
 export { MemoryConsolidator } from "./memory-consolidator";

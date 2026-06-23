@@ -51,6 +51,8 @@ import { TaskAssessmentBuilder, TaskAssessmentMemoryClient } from "./task-assess
 import { ExecutionFeedbackCollector } from "./execution-feedback";
 import { LearningUpdateBuilder, LearningUpdateMemoryClient } from "./learning-update";
 import { LearningLoop } from "./learning-loop";
+import { Governor } from "./governor";
+import type { LearningDecision } from "./governor";
 import { GapDetector } from "./gap-detector";
 import { StrategyRegistry } from "./strategy-registry";
 import { CrossDomainAnalyzer } from "./cross-domain-analyzer";
@@ -257,6 +259,8 @@ export class CognitiveCore {
 export class SessionCognitiveCore {
   readonly sessionId: string;
   readonly metacognitive: MetacognitiveEngine;
+  /** Governor — 学习决策编排器 (Phase 1, per-session) */
+  readonly governor: Governor;
   private readonly loop: LearningLoop;
   private readonly gapDetector: GapDetector;
   private readonly strategyRegistry: StrategyRegistry;
@@ -276,6 +280,7 @@ export class SessionCognitiveCore {
     }
     this.sessionId = sessionId;
     this.metacognitive = metacognitive;
+    this.governor = new Governor(sessionId, metacognitive);
     this.gapDetector = gapDetector ?? new GapDetector(metacognitive);
     this.strategyRegistry = strategyRegistry ?? new StrategyRegistry(memoryClient);
     this.crossDomainAnalyzer = crossDomainAnalyzer ?? new CrossDomainAnalyzer(memoryClient);
@@ -306,6 +311,30 @@ export class SessionCognitiveCore {
     sessionContext: SessionContext,
   ): Result<Correction | null> {
     return this.loop.captureCorrection(correction, sessionContext);
+  }
+
+  /**
+   * Governor 驱动的学习决策 (Phase 1)。
+   *
+   * 接收原始修正信号 → 4 阶段管道 (classify→gate→decide→dispatch)
+   * → 返回结构化 LearningDecision。
+   *
+   * 这是 Governor 替代 LearningLoop 编排职责的入口。
+   * 调用方根据返回的 LearningDecision.routeTo 决定下一步:
+   *   - execution_feedback → 即时反馈收集
+   *   - learning_update → session_end 批处理
+   *   - deferred_queue → 延迟评估队列
+   *
+   * @param correction 用户修正
+   * @param sessionContext 会话上下文
+   * @param signalTypeHint 外部信号类型提示 (可选)
+   */
+  governorDecide(
+    correction: Correction,
+    sessionContext: SessionContext,
+    signalTypeHint?: string,
+  ): Result<LearningDecision> {
+    return this.governor.decide(correction, sessionContext, signalTypeHint);
   }
 
   /** Phase 2: 记录执行异常 */

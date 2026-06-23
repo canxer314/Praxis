@@ -22,7 +22,7 @@ import type {
 } from "./types";
 import type { MetacognitiveEngine } from "./metacognitive-engine";
 import { MemoryConsolidator } from "./memory-consolidator";
-import { isRealExperience } from "./heuristics";
+import { isRealExperience } from "./utils/signal-quality";
 import { log, logDegraded } from "../logger";
 import * as fs from "fs";
 
