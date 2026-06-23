@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2.0] - 2026-06-23
+
+### Changed
+- **TranscriptAnalyzer v1→v2:** Switched learning event extraction from regex-based (v1, ~30 keywords) to LLM-based semantic analysis (v2, DeepSeek V4 Flash). Removed v1 fallback — backtest data proves v1 produces 0/14 effective learnings (all keyword noise) while v2 produces semantically meaningful events. Non-thinking mode reduces latency 75% (6,454ms→1,645ms, P95=2.1s).
+- **LLM output type validation:** Added typeof guards on content (string), confidence (number, not NaN) to prevent NaN propagation and TypeError crashes from malformed LLM responses.
+- **Error resilience:** `loadLearnings()` JSON.parse now crash-protected with try-catch. `parseResponse` catch narrowed to log non-SyntaxError exceptions. Surrogate-pair-safe string slicing for CJK/emoji content previews.
+
 ## [0.6.1.3] - 2026-06-23
 
 ### Added
