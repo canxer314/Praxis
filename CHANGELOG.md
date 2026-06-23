@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.1.2] - 2026-06-23
+
+### Changed
+- **SignalDetector v1.1:** `isNewKnowledge` now derived from message context via correction-signal words (应该/改成/需要/试试 etc.) instead of always `true`. Pure negations without alternatives produce `isNewKnowledge=false`, routing to `preference_discovery` instead of `mistake_correction`. Makes Phase 2 gate falsifiable by producing 2 distinct decision paths.
+
 ## [0.6.1.1] - 2026-06-23
 
 ### Added
