@@ -37,10 +37,20 @@ export function detectCorrection(content: string): Correction | null {
   const matched = NEGATION_KEYWORDS.find((kw) => lower.includes(kw.toLowerCase()));
   if (!matched) return null;
 
+  // Derive isNewKnowledge from message context: if the user provides
+  // concrete correction content ("不对，应该用POST"), the message
+  // contains new knowledge.  Pure negation without alternatives
+  // ("不是这个意思", bare "错了") does not.
+  // Heuristic: the message contains correction-indicating words
+  // (应该/用/改成/需要/试试/可以) that signal the user is teaching,
+  // not just rejecting.
+  const CORRECTION_SIGNALS = /(?:应该|该用|要用|改成|换成|需要|试试|正确的|不该|不要用|用|改)/;
+  const hasCorrectionSignal = CORRECTION_SIGNALS.test(content);
+
   return {
     what: "assistant_response",
     correctedTo: "user_explicit_correction",
     likelyRootCause: `keyword_match:${matched}`,
-    isNewKnowledge: true,
+    isNewKnowledge: hasCorrectionSignal,
   };
 }

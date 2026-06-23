@@ -92,13 +92,58 @@ describe("detectCorrection — Correction 结构", () => {
     expect(r!.correctedTo).toBe("user_explicit_correction");
   });
 
-  it("isNewKnowledge 为 true → inferSignalType 路由到 mistake_correction", () => {
-    const r = detectCorrection("不对");
-    expect(r!.isNewKnowledge).toBe(true);
-  });
-
   it("likelyRootCause 包含匹配到的关键词", () => {
     const r = detectCorrection("你搞错了方向");
     expect(r!.likelyRootCause).toMatch(/^keyword_match:/);
+  });
+});
+
+describe("detectCorrection — isNewKnowledge 多样性", () => {
+  it('包含 "应该" → 提供了新知识 → true', () => {
+    const r = detectCorrection("不对，应该用 POST 请求");
+    expect(r).not.toBeNull();
+    expect(r!.isNewKnowledge).toBe(true);
+  });
+
+  it('包含 "改成" → 提供了新知识 → true', () => {
+    const r = detectCorrection("不是这样，改成异步调用");
+    expect(r).not.toBeNull();
+    expect(r!.isNewKnowledge).toBe(true);
+  });
+
+  it('包含 "需要" → 提供了新知识 → true', () => {
+    const r = detectCorrection("搞错了，需要先检查权限");
+    expect(r).not.toBeNull();
+    expect(r!.isNewKnowledge).toBe(true);
+  });
+
+  it('包含 "用" → 提供了新知识 → true', () => {
+    const r = detectCorrection("错了，用 POST 方法");
+    expect(r).not.toBeNull();
+    expect(r!.isNewKnowledge).toBe(true);
+  });
+
+  it('包含 "改" → 提供了新知识 → true', () => {
+    const r = detectCorrection("不是那样，直接改返回值");
+    expect(r).not.toBeNull();
+    expect(r!.isNewKnowledge).toBe(true);
+  });
+
+  it("纯否定无纠正内容 → false", () => {
+    const r = detectCorrection("不是这个意思");
+    expect(r).not.toBeNull();
+    expect(r!.isNewKnowledge).toBe(false);
+  });
+
+  it("裸关键词无下文 → false", () => {
+    const r = detectCorrection("错了");
+    expect(r).not.toBeNull();
+    expect(r!.isNewKnowledge).toBe(false);
+  });
+
+  it("自我纠正无替代方案 → false", () => {
+    const r = detectCorrection("抱歉我搞错了方向");
+    expect(r).not.toBeNull();
+    expect(r!.isNewKnowledge).toBe(false);
   });
 });
