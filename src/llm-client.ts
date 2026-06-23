@@ -54,6 +54,7 @@ function createDeepSeekClient(): LlmClient {
             max_tokens: 4096,
             temperature: 0.1,
             messages: [{ role: "user", content: prompt }],
+            thinking: { type: "disabled" },
           }),
           signal: controller.signal,
         });

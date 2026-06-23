@@ -126,7 +126,7 @@ interface CompetencyModel {
 // ---- 轻量分析器接口（避免循环依赖） ----
 
 interface TranscriptAnalyzerLike {
-  analyze(transcript: string): LearningEvent[];
+  analyze(transcript: string): Promise<LearningEvent[]> | LearningEvent[];
 }
 
 // ---- PlatformAdapter ----
@@ -321,7 +321,7 @@ export class PlatformAdapter {
   private async handleMessageReceived(event: PraxisEvent & { type: "message_received" }): Promise<Result<EventResult>> {
     if (!this.transcriptAnalyzer) return { ok: true, value: {} };
 
-    const events = this.transcriptAnalyzer.analyze(event.message.content);
+    const events = await this.transcriptAnalyzer.analyze(event.message.content);
 
     if (events.length > 0) {
       // 实时保存学习事件（不等 session_end）

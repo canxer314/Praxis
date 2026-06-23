@@ -1,16 +1,17 @@
 /**
- * TranscriptAnalyzerV2 — Phase 2, LLM-based 语义分析
+ * TranscriptAnalyzerV2 — LLM-based 语义分析（活跃路径）
  *
  * v1 → v2 变化:
  *   - 关键词正则 → LLM 语义理解
  *   - 硬编码置信度 → LLM 自行判断置信度
  *   - 关键词截取 ±40 字符 → LLM 生成完整的学习描述
  *
- * 降级: LLM 调用失败或返回格式错误时, fallback 到 v1 正则分析。
+ * 降级: LLM 调用失败或返回格式错误时返回空数组。
+ * 不 fallback 到 v1——回测数据证明 v1 的 14/14 条提取均为关键词噪声，零有效学习事件。
  */
 
-import { LlmClient, Result, LearningEvent } from "./platform-adapter";
-import { TranscriptAnalyzer } from "./transcript-analyzer";
+import { LlmClient, LearningEvent } from "./platform-adapter";
+import { log, logDegraded } from "./logger";
 
 // ---- LLM Prompt ----
 
@@ -74,7 +75,6 @@ ${transcript.slice(0, 8000)}
 
 export class TranscriptAnalyzerV2 {
   private readonly llm: LlmClient;
-  private readonly v1: TranscriptAnalyzer = new TranscriptAnalyzer();
   private counter = 0;
 
   constructor(llm: LlmClient) {
@@ -84,21 +84,24 @@ export class TranscriptAnalyzerV2 {
   async analyze(transcript: string): Promise<LearningEvent[]> {
     if (!transcript || transcript.trim().length === 0) return [];
 
+    const startMs = Date.now();
+
     // LLM 分析
     const prompt = buildPrompt(transcript);
     const result = await this.llm.analyze(prompt);
 
     if (!result.ok) {
-      // LLM 调用失败 → fallback 到 v1
-      return this.v1.analyze(transcript);
+      logDegraded("transcript-analyzer-v2", "analyze", `LLM call failed: ${result.error?.message ?? "unknown"}`);
+      return [];
     }
 
     const events = this.parseResponse(result.value);
     if (events === null) {
-      // JSON 解析失败 → fallback 到 v1
-      return this.v1.analyze(transcript);
+      logDegraded("transcript-analyzer-v2", "analyze", "LLM response parse failed");
+      return [];
     }
 
+    log({ ts: new Date().toISOString(), module: "transcript-analyzer-v2", op: "analyze", duration_ms: Date.now() - startMs, outcome: "success", error: `extracted ${events.length} events` });
     return events;
   }
 
@@ -126,7 +129,8 @@ export class TranscriptAnalyzerV2 {
         });
       }
 
-      return events;
+      // 防御性上限：单次 transcript 最多提取 15 条学习事件
+      return events.slice(0, 15);
     } catch {
       return null;
     }
