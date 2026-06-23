@@ -168,7 +168,12 @@ interface StoredLearning {
 function loadLearnings(): StoredLearning[] {
   ensureDir();
   if (!fs.existsSync(LEARNINGS_FILE)) return [];
-  return JSON.parse(fs.readFileSync(LEARNINGS_FILE, "utf-8"));
+  try {
+    return JSON.parse(fs.readFileSync(LEARNINGS_FILE, "utf-8"));
+  } catch {
+    console.error("[Praxis] learnings.json 已损坏，重置为空");
+    return [];
+  }
 }
 
 function saveLearnings(learnings: StoredLearning[]): void {
@@ -470,7 +475,7 @@ if (cmd === "inject") {
     if (correction) {
       // 使用 Claude Code 提供的真实 session ID (环境变量 CLAUDE_SESSION_ID)
       const sessionId = process.env.CLAUDE_SESSION_ID || `shadow_${getSessionCount()}`;
-      const contentPreview = prompt.slice(0, 100);
+      const contentPreview = [...prompt].slice(0, 100).join("");
       try {
         const core = createCognitiveCore();
         const sessionCore = core.createSession(sessionId);

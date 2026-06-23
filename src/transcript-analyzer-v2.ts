@@ -114,8 +114,13 @@ export class TranscriptAnalyzerV2 {
 
       const events: LearningEvent[] = [];
 
+      const rawCount = json.length;
+
       for (const item of json) {
-        if (!item.type || !item.content || item.confidence === undefined) continue;
+        // 类型校验：防止 LLM 返回非预期类型导致 NaN/崩溃
+        if (!item.type || typeof item.type !== "string") continue;
+        if (typeof item.content !== "string" || item.content.trim().length === 0) continue;
+        if (typeof item.confidence !== "number" || isNaN(item.confidence)) continue;
 
         const validTypes = ["correction", "preference", "pattern", "pitfall", "insight"];
         if (!validTypes.includes(item.type)) continue;
@@ -130,8 +135,16 @@ export class TranscriptAnalyzerV2 {
       }
 
       // 防御性上限：单次 transcript 最多提取 15 条学习事件
+      if (events.length > 15) {
+        logDegraded("transcript-analyzer-v2", "parseResponse", `truncated ${rawCount}→15 events`);
+      }
       return events.slice(0, 15);
-    } catch {
+    } catch (e) {
+      // JSON 解析失败是正常降级路径；非 SyntaxError 说明解析器自身有 bug，需记录
+      if (!(e instanceof SyntaxError)) {
+        logDegraded("transcript-analyzer-v2", "parseResponse",
+          `unexpected error: ${e instanceof Error ? e.message : String(e)}`);
+      }
       return null;
     }
   }
