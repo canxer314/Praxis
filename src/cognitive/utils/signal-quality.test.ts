@@ -1,5 +1,7 @@
 /**
- * heuristics 测试 — isRealExperience + editDistance (HIGH 4.1)
+ * signal-quality 测试 — isRealExperience
+ *
+ * 从 heuristics.test.ts 迁移 (Phase 1 Governor refactor: 删除 heuristics.ts + editDistance)。
  *
  * 设计文档指定 6 个场景:
  *   1. 显式修正 → real experience
@@ -11,8 +13,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { isRealExperience, editDistance } from "./heuristics";
-import type { Correction, SessionContext } from "./types";
+import { isRealExperience } from "./signal-quality";
+import type { Correction, SessionContext } from "../types";
 
 function makeCtx(overrides: Partial<SessionContext> = {}): SessionContext {
   return {
@@ -23,27 +25,6 @@ function makeCtx(overrides: Partial<SessionContext> = {}): SessionContext {
     ...overrides,
   };
 }
-
-describe("editDistance", () => {
-  it("相同字符串返回 0", () => {
-    expect(editDistance("hello", "hello")).toBe(0);
-  });
-
-  it("完全不同的字符串返回 1", () => {
-    expect(editDistance("abc", "xyz")).toBe(1);
-  });
-
-  it("空字符串", () => {
-    expect(editDistance("", "")).toBe(0);
-    expect(editDistance("abc", "")).toBe(1);
-  });
-
-  it("部分不同的字符串返回 (0,1) 之间的值", () => {
-    const d = editDistance("hello world", "hello there");
-    expect(d).toBeGreaterThan(0);
-    expect(d).toBeLessThan(1);
-  });
-});
 
 describe("isRealExperience", () => {
   // 场景 1: 显式修正 (hasExplicitRejection: true)
