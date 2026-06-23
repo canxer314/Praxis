@@ -44,7 +44,7 @@ export function detectCorrection(content: string): Correction | null {
   // Heuristic: the message contains correction-indicating words
   // (应该/用/改成/需要/试试/可以) that signal the user is teaching,
   // not just rejecting.
-  const CORRECTION_SIGNALS = /(?:应该|该用|要用|改成|换成|需要|试试|可以试试|应当|正确的|不该|不要用)/;
+  const CORRECTION_SIGNALS = /(?:应该|该用|要用|改成|换成|需要|试试|正确的|不该|不要用|用|改)/;
   const hasCorrectionSignal = CORRECTION_SIGNALS.test(content);
 
   return {

@@ -117,6 +117,18 @@ describe("detectCorrection — isNewKnowledge 多样性", () => {
     expect(r!.isNewKnowledge).toBe(true);
   });
 
+  it('包含 "用" → 提供了新知识 → true', () => {
+    const r = detectCorrection("错了，用 POST 方法");
+    expect(r).not.toBeNull();
+    expect(r!.isNewKnowledge).toBe(true);
+  });
+
+  it('包含 "改" → 提供了新知识 → true', () => {
+    const r = detectCorrection("不是那样，直接改返回值");
+    expect(r).not.toBeNull();
+    expect(r!.isNewKnowledge).toBe(true);
+  });
+
   it("纯否定无纠正内容 → false", () => {
     const r = detectCorrection("不是这个意思");
     expect(r).not.toBeNull();
