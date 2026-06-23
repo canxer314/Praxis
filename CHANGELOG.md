@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.6.1.0] - 2026-06-23
+
+### Added
+- **Governor:** 4-stage learning decision pipeline (classify→gate→decide→dispatch) — unified decision center for "what/when to learn"
+  - `LearningDecision` struct: action (LEARN/DEFER/SKIP) + confidence + routeTo
+  - Catch-all degradation: pipeline failure → signal bypassed to ExecutionFeedback
+  - Structured logging per decide() call
+- **TimingController:** signal classifier mapping 5 signal types to IMMEDIATE/BATCH/DEFERRED timing
+- **TaskStateMachine:** pure-function two-level state machine (9 task + 7 subtask edges)
+- **ProtoTask:** zero-shot task template bootstrap with 24h TTL cache and exponential backoff retry
+- New types: `TaskState`, `SubtaskState` enums, `ConfidenceView` interface
+
+### Changed
+- Extracted `isRealExperience` to `utils/signal-quality.ts` (pure function, no behavior change)
+- Governor wired into `SessionCognitiveCore` as `governorDecide()` method (Phase 1 shadow mode)
+
+### Removed
+- Dead code `editDistance` function (zero production callers)
+- `heuristics.ts` module (consolidated into `utils/signal-quality.ts`)
+
 ## [0.6.0.1] - 2026-06-23
 
 ### Fixed
