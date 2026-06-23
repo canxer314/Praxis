@@ -374,9 +374,23 @@ if (cmd === "inject") {
     }
   })();
 } else if (cmd === "end") {
+  // --summary 模式: 无需 transcript 文件，输出 session 摘要 (Stop hook 用)
+  if (process.argv[3] === "--summary") {
+    const stored = loadLearnings();
+    const recentSessions = new Set(stored.map((s) => s.session));
+    const shadowCount = (() => {
+      try {
+        if (!fs.existsSync(SHADOW_DECISIONS_FILE)) return 0;
+        const raw = fs.readFileSync(SHADOW_DECISIONS_FILE, "utf-8");
+        return raw.split("\n").filter((l) => l.trim()).length;
+      } catch { return 0; }
+    })();
+    console.log(`\n[Praxis] session 结束 — ${stored.length} 条学习, ${recentSessions.size} session, ${shadowCount} 条影子决策`);
+    if (shadowCount > 0) console.log("[Praxis] 运行 npx tsx src/phase1a-bridge.ts shadow-stats 查看 Phase 2 gate 进度");
+  } else {
   const transcriptFile = process.argv[3];
   if (!transcriptFile) {
-    console.error("用法: tsx src/phase1a-bridge.ts end <transcript-file>");
+    console.error("用法: tsx src/phase1a-bridge.ts end <transcript-file>  或  tsx src/phase1a-bridge.ts end --summary");
     process.exit(1);
   }
   (async () => {
@@ -407,6 +421,7 @@ if (cmd === "inject") {
       logSession(session, "no_new_learnings");
     }
   })();
+  } // end else (transcript mode)
 } else if (cmd === "learn") {
   (async () => {
     const content = process.argv[3];
