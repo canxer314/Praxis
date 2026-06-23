@@ -23,6 +23,7 @@ import { Result, LearningEvent } from "./platform-adapter";
 import { CognitiveCore } from "./cognitive/cognitive-core";
 import type { CognitiveCoreMemoryClient } from "./cognitive/cognitive-core";
 import { SLOTS } from "./cognitive/constants";
+import { detectCorrection } from "./cognitive/signal-detector";
 
 // ---- CognitiveCore 工厂 (T8) ----
 
@@ -369,6 +370,30 @@ if (cmd === "inject") {
         console.log(`  [${e.type}] ${e.content.slice(0, 80)}`);
       }
       logSession(session, `realtime_learned:${finalEvents.length}`);
+    }
+
+    // Governor shadow mode: 关键词检测 → governorDecide → 影子日志
+    const correction = detectCorrection(prompt);
+    if (correction) {
+      try {
+        const core = createCognitiveCore();
+        const sessionId = `shadow_${getSessionCount()}`;
+        const sessionCore = core.createSession(sessionId);
+        const result = sessionCore.governorDecide(correction, {
+          sessionId,
+          hasExplicitRejection: true,
+          taskType: "unknown",
+          domain: "unknown",
+        });
+        if (result.ok) {
+          console.error(`[Praxis Phase1A] [shadow] action=${result.value.action} confidence=${result.value.confidence} route=${result.value.routeTo} signal=${result.value.signalType} timing=${result.value.timing}`);
+        } else {
+          console.error(`[Praxis Phase1A] [shadow] degraded: ${result.error?.message ?? "unknown"}`);
+        }
+      } catch (e) {
+        // 影子模式失败不影响主流程
+        console.error(`[Praxis Phase1A] [shadow] error: ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
   })();
 } else if (cmd === "show") {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1.1] - 2026-06-23
+
+### Added
+- **SignalDetector:** keyword-based correction signal detection (5 Chinese negation keywords)
+- **Shadow mode:** Governor pipeline runs on every `message` hook call, logs decisions via stderr, does not intercept LearningLoop
+
 ## [0.6.1.0] - 2026-06-23
 
 ### Added
