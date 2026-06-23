@@ -151,6 +151,7 @@ async function appendLearnings(events: LearningEvent[], session: number, source:
 const MEMORY_DIR = path.join(os.homedir(), ".praxis-phase1a");
 const LEARNINGS_FILE = path.join(MEMORY_DIR, "learnings.json");
 const SESSION_LOG_FILE = path.join(MEMORY_DIR, "session-log.jsonl");
+const SHADOW_DECISIONS_FILE = path.join(MEMORY_DIR, "shadow-decisions.jsonl");
 
 function ensureDir(): void {
   if (!fs.existsSync(MEMORY_DIR)) fs.mkdirSync(MEMORY_DIR, { recursive: true });
@@ -187,6 +188,89 @@ function logSession(session: number, event: string): void {
   ensureDir();
   const line = JSON.stringify({ ts: new Date().toISOString(), session, event }) + "\n";
   fs.appendFileSync(SESSION_LOG_FILE, line, "utf-8");
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Shadow Decision Persistence (T12)
+// ══════════════════════════════════════════════════════════════════
+
+interface ShadowDecisionRecord {
+  sessionId: string;
+  timestamp: string;
+  action: string;
+  confidence: number;
+  routeTo: string;
+  signalType: string;
+  timing: string;
+  isNewKnowledge: boolean;
+  matchedKeyword: string;
+  contentPreview: string;
+}
+
+export interface ShadowStats {
+  totalDecisions: number;
+  sessionCount: number;
+  skippedLines: number;
+  byAction: Record<string, number>;
+  bySignal: Record<string, number>;
+  byIsNewKnowledge: { true: number; false: number };
+  byRouteTo: Record<string, number>;
+}
+
+/**
+ * 纯函数 — 从 JSONL 行数组计算影子决策统计。
+ * 逐行解析，损坏行跳过并计入 skippedLines。
+ */
+export function computeShadowStats(lines: string[]): ShadowStats {
+  const stats: ShadowStats = {
+    totalDecisions: 0,
+    sessionCount: 0,
+    skippedLines: 0,
+    byAction: {},
+    bySignal: {},
+    byIsNewKnowledge: { true: 0, false: 0 },
+    byRouteTo: {},
+  };
+
+  const sessions = new Set<string>();
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    try {
+      const record: ShadowDecisionRecord = JSON.parse(trimmed);
+      stats.totalDecisions++;
+      sessions.add(record.sessionId);
+
+      stats.byAction[record.action] = (stats.byAction[record.action] || 0) + 1;
+      stats.bySignal[record.signalType] = (stats.bySignal[record.signalType] || 0) + 1;
+      stats.byRouteTo[record.routeTo] = (stats.byRouteTo[record.routeTo] || 0) + 1;
+
+      if (record.isNewKnowledge) {
+        stats.byIsNewKnowledge.true++;
+      } else {
+        stats.byIsNewKnowledge.false++;
+      }
+    } catch (e) {
+      // JSON parse failure → skip corrupted line; unexpected errors propagate
+      if (e instanceof SyntaxError) {
+        stats.skippedLines++;
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  stats.sessionCount = sessions.size;
+  return stats;
+}
+
+/** 追加一条影子决策到 JSONL 文件。 */
+function appendShadowDecision(record: ShadowDecisionRecord): void {
+  ensureDir();
+  const line = JSON.stringify(record) + "\n";
+  fs.appendFileSync(SHADOW_DECISIONS_FILE, line, "utf-8");
 }
 
 // ---- AgentMemory 数据读取（注入到 SessionStartHandler） ----
@@ -375,9 +459,11 @@ if (cmd === "inject") {
     // Governor shadow mode: 关键词检测 → governorDecide → 影子日志
     const correction = detectCorrection(prompt);
     if (correction) {
+      // 使用 Claude Code 提供的真实 session ID (环境变量 CLAUDE_SESSION_ID)
+      const sessionId = process.env.CLAUDE_SESSION_ID || `shadow_${getSessionCount()}`;
+      const contentPreview = prompt.slice(0, 100);
       try {
         const core = createCognitiveCore();
-        const sessionId = `shadow_${getSessionCount()}`;
         const sessionCore = core.createSession(sessionId);
         const result = sessionCore.governorDecide(correction, {
           sessionId,
@@ -386,12 +472,24 @@ if (cmd === "inject") {
           domain: "unknown",
         });
         if (result.ok) {
-          console.error(`[Praxis Phase1A] [shadow] action=${result.value.action} confidence=${result.value.confidence} route=${result.value.routeTo} signal=${result.value.signalType} timing=${result.value.timing}`);
+          appendShadowDecision({
+            sessionId,
+            timestamp: new Date().toISOString(),
+            action: result.value.action,
+            confidence: result.value.confidence,
+            routeTo: result.value.routeTo,
+            signalType: result.value.signalType,
+            timing: result.value.timing,
+            isNewKnowledge: correction.isNewKnowledge,
+            matchedKeyword: correction.likelyRootCause.replace("keyword_match:", ""),
+            contentPreview,
+          });
         } else {
+          // 降级路径: 保持 stderr 输出，不静默失败
           console.error(`[Praxis Phase1A] [shadow] degraded: ${result.error?.message ?? "unknown"}`);
         }
       } catch (e) {
-        // 影子模式失败不影响主流程
+        // 影子模式失败不影响主流程 — 保持 stderr 可见性
         console.error(`[Praxis Phase1A] [shadow] error: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
@@ -410,6 +508,45 @@ if (cmd === "inject") {
   stored.slice(-5).forEach((s) => {
     console.log(`  [S${s.session}] [${s.type}] [${s.source}] ${s.content.slice(0, 80)}`);
   });
+} else if (cmd === "shadow-stats") {
+  // Phase 2 gate: 查看 Governor 影子决策统计
+  ensureDir();
+  if (!fs.existsSync(SHADOW_DECISIONS_FILE)) {
+    console.log("=== Governor 影子决策统计 ===");
+    console.log("状态: 暂无影子数据");
+    console.log("");
+    console.log("发送包含纠正关键词（\"不对\"/\"错了\"/\"不是\"等）的消息以产生影子决策。");
+  } else {
+    const raw = fs.readFileSync(SHADOW_DECISIONS_FILE, "utf-8");
+    const lines = raw.split("\n");
+    const stats = computeShadowStats(lines);
+
+    console.log("=== Governor 影子决策统计 ===");
+    console.log(`Session 数:   ${stats.sessionCount}`);
+    console.log(`总决策数:     ${stats.totalDecisions}`);
+    if (stats.skippedLines > 0) {
+      console.log(`跳过损坏行:   ${stats.skippedLines}`);
+    }
+    console.log("");
+    console.log("--- 决策分布 (action) ---");
+    for (const [action, count] of Object.entries(stats.byAction)) {
+      console.log(`  ${action}: ${count}`);
+    }
+    console.log("");
+    console.log("--- 信号类型分布 (signalType) ---");
+    for (const [signal, count] of Object.entries(stats.bySignal)) {
+      console.log(`  ${signal}: ${count}`);
+    }
+    console.log("");
+    console.log("--- isNewKnowledge 分布 ---");
+    console.log(`  true:  ${stats.byIsNewKnowledge.true}`);
+    console.log(`  false: ${stats.byIsNewKnowledge.false}`);
+    console.log("");
+    console.log("--- 路由分布 (routeTo) ---");
+    for (const [route, count] of Object.entries(stats.byRouteTo)) {
+      console.log(`  ${route}: ${count}`);
+    }
+  }
 } else if (cmd === "expand") {
   // UserPromptExpansion hook — 每轮对话前搜索相关记忆，注入经验
   (async () => {
@@ -439,6 +576,7 @@ if (cmd === "inject") {
   tsx src/phase1a-bridge.ts end <file>       — 分析 transcript (Stop hook)
   tsx src/phase1a-bridge.ts expand           — 搜索经验注入 (UserPromptExpansion hook)
   tsx src/phase1a-bridge.ts learn "<内容>"    — 手动保存学习
-  tsx src/phase1a-bridge.ts show             — 查看状态
+  tsx src/phase1a-bridge.ts show             — 查看学习状态
+  tsx src/phase1a-bridge.ts shadow-stats     — 查看 Governor 影子决策统计
 `);
 }

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.1.3] - 2026-06-23
+
+### Added
+- **Shadow decision persistence (T12):** Governor shadow mode decisions now persisted to `~/.praxis-phase1a/shadow-decisions.jsonl` instead of ephemeral stderr. Each JSONL record includes session ID, action, confidence, route, signal type, timing, isNewKnowledge, matched keyword, and content preview.
+- **`shadow-stats` CLI command:** `npx tsx src/phase1a-bridge.ts shadow-stats` prints session count, decision distribution (LEARN/DEFER/SKIP), signal type distribution, isNewKnowledge distribution, and routeTo distribution. Per-line JSON parse resilience handles corrupted lines.
+- **`computeShadowStats()` pure function:** Extracted for testability with 4 unit tests covering normal data, empty input, corrupted lines, and all-corrupted scenarios.
+
+### Changed
+- **Shadow session ID** now uses `CLAUDE_SESSION_ID` environment variable (Claude Code's real session ID) instead of synthetic counter.
+- **Error visibility preserved** — degradation and error shadow paths still log to stderr.
+
 ## [0.6.1.2] - 2026-06-23
 
 ### Changed
