@@ -15,7 +15,6 @@ import * as path from "path";
 import * as os from "os";
 import { SessionStartHandler } from "./session-start";
 import { SessionEndHandler } from "./session-end";
-import { TranscriptAnalyzer } from "./transcript-analyzer";
 import { TranscriptAnalyzerV2 } from "./transcript-analyzer-v2";
 import { llmClient } from "./llm-client";
 import { agentmemory } from "./agentmemory-client";
@@ -169,7 +168,12 @@ interface StoredLearning {
 function loadLearnings(): StoredLearning[] {
   ensureDir();
   if (!fs.existsSync(LEARNINGS_FILE)) return [];
-  return JSON.parse(fs.readFileSync(LEARNINGS_FILE, "utf-8"));
+  try {
+    return JSON.parse(fs.readFileSync(LEARNINGS_FILE, "utf-8"));
+  } catch {
+    console.error("[Praxis] learnings.json 已损坏，重置为空");
+    return [];
+  }
 }
 
 function saveLearnings(learnings: StoredLearning[]): void {
@@ -394,12 +398,8 @@ if (cmd === "inject") {
     process.exit(1);
   }
   (async () => {
-    const v2Analyzer = new TranscriptAnalyzerV2(llmClient);
-    const v1Fallback = new TranscriptAnalyzer();
-    const analyzeTranscript = async (t: string) => {
-      const events = await v2Analyzer.analyze(t);
-      return events.length > 0 ? events : v1Fallback.analyze(t);
-    };
+    const analyzer = new TranscriptAnalyzerV2(llmClient);
+    const analyzeTranscript = async (t: string) => await analyzer.analyze(t);
     const handler = new SessionEndHandler({
       analyzeTranscript,
       setSlot: setSlotForSessionEnd,
@@ -457,10 +457,9 @@ if (cmd === "inject") {
     }
     if (!prompt) { console.log("[Praxis Phase1A] 无法提取消息内容"); return; }
 
-    const v2 = new TranscriptAnalyzerV2(llmClient);
-    const v1 = new TranscriptAnalyzer();
-    const events = await v2.analyze(prompt);
-    const finalEvents = events.length > 0 ? events : v1.analyze(prompt);
+    const analyzer = new TranscriptAnalyzerV2(llmClient);
+    const events = await analyzer.analyze(prompt);
+    const finalEvents = events;
     if (finalEvents.length > 0) {
       const session = getSessionCount();
       await appendLearnings(finalEvents, session, "auto");
@@ -476,7 +475,7 @@ if (cmd === "inject") {
     if (correction) {
       // 使用 Claude Code 提供的真实 session ID (环境变量 CLAUDE_SESSION_ID)
       const sessionId = process.env.CLAUDE_SESSION_ID || `shadow_${getSessionCount()}`;
-      const contentPreview = prompt.slice(0, 100);
+      const contentPreview = [...prompt].slice(0, 100).join("");
       try {
         const core = createCognitiveCore();
         const sessionCore = core.createSession(sessionId);

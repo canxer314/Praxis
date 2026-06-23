@@ -114,27 +114,25 @@ describe("TranscriptAnalyzerV2", () => {
     expect(events[0].content).not.toContain("[auto]");
   });
 
-  // ---- 降级 fallback ----
+  // ---- LLM 失败 → 空数组（不 fallback v1） ----
 
-  it("LLM 返回格式错误时 fallback 到 v1 regex", async () => {
+  it("LLM 返回格式错误时返回空数组", async () => {
     const llm = mockLlm("not valid json {{{");
 
     const analyzer = new TranscriptAnalyzerV2(llm);
     const events = await analyzer.analyze("不对，这里应该改成 type");
 
-    // fallback 到 v1: 应该检测到 "改成" 关键词
-    expect(events.some((e) => e.type === "correction")).toBe(true);
-    expect(events.some((e) => e.content.includes("[auto]"))).toBe(true);
+    // v1 fallback 已移除 — 回测数据证明 v1 的 14/14 条提取均为噪声
+    expect(events).toEqual([]);
   });
 
-  it("LLM 调用失败时 fallback 到 v1", async () => {
+  it("LLM 调用失败时返回空数组", async () => {
     const llm = mockLlmError("TIMEOUT");
 
     const analyzer = new TranscriptAnalyzerV2(llm);
     const events = await analyzer.analyze("别用 any 类型");
 
-    // fallback 到 v1
-    expect(events.some((e) => e.type === "correction")).toBe(true);
+    expect(events).toEqual([]);
   });
 
   it("LLM 返回空数组时不 fallback（LLM 判断无学习内容）", async () => {
