@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.2.0] - 2026-06-25
+
+### Added
+- **Expand hook scene context injection:** `searchRelevant()` results now include active scenario label when available — LLM can weight relevance by scenario context without a blind boost formula. Reads `session-state.json` (populated by message hook), looks up human-readable `tentativeName` from seed scenarios. Degrades gracefully: no state → no label, unknown scenarioId → raw ID.
+
 ## [0.7.1.0] - 2026-06-24
 
 ### Added
