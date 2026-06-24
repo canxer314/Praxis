@@ -1,5 +1,32 @@
 # CLAUDE.md
 
+## Praxis 项目上下文
+
+**Praxis** 是 AI 认知操作系统 — 在 LLM 与外部世界之间的中间件，赋予 AI 跨会话记忆、学习和任务编排能力。
+
+### 架构
+- **六层架构**: L1 工具集成 → L2 任务编排 → L3 知识管理 → L4 学习闭环 → L5 能力模型 → L6 自主决策
+- **核心模块**: `src/cognitive/` — CognitiveCore, Governor, TaskStateMachine, ProtoTask, TaskScheduler, SubagentManager, HeartbeatMonitor, SceneRecognizer, SignalDetector
+- **完整设计**: `architech/praxis-architecture.md` (V1-V13 架构迭代)
+- **原始迭代**: `draft/V1/` 到 `draft/V13/`
+
+### 关键概念
+- **Result\<T\>**: 所有异步 API 返回 `{ ok: true, value: T } | { ok: false, error: {...} }`，调用方通过 `result.ok` 分支
+- **Session 隔离**: `core.createSession(id)` 为每个会话创建独立的 CognitiveCore 实例
+- **学习环路**: 任务评估(assessTask) → 执行反馈(captureCorrection) → 学习更新(finalizeLearning)
+- **ProtoTask**: 零样本任务模板，bootstrap 置信度 0.2，随项目积累成长
+- **任务状态机**: 两层嵌套 — 外层(任务级 7 状态) + 内层(子任务级 4 状态+中间态)
+
+### 测试
+- `npm test` — vitest run
+- `npm run typecheck` — tsc --noEmit
+
+### 架构文档
+- 完整架构: `architech/praxis-architecture.md`
+- 原始迭代: `draft/` (V1-V13, 每版本 ~6 文件: what/why/how/when/where/who + design)
+
+---
+
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
