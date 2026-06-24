@@ -799,10 +799,19 @@ if (cmd === "inject") {
     const scored = await searchRelevant(prompt, 3);
     if (scored.length === 0) return;
 
+    // Phase 3: 场景上下文注入 — 读取活跃场景，标注在检索结果标题旁
+    const sessionState = readSessionState();
+    const sceneLabel = sessionState?.primaryScenarioId
+      ? (() => {
+          const seed = SEED_SCENARIOS.find((s) => s.scenarioId === sessionState.primaryScenarioId);
+          return `（当前场景: ${seed?.tentativeName ?? sessionState.primaryScenarioId}）`;
+        })()
+      : "";
+
     const lines = scored.map((l: StoredLearning) =>
       `- [${l.type}] ${l.content.slice(0, 120)} (匹配: ${l.confidence.toFixed(3)})`
     );
-    console.log(`\n[Praxis 相关经验]\n${lines.join("\n")}`);
+    console.log(`\n[Praxis 相关经验]${sceneLabel}\n${lines.join("\n")}`);
     logSession(getSessionCount(), `expand:${scored.length}`);
   })();
 } else if (cmd === "scene-log") {
