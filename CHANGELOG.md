@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0.0] - 2026-06-24
+
+### Added
+- **Scenario Registry (Phase 0):** 5 manual seed scenarios (backend API dev, architecture design, bug investigation, AI agent dev, document writing) with typical tool chains and domain tags. `validateSeedScenarios()` for structural health checks.
+- **Scenario Cache (Phase 0):** TTL-based (4h) cross-session scenario cache with local embedding verification (all-MiniLM-L6-v2 via Transformers.js). `checkCache()` two-stage: TTL fast path → embedding similarity fallback.
+- **ProtoStructure types:** `ProtoStructure`, `ScenarioMatch`, `ProtoStructureSeed` interfaces in the cognitive type system. `scenarioId` field added to `EpisodicMemory.context`.
+- **LearningEvent scenario binding:** `protoStructureIds?: string[]` field on `LearningEvent` and `StoredLearning` — allows learnings to carry scenario context for future precision retrieval.
+
+### Changed
+- **SignalDetector v1→v2:** Upgraded from keyword matching (5 Chinese negation keywords) to LLM-based semantic detection (`detectCorrectionLLM()`). LLM prompt explicitly lists 5 false-positive patterns (rhetorical, rules text, opinion, fact, self-correction) observed in shadow data. Active path in `phase1a-bridge.ts` message hook. Original `detectCorrection()` preserved for backward compat.
+- **TranscriptAnalyzerV2 signature:** `analyze()` now accepts optional `opts?: { activeScenarioIds?: string[] }` for scenario-aware learning extraction. Backward compatible — all 11 existing call sites unchanged.
+
 ## [0.6.2.0] - 2026-06-23
 
 ### Changed
