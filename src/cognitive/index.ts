@@ -128,6 +128,7 @@ export type { HeartbeatMemoryClient, HeartbeatTaskContext, HeartbeatCheckResult,
 export { SEED_SCENARIOS, getSeedScenario, validateSeedScenarios } from "./scenario-registry";
 export { readCache, writeCache, checkCache, clearCache } from "./scenario-cache";
 export type { ScenarioCacheEntry, CacheCheckResult } from "./scenario-cache";
+export { embed, isEmbeddingAvailable, getEmbeddingConfig } from "./embedding";
 
 // 常量
 export { SLOTS } from "./constants";
