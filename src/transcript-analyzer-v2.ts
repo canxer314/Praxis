@@ -15,9 +15,12 @@ import { log, logDegraded } from "./logger";
 
 // ---- LLM Prompt ----
 
-function buildPrompt(transcript: string): string {
-  return `你是一个 AI 学习事件提取器。分析以下对话片段，提取对未来会话有价值的学习事件。
+function buildPrompt(transcript: string, activeScenarioIds?: string[]): string {
+  const scenarioSection = activeScenarioIds && activeScenarioIds.length > 0
+    ? `\n当前活跃场景: ${activeScenarioIds.join(", ")}\n每条事件可包含 "protoStructureIds": ["<匹配的场景ID>"] 字段标注此学习属于哪个场景。不确定时留空数组。\n`
+    : "";
 
+  return `你是一个 AI 学习事件提取器。分析以下对话片段，提取对未来会话有价值的学习事件。${scenarioSection}
 什么是"有价值的学习事件"：任何在未来的对话中应该被记住的信息，例如：
 - 用户纠正了你的错误或误解
 - 用户表达了编码风格、工具选择、工作流程的偏好
@@ -31,7 +34,7 @@ function buildPrompt(transcript: string): string {
 - 每条 content 必须是完整句子，包含必要的上下文，让未来 session 能理解
 - 纯问候、闲谈、单字确认等不提取
 
-每条事件格式: { "type": "...", "content": "...", "confidence": 0.0-1.0 }
+每条事件格式: { "type": "...", "content": "...", "confidence": 0.0-1.0, "protoStructureIds": [...] }
 
 type 取值:
 - correction  — 用户纠正了你的错误
@@ -39,6 +42,8 @@ type 取值:
 - pattern     — 可复用的技术模式或架构原则
 - pitfall     — 踩到的陷阱，以后应该避免的做法
 - insight     — 对项目/系统/领域的深入理解
+
+protoStructureIds: 此学习事件关联的场景 ID 列表。如果提供了活跃场景列表，选择最相关的场景 ID 填入。不确定时填入空数组 []。
 
 confidence 取值:
 - 0.9-1.0  — 用户明确说出来（"以后都用 X"、"记住 X"）
@@ -55,7 +60,7 @@ AI: 好的，已改为 type
 用户: AgentMemory MCP 调用经常超时，以后加个超时控制"
 
 示例输出:
-[{"type":"preference","content":"用户偏好使用 type 别名而非 interface 声明，要求项目统一使用 type","confidence":0.9},{"type":"pitfall","content":"AgentMemory MCP 调用默认超时过长，需要 10 秒超时控制","confidence":0.85}]
+[{"type":"preference","content":"用户偏好使用 type 别名而非 interface 声明，要求项目统一使用 type","confidence":0.9,"protoStructureIds":[]},{"type":"pitfall","content":"AgentMemory MCP 调用默认超时过长，需要 10 秒超时控制","confidence":0.85,"protoStructureIds":[]}]
 
 示例输入2（分析/设计对话）:
 "用户: Phase 1B 的 context-organizer 现在还需要吗？
@@ -63,7 +68,7 @@ AI: AgentMemory 语义搜索返回的 score 本身就是质量分级。score > 0
 用户: 合理，所以砍掉。"
 
 示例输出2:
-[{"type":"insight","content":"Phase 1B context-organizer 的 Tier A/B/C 分级可用 AgentMemory smartSearch 的 score 阈值替代，不需要独立模块","confidence":0.8}]
+[{"type":"insight","content":"Phase 1B context-organizer 的 Tier A/B/C 分级可用 AgentMemory smartSearch 的 score 阈值替代，不需要独立模块","confidence":0.8,"protoStructureIds":[]}]
 
 对话片段:
 ---
@@ -81,13 +86,16 @@ export class TranscriptAnalyzerV2 {
     this.llm = llm;
   }
 
-  async analyze(transcript: string): Promise<LearningEvent[]> {
+  async analyze(
+    transcript: string,
+    opts?: { activeScenarioIds?: string[] },
+  ): Promise<LearningEvent[]> {
     if (!transcript || transcript.trim().length === 0) return [];
 
     const startMs = Date.now();
 
     // LLM 分析
-    const prompt = buildPrompt(transcript);
+    const prompt = buildPrompt(transcript, opts?.activeScenarioIds);
     const result = await this.llm.analyze(prompt);
 
     if (!result.ok) {
@@ -131,6 +139,9 @@ export class TranscriptAnalyzerV2 {
           type: item.type as LearningEvent["type"],
           content: item.content,
           confidence: Math.min(1, Math.max(0, item.confidence)),
+          protoStructureIds: Array.isArray(item.protoStructureIds)
+            ? item.protoStructureIds.filter((s: unknown) => typeof s === "string")
+            : [],
         });
       }
 

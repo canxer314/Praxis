@@ -28,6 +28,8 @@ export interface EpisodicMemory {
     taskType: string;
     domain: string;
     taskId?: string;
+    /** 场景 ID — 从 LearningEvent.proto_structure_ids 派生，查询便利字段 */
+    scenarioId?: string;
   };
 
   observation: {
@@ -484,4 +486,42 @@ export interface ConfidenceView {
   selfRating: number;
   source: "profile" | "default";
   gapFlags: string[];
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 场景感知类型 (Phase 0 — Scenario-Contextual Memory)
+// ══════════════════════════════════════════════════════════════════
+
+/** 认知原型结构 — V6 Proto-Cognitive Engine 的核心数据模型 */
+export interface ProtoStructure {
+  protoId: string;
+  scenarioId: string;
+  tentativeName: string;
+  protoType: "sequence" | "role" | "concept" | "purpose";
+  /** 典型工具链 — 此场景下常用的工具 */
+  typicalTools: string[];
+  /** 典型领域 — 此场景关联的业务/技术领域 */
+  typicalDomains: string[];
+  /** 置信度 — V6 生命周期: hypothesized(0.3) → candidate(0.5) → crystallized(0.8) */
+  confidence: number;
+  /** 观察次数 */
+  observationCount: number;
+  /** 生命周期阶段 */
+  lifecycleStage: "seed" | "active" | "degraded" | "archived";
+}
+
+/** 场景匹配结果 — scene-recognizer 输出 */
+export interface ScenarioMatch {
+  scenarioId: string;
+  confidence: number;
+  source: "task_context_exact" | "task_context_fuzzy" | "llm_inference";
+}
+
+/** 种子场景定义 — Phase 0 手动定义的初始场景注册表条目 */
+export interface ProtoStructureSeed {
+  scenarioId: string;
+  tentativeName: string;
+  protoType: ProtoStructure["protoType"];
+  typicalTools: string[];
+  typicalDomains: string[];
 }

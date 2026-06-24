@@ -123,6 +123,7 @@ async function appendLearnings(events: LearningEvent[], session: number, source:
     stored.push({
       session, timestamp: new Date().toISOString(),
       type: e.type, content: e.content, confidence: e.confidence, source,
+      protoStructureIds: e.protoStructureIds ?? [],
     });
   }
 
@@ -163,6 +164,8 @@ interface StoredLearning {
   content: string;
   confidence: number;
   source: "auto" | "manual";
+  /** 关联的场景 ID 列表 — Phase 0 实现后由 TranscriptAnalyzerV2 填充 */
+  protoStructureIds?: string[];
 }
 
 function loadLearnings(): StoredLearning[] {

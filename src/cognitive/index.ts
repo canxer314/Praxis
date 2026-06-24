@@ -124,6 +124,11 @@ export type { SubagentMemoryClient, SubagentExecutionAPI, SubagentTaskInfo } fro
 export { HeartbeatMonitor } from "./heartbeat-monitor";
 export type { HeartbeatMemoryClient, HeartbeatTaskContext, HeartbeatCheckResult, StallInterventionCallback } from "./heartbeat-monitor";
 
+// Phase 0 — Scenario-Contextual Memory
+export { SEED_SCENARIOS, getSeedScenario, validateSeedScenarios } from "./scenario-registry";
+export { readCache, writeCache, checkCache, clearCache } from "./scenario-cache";
+export type { ScenarioCacheEntry, CacheCheckResult } from "./scenario-cache";
+
 // 常量
 export { SLOTS } from "./constants";
 

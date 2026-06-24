@@ -33,6 +33,9 @@ export interface LearningEvent {
   type: "correction" | "preference" | "pattern" | "insight" | "pitfall";
   content: string;
   confidence: number;
+  /** 关联的 ProtoStructure ID 列表 — 此学习事件发生时的活跃场景。
+   *  undefined/空数组 = 无场景上下文（向后兼容，Phase 0 实现前所有 learnings 均无此字段）。 */
+  protoStructureIds?: string[];
 }
 
 export type PraxisEvent =
