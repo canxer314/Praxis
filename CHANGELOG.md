@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.1.0] - 2026-06-24
+
+### Added
+- **Scene Recognizer (Phase 2):** `recognizeScene()` — 1-layer LLM scene classification against seed scenario registry. Returns `ScenarioMatch[]` sorted by confidence. `getPrimaryScenarioId()` and `getActiveScenarioIds()` helpers. Defense-in-depth: unregistered scenario IDs filtered, confidence clamped to [0,1], NaN guarding, 5-match cap. 24 tests.
+- **Session-State IPC:** `~/.praxis-phase1a/session-state.json` for cross-hook scenario context sharing. `inject` writes (cache-first), `message` reads/writes (lazy recognition on first message), `end` reads + writes cache + cleans up. Corruption fallback via JSON.parse catch.
+- **Offline scene validation:** `scene-classifications.jsonl` logs every scene recognition result (timestamp, sessionId, input preview, matched scenario, confidence, duration, cache status). `scene-stats` command for accuracy tracking.
+- **`scene-log` command:** Manual scene recognition testing — pipe or pass text, get classification results + logging.
+- **`extractFirstUserMessage()`:** Transcript parser for "用户:" / "User:" prefixed lines, used by offline validation in `end <file>` mode.
+
+### Changed
+- **`message` hook:** Now passes `activeScenarioIds` to `TranscriptAnalyzerV2.analyze()` when scenario context is available — learning events get `protoStructureIds` populated.
+- **`end --summary` hook:** Writes scenario cache on session end for cross-session TTL reuse. Reports scene classification statistics.
+- **`inject` hook:** Attempts scenario cache hit at session start, initializes session-state.json.
+
 ## [0.7.0.0] - 2026-06-24
 
 ### Added

@@ -130,6 +130,9 @@ export { readCache, writeCache, checkCache, clearCache } from "./scenario-cache"
 export type { ScenarioCacheEntry, CacheCheckResult } from "./scenario-cache";
 export { embed, isEmbeddingAvailable, getEmbeddingConfig } from "./embedding";
 
+// Phase 2 — Scene Recognition
+export { recognizeScene, getPrimaryScenarioId, getActiveScenarioIds, SCENE_CONFIDENCE } from "./scene-recognizer";
+
 // 常量
 export { SLOTS } from "./constants";
 

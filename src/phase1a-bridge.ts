@@ -23,6 +23,11 @@ import { CognitiveCore } from "./cognitive/cognitive-core";
 import type { CognitiveCoreMemoryClient } from "./cognitive/cognitive-core";
 import { SLOTS } from "./cognitive/constants";
 import { detectCorrection, detectCorrectionLLM } from "./cognitive/signal-detector";
+import { recognizeScene, getActiveScenarioIds, getPrimaryScenarioId } from "./cognitive/scene-recognizer";
+import { readCache, writeCache, checkCache } from "./cognitive/scenario-cache";
+import { embed } from "./cognitive/embedding";
+import { SEED_SCENARIOS } from "./cognitive/scenario-registry";
+import type { ScenarioCacheEntry } from "./cognitive/scenario-cache";
 
 // ---- CognitiveCore 工厂 (T8) ----
 
@@ -152,9 +157,68 @@ const MEMORY_DIR = path.join(os.homedir(), ".praxis-phase1a");
 const LEARNINGS_FILE = path.join(MEMORY_DIR, "learnings.json");
 const SESSION_LOG_FILE = path.join(MEMORY_DIR, "session-log.jsonl");
 const SHADOW_DECISIONS_FILE = path.join(MEMORY_DIR, "shadow-decisions.jsonl");
+const SESSION_STATE_FILE = path.join(MEMORY_DIR, "session-state.json");
+const SCENE_CLASSIFICATION_LOG = path.join(MEMORY_DIR, "scene-classifications.jsonl");
 
 function ensureDir(): void {
   if (!fs.existsSync(MEMORY_DIR)) fs.mkdirSync(MEMORY_DIR, { recursive: true });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Session-State IPC (跨 Hook 状态共享)
+// ══════════════════════════════════════════════════════════════════
+
+interface SessionState {
+  activeScenarioIds: string[];
+  primaryScenarioId: string | null;
+  evaluatedAt: number; // Unix ms
+}
+
+function readSessionState(): SessionState | null {
+  try {
+    if (!fs.existsSync(SESSION_STATE_FILE)) return null;
+    const raw = fs.readFileSync(SESSION_STATE_FILE, "utf-8");
+    const state: SessionState = JSON.parse(raw);
+    // 有效性校验: 必须有 evaluatedAt
+    if (typeof state.evaluatedAt !== "number") return null;
+    return state;
+  } catch {
+    return null; // 损坏文件 → 视为不存在
+  }
+}
+
+function writeSessionState(state: SessionState): void {
+  ensureDir();
+  fs.writeFileSync(SESSION_STATE_FILE, JSON.stringify(state), "utf-8");
+}
+
+function deleteSessionState(): void {
+  try {
+    if (fs.existsSync(SESSION_STATE_FILE)) fs.unlinkSync(SESSION_STATE_FILE);
+  } catch {
+    // 删除失败不影响正常运行
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Scene Classification Logging (离��验证)
+// ══════════════════════════════════════════════════════════════════
+
+interface SceneClassificationRecord {
+  timestamp: string;
+  sessionId: string;
+  inputPreview: string;       // 用户首条消息前 200 字符
+  primaryScenarioId: string | null;
+  activeScenarioIds: string[];
+  confidence: number;          // 主场景置信度
+  llmDurationMs: number;
+  cacheHit: boolean;
+}
+
+function appendSceneClassification(record: SceneClassificationRecord): void {
+  ensureDir();
+  const line = JSON.stringify(record) + "\n";
+  fs.appendFileSync(SCENE_CLASSIFICATION_LOG, line, "utf-8");
 }
 
 interface StoredLearning {
@@ -195,6 +259,23 @@ function logSession(session: number, event: string): void {
   ensureDir();
   const line = JSON.stringify({ ts: new Date().toISOString(), session, event }) + "\n";
   fs.appendFileSync(SESSION_LOG_FILE, line, "utf-8");
+}
+
+/**
+ * 从 transcript 中提取首条用户消息（用于离线场景验证）。
+ * 匹配模式: "用户:" 或 "User:" 开头的行。
+ */
+function extractFirstUserMessage(transcript: string): string | null {
+  const lines = transcript.split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // 匹配 "用户:" 或 "User:" 或 "user:" 前缀
+    const match = trimmed.match(/^(?:用户|User|user):\s*(.+)/);
+    if (match && match[1].trim().length > 0) {
+      return match[1].trim();
+    }
+  }
+  return null;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -365,6 +446,38 @@ if (cmd === "inject") {
       }
     }
 
+    // Phase 2: 场景缓存检查 — 尝试从上次 session 恢复场景上下文
+    const cacheEntry = readCache();
+    let sessionState: SessionState = {
+      activeScenarioIds: [],
+      primaryScenarioId: null,
+      evaluatedAt: Date.now(),
+    };
+
+    if (cacheEntry) {
+      // 尝试生成当前上下文的 embedding 用于缓存验证
+      let contextEmbedding: number[] | null = null;
+      try {
+        contextEmbedding = await embed(cacheEntry.contextualSnapshot);
+      } catch {
+        // embedding 不可用 → TTL-only 模式
+      }
+
+      const cacheResult = checkCache(cacheEntry, contextEmbedding);
+      if (cacheResult.hit) {
+        sessionState = {
+          activeScenarioIds: cacheEntry.scenarioIds,
+          primaryScenarioId: cacheEntry.primaryScenarioId,
+          evaluatedAt: Date.now(),
+        };
+        console.error(`[Praxis] 场景缓存命中 (${cacheResult.reason}): ${cacheEntry.primaryScenarioId}`);
+      } else {
+        console.error(`[Praxis] 场景缓存未命中 (TTL过期 + embedding不匹配)，等待首条消息识别`);
+      }
+    }
+
+    writeSessionState(sessionState);
+
     const handler = new SessionStartHandler({
       getSlot: getSlotForInjection,
       cognitiveCore: core,
@@ -392,8 +505,34 @@ if (cmd === "inject") {
         return raw.split("\n").filter((l) => l.trim()).length;
       } catch { return 0; }
     })();
-    console.log(`\n[Praxis] session 结束 — ${stored.length} 条学习, ${recentSessions.size} session, ${shadowCount} 条影子决策`);
+
+    // Phase 2: 读 session-state，写场景缓存，清理
+    const sessionState = readSessionState();
+    let sceneInfo = "";
+    if (sessionState && sessionState.primaryScenarioId) {
+      sceneInfo = `, 场景: ${sessionState.primaryScenarioId}`;
+      // 写入场景缓存（下次 session_start 可命中）
+      // 注: Stop hook 需快速返回，不在此计算 embedding。embedding=null 退化为 TTL-only 缓存。
+      writeCache({
+        scenarioIds: sessionState.activeScenarioIds,
+        primaryScenarioId: sessionState.primaryScenarioId,
+        confidence: 0.8,
+        contextualSnapshot: sessionState.primaryScenarioId,
+        embedding: null,
+        cachedAt: Date.now(),
+        sourceSessionId: process.env.CLAUDE_SESSION_ID || `s${getSessionCount()}`,
+      });
+    }
+    // 清理 session-state（本 session 已结束）
+    deleteSessionState();
+
+    console.log(`\n[Praxis] session 结束 — ${stored.length} 条学习, ${recentSessions.size} session, ${shadowCount} 条影子决策${sceneInfo}`);
     if (shadowCount > 0) console.log("[Praxis] 运行 npx tsx src/phase1a-bridge.ts shadow-stats 查看 Phase 2 gate 进度");
+    // 显示场景分类日志统计
+    if (fs.existsSync(SCENE_CLASSIFICATION_LOG)) {
+      const classLines = fs.readFileSync(SCENE_CLASSIFICATION_LOG, "utf-8").split("\n").filter((l) => l.trim());
+      console.log(`[Praxis] 场景分类记录: ${classLines.length} 条 — 运行 npx tsx src/phase1a-bridge.ts scene-stats 查看详情`);
+    }
   } else {
   const transcriptFile = process.argv[3];
   if (!transcriptFile) {
@@ -423,6 +562,47 @@ if (cmd === "inject") {
       console.log(`[Praxis Phase1A] session ${session} 无新学习`);
       logSession(session, "no_new_learnings");
     }
+
+    // Phase 2 离线验证: 从 transcript 提取首条用户消息，运行场景识别，记录到分类日志
+    try {
+      // 如果 message hook 已经做了场景识别（session-state.json 存在且有场景），跳过
+      const existingState = readSessionState();
+      const hasScene = existingState && existingState.activeScenarioIds.length > 0;
+
+      if (!hasScene) {
+        // 从 transcript 中提取首条 "用户:" 消息
+        const firstUserMsg = extractFirstUserMessage(transcript);
+        if (firstUserMsg) {
+          const startMs = Date.now();
+          const matches = await recognizeScene(llmClient, firstUserMsg);
+          const primaryId = getPrimaryScenarioId(matches);
+          const activeIds = getActiveScenarioIds(matches);
+
+          const sessionId = process.env.CLAUDE_SESSION_ID || `s${session}`;
+          appendSceneClassification({
+            timestamp: new Date().toISOString(),
+            sessionId,
+            inputPreview: [...firstUserMsg].slice(0, 200).join(""),
+            primaryScenarioId: primaryId,
+            activeScenarioIds: activeIds,
+            confidence: matches.length > 0 ? matches[0].confidence : 0,
+            llmDurationMs: Date.now() - startMs,
+            cacheHit: false,
+          });
+
+          if (primaryId) {
+            console.error(`[Praxis] 离线场景验证: ${primaryId} (${Date.now() - startMs}ms)`);
+          } else {
+            console.error(`[Praxis] 离线场景验证: 无匹配 (${Date.now() - startMs}ms)`);
+          }
+        }
+      }
+    } catch {
+      // 离线验证失败不影响主流程
+    }
+
+    // 清理 session-state
+    deleteSessionState();
   })();
   } // end else (transcript mode)
 } else if (cmd === "learn") {
@@ -460,8 +640,47 @@ if (cmd === "inject") {
     }
     if (!prompt) { console.log("[Praxis Phase1A] 无法提取消息内容"); return; }
 
+    // Phase 2: 场景识别 — 如果 session-state 无场景，用首条消息识别
+    let sessionState = readSessionState();
+    const needsSceneEval = !sessionState || sessionState.activeScenarioIds.length === 0;
+
+    if (needsSceneEval) {
+      const startMs = Date.now();
+      const matches = await recognizeScene(llmClient, prompt);
+      const activeIds = getActiveScenarioIds(matches);
+      const primaryId = getPrimaryScenarioId(matches);
+
+      sessionState = {
+        activeScenarioIds: activeIds,
+        primaryScenarioId: primaryId,
+        evaluatedAt: Date.now(),
+      };
+      writeSessionState(sessionState);
+
+      // 离线验证: 记录场景分类到 JSONL
+      const sessionId = process.env.CLAUDE_SESSION_ID || `s${getSessionCount()}`;
+      appendSceneClassification({
+        timestamp: new Date().toISOString(),
+        sessionId,
+        inputPreview: [...prompt].slice(0, 200).join(""),
+        primaryScenarioId: primaryId,
+        activeScenarioIds: activeIds,
+        confidence: matches.length > 0 ? matches[0].confidence : 0,
+        llmDurationMs: Date.now() - startMs,
+        cacheHit: false,
+      });
+
+      if (primaryId) {
+        console.error(`[Praxis] 场景识别: ${primaryId} (${activeIds.length} 活跃, ${Date.now() - startMs}ms)`);
+      } else {
+        console.error(`[Praxis] 场景识别: 无匹配 (Open Perception 模式, ${Date.now() - startMs}ms)`);
+      }
+    }
+
+    const activeIds = sessionState?.activeScenarioIds ?? [];
+
     const analyzer = new TranscriptAnalyzerV2(llmClient);
-    const events = await analyzer.analyze(prompt);
+    const events = await analyzer.analyze(prompt, { activeScenarioIds: activeIds.length > 0 ? activeIds : undefined });
     const finalEvents = events;
     if (finalEvents.length > 0) {
       const session = getSessionCount();
@@ -586,14 +805,121 @@ if (cmd === "inject") {
     console.log(`\n[Praxis 相关经验]\n${lines.join("\n")}`);
     logSession(getSessionCount(), `expand:${scored.length}`);
   })();
+} else if (cmd === "scene-log") {
+  // 手动场景识别测试 — 从 stdin 读取文本，运行场景识别并输出结果
+  (async () => {
+    let text: string;
+    const input = process.argv[3];
+    if (!input || input === "-") {
+      // 从 stdin 读取
+      const chunks: Buffer[] = [];
+      for await (const chunk of process.stdin) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      text = Buffer.concat(chunks).toString("utf-8").trim();
+      if (!text) {
+        console.log("[Praxis] scene-log 需要输入文本。用法: echo '消息内容' | tsx src/phase1a-bridge.ts scene-log");
+        return;
+      }
+    } else {
+      text = input;
+    }
+
+    const startMs = Date.now();
+    const matches = await recognizeScene(llmClient, text);
+    const primaryId = getPrimaryScenarioId(matches);
+    const activeIds = getActiveScenarioIds(matches);
+    const elapsed = Date.now() - startMs;
+
+    console.log(`输入: ${text.slice(0, 100)}...`);
+    console.log(`主场景: ${primaryId ?? "无"}`);
+    console.log(`活跃场景: ${activeIds.join(", ") || "无"}`);
+    console.log(`耗时: ${elapsed}ms`);
+    if (matches.length > 0) {
+      console.log("\n全部匹配:");
+      for (const m of matches) {
+        console.log(`  ${m.scenarioId}: ${m.confidence.toFixed(2)}`);
+      }
+    }
+    console.log("");
+
+    // 记录到离线验证日志
+    const sessionId = process.env.CLAUDE_SESSION_ID || `manual_${Date.now()}`;
+    appendSceneClassification({
+      timestamp: new Date().toISOString(),
+      sessionId,
+      inputPreview: [...text].slice(0, 200).join(""),
+      primaryScenarioId: primaryId,
+      activeScenarioIds: activeIds,
+      confidence: matches.length > 0 ? matches[0].confidence : 0,
+      llmDurationMs: elapsed,
+      cacheHit: false,
+    });
+    console.log(`已记录到 ${SCENE_CLASSIFICATION_LOG}`);
+  })();
+} else if (cmd === "scene-stats") {
+  // 查看场景分类统计数据
+  ensureDir();
+  if (!fs.existsSync(SCENE_CLASSIFICATION_LOG)) {
+    console.log("=== 场景分类统计 ===");
+    console.log("状态: 暂无分类数据");
+    console.log("");
+    console.log("场景分类由 message hook 和 end hook 自动记录。");
+    console.log("手动测试: echo '你的消息' | tsx src/phase1a-bridge.ts scene-log");
+  } else {
+    const raw = fs.readFileSync(SCENE_CLASSIFICATION_LOG, "utf-8");
+    const lines = raw.split("\n").filter((l) => l.trim());
+    console.log(`=== 场景分类统计 (${lines.length} 条记录) ===\n`);
+
+    const byScenario: Record<string, number> = {};
+    const sessions = new Set<string>();
+    let noMatchCount = 0;
+
+    for (const line of lines) {
+      try {
+        const record: SceneClassificationRecord = JSON.parse(line);
+        sessions.add(record.sessionId);
+        if (record.primaryScenarioId) {
+          byScenario[record.primaryScenarioId] = (byScenario[record.primaryScenarioId] || 0) + 1;
+        } else {
+          noMatchCount++;
+        }
+      } catch { /* skip corrupted lines */ }
+    }
+
+    console.log(`Session 数: ${sessions.size}`);
+    console.log(`无匹配:    ${noMatchCount}`);
+    console.log("");
+    console.log("--- 场景分布 ---");
+    for (const [scenario, count] of Object.entries(byScenario).sort(([, a], [, b]) => b - a)) {
+      const seed = SEED_SCENARIOS.find((s) => s.scenarioId === scenario);
+      const name = seed ? seed.tentativeName : scenario;
+      console.log(`  ${scenario} (${name}): ${count}`);
+    }
+    console.log("");
+    console.log("--- 最近 5 条 ---");
+    const recent = lines.slice(-5);
+    for (const line of recent) {
+      try {
+        const r: SceneClassificationRecord = JSON.parse(line);
+        const seed = r.primaryScenarioId
+          ? SEED_SCENARIOS.find((s) => s.scenarioId === r.primaryScenarioId)
+          : null;
+        const name = seed ? seed.tentativeName : (r.primaryScenarioId || "无匹配");
+        console.log(`  ${r.timestamp.slice(0, 19)} | ${name} (${r.confidence.toFixed(2)}) | "${r.inputPreview.slice(0, 60)}..."`);
+      } catch { /* skip */ }
+    }
+  }
 } else {
   console.log(`Praxis Phase1A Bridge
 用法:
   tsx src/phase1a-bridge.ts inject           — 输出上下文注入 (SessionStart hook)
   tsx src/phase1a-bridge.ts end <file>       — 分析 transcript (Stop hook)
+  tsx src/phase1a-bridge.ts end --summary    — Session 摘要 (Stop hook, 无文件)
   tsx src/phase1a-bridge.ts expand           — 搜索经验注入 (UserPromptExpansion hook)
+  tsx src/phase1a-bridge.ts message          — 实时学习提取 (UserPromptSubmit hook)
   tsx src/phase1a-bridge.ts learn "<内容>"    — 手动保存学习
   tsx src/phase1a-bridge.ts show             — 查看学习状态
   tsx src/phase1a-bridge.ts shadow-stats     — 查看 Governor 影子决策统计
+  tsx src/phase1a-bridge.ts scene-log <文本>  — 手动场景识别测试
+  tsx src/phase1a-bridge.ts scene-stats      — 查看场景分类统计
 `);
 }
