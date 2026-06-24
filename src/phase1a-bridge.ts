@@ -22,7 +22,7 @@ import { Result, LearningEvent } from "./platform-adapter";
 import { CognitiveCore } from "./cognitive/cognitive-core";
 import type { CognitiveCoreMemoryClient } from "./cognitive/cognitive-core";
 import { SLOTS } from "./cognitive/constants";
-import { detectCorrection } from "./cognitive/signal-detector";
+import { detectCorrection, detectCorrectionLLM } from "./cognitive/signal-detector";
 
 // ---- CognitiveCore 工厂 (T8) ----
 
@@ -470,8 +470,8 @@ if (cmd === "inject") {
       logSession(session, `realtime_learned:${finalEvents.length}`);
     }
 
-    // Governor shadow mode: 关键词检测 → governorDecide → 影子日志
-    const correction = detectCorrection(prompt);
+    // Governor shadow mode: LLM 语义检测 → governorDecide → 影子日志
+    const correction = await detectCorrectionLLM(llmClient, prompt);
     if (correction) {
       // 使用 Claude Code 提供的真实 session ID (环境变量 CLAUDE_SESSION_ID)
       const sessionId = process.env.CLAUDE_SESSION_ID || `shadow_${getSessionCount()}`;
