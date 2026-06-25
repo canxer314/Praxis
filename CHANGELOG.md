@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.2.0] - 2026-06-25
+
+### Added
+- **M1 version chain:** createVersion, rollback, diffVersions, versionSummary per architecture sect3
+
+
 ## [0.8.1.0] - 2026-06-25
 
 ### Added
