@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1.0] - 2026-06-25
+
+### Added
+- **M1 ProtoStructure type system:** complete interface family (ProtoStructure base + 5 subtypes: ProtoSequence, ProtoRole, ProtoConcept, ProtoPurpose, ProtoConstraint) per architecture §3+§9
+- **StructureGraph:** relation graph with 6 relation types + deterministic confidence propagation (BFS, ≤3 hops) + cycle detection
+- **StructureLifecycle:** 6-stage lifecycle state machine + crystallization/degradation gates + M4 verifier interface stub
+
 ## [0.8.0.1] - 2026-06-25
 
 ### Added
