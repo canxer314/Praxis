@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.0.1] - 2026-06-25
+
+### Added
+- **M0 module exports:** EventOrchestrator, 7 event handlers, M0Deps, localCache exported from `@praxis/cognitive-core`
+- **CognitiveCore deprecation:** `@deprecated` JSDoc tag referencing EventOrchestrator as replacement
+
+### Changed
+- **tsconfig:** exclude legacy `phase1a-bridge.ts` from typecheck
+
 ## [0.8.0.0] - 2026-06-25
 
 ### Added
