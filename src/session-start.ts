@@ -111,7 +111,7 @@ export class SessionStartHandler {
       const result = await this.deps.memory.smartSearch("", "knowledge");
       if (!result.ok || !Array.isArray(result.value)) return [];
 
-      return result.value.slice(0, 10).map((item: Record<string, unknown>) => ({
+      return (result.value as Record<string, unknown>[]).slice(0, 10).map((item) => ({
         title: String(item.title ?? ""),
         content: String(item.content ?? ""),
         confidence: typeof item.confidence === "number" ? item.confidence : 0.5,

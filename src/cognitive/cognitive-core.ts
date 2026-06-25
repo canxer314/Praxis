@@ -1,5 +1,9 @@
 /**
- * CognitiveCore — @praxis/cognitive-core 主入口
+ * CognitiveCore — @praxis/cognitive-core 主入口 (V1)
+ *
+ * @deprecated 自 M0 (v0.8.0.0) 起，使用 EventOrchestrator (src/orchestrator.ts) 替代。
+ * CognitiveCore 保留为兼容层。新代码应使用 EventOrchestrator + M0Deps。
+ * 迁移指南: 见 docs/M0-dev-plan.md §Step 4。
  *
  * 职责:
  *   - 接收外部依赖 (memoryClient, llmClient) — 构造注入

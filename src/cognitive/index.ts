@@ -139,5 +139,21 @@ export { SLOTS } from "./constants";
 // 开发工具
 export { InMemoryMemoryClient } from "./inmemory-client";
 
+// M0: 核心运行时 (v0.8.0.0+)
+export { EventOrchestrator } from "../orchestrator";
+export type { PraxisLifecycleEvent } from "../orchestrator";
+export { SessionStartHandler } from "../session-start";
+export { SessionEndHandler } from "../session-end";
+export { MessageReceivedHandler } from "../message-received";
+export { BeforeToolCallHandler } from "../before-tool-call";
+export { AfterToolCallHandler } from "../after-tool-call";
+export { AgentEndHandler } from "../agent-end";
+export type { AgentEndSummary } from "../agent-end";
+export { CronTickHandler } from "../cron-tick";
+export type { M0Deps, MemorySubsystem, CacheSubsystem, LLMSubsystem } from "../m0-deps";
+export { DEFAULT_AUTONOMY_POLICY, assessRiskLevel } from "../m0-deps";
+export { localCache } from "../memory/local-cache";
+export type { CacheEntry, CacheStats } from "../memory/local-cache";
+
 // 全部类型
 export type * from "./types";
