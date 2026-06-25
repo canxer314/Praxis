@@ -1,69 +1,114 @@
 /**
- * SessionEndHandler — Phase 1A
+ * SessionEndHandler — M0 重构
  *
  * 职责:
- *   - 分析 session transcript → 提取 LearningEvent[]
- *   - 幂等去重：同一 sessionId 只处理一次
- *   - 持久化学习事件到 AgentMemory（progress_log slot）
- *   - 写入失败时降级处理
+ *   - 收集 session 中的所有待处理学习信号
+ *   - 每个信号写入 AgentMemory lesson
+ *   - AgentMemory 不可用时降级到 local-cache
+ *   - 可选: LLM transcript 分析 (analyzeTranscript)
+ *
+ * M4 将增加: TaskScheduler 决策 + 置信度融合 + ProtoStructure 提取。
  */
 
-import { Result, LearningEvent } from "./platform-adapter";
-
-// ---- 依赖注入 ----
-
-export interface SessionEndDeps {
-  setSlot: (name: string, data: unknown) => Promise<Result<void>>;
-  analyzeTranscript: (transcript: string) => Promise<LearningEvent[]>;
-}
+import type { Result } from "./platform-adapter";
+import type { M0Deps } from "./m0-deps";
+import type { PendingSignal } from "./cognitive/types";
 
 // ---- SessionEndHandler ----
 
 export class SessionEndHandler {
-  private readonly setSlot: SessionEndDeps["setSlot"];
-  private readonly analyzeTranscript: SessionEndDeps["analyzeTranscript"];
   private readonly processed = new Set<string>();
 
-  constructor(deps: SessionEndDeps) {
-    this.setSlot = deps.setSlot;
-    this.analyzeTranscript = deps.analyzeTranscript;
-  }
+  constructor(private readonly deps: M0Deps) {}
 
+  /**
+   * 处理 session_end 事件。
+   * @param sessionId 会话 ID
+   * @param transcript 完整对话记录 (可选 — 如果提供了 analyzeTranscript)
+   * @param pendingSignals session 中收集的所有学习信号
+   */
   async handle(
     sessionId: string,
-    transcript: string,
-  ): Promise<Result<{ learningEvents: LearningEvent[] }>> {
+    transcript: string | null,
+    pendingSignals: PendingSignal[],
+  ): Promise<Result<{ lessonsWritten: number; lessonsFromSignals: number; lessonsFromTranscript: number }>> {
     // 幂等去重
     if (this.processed.has(sessionId)) {
-      return { ok: true, value: { learningEvents: [] } };
+      return { ok: true, value: { lessonsWritten: 0, lessonsFromSignals: 0, lessonsFromTranscript: 0 } };
     }
     this.processed.add(sessionId);
 
-    // 提取学习事件
-    const events = await this.analyzeTranscript(transcript);
+    let lessonsFromSignals = 0;
+    let lessonsFromTranscript = 0;
 
-    // 无事件 → 不写入
-    if (events.length === 0) {
-      return { ok: true, value: { learningEvents: [] } };
+    // 1. 处理 pendingSignals → 写入 lessons
+    if (pendingSignals.length > 0) {
+      lessonsFromSignals = await this.persistSignals(sessionId, pendingSignals);
     }
 
-    // 持久化
-    const writeResult = await this.setSlot("progress_log", {
-      sessionId,
-      timestamp: new Date().toISOString(),
-      events,
-    });
+    // 2. LLM transcript 分析 (可选 — 需要 llm 依赖)
+    if (transcript && this.deps.llm) {
+      try {
+        const llmEvents = await this.deps.llm.analyzeTranscript(transcript);
+        for (const event of llmEvents) {
+          await this.writeLesson(sessionId, {
+            type: event.type,
+            content: event.content,
+            confidence: event.confidence,
+            source: "llm_analysis",
+          });
+          lessonsFromTranscript++;
+        }
+      } catch {
+        this.deps.logger?.warn("LLM transcript analysis failed", { sessionId });
+      }
+    }
 
-    if (!writeResult.ok) {
-      return {
-        ok: false,
-        error: {
-          code: writeResult.error.code,
-          message: `写入学习事件失败: ${writeResult.error.message}`,
-        },
+    return {
+      ok: true,
+      value: {
+        lessonsWritten: lessonsFromSignals + lessonsFromTranscript,
+        lessonsFromSignals,
+        lessonsFromTranscript,
+      },
+    };
+  }
+
+  // ---- 内部 ----
+
+  private async persistSignals(sessionId: string, signals: PendingSignal[]): Promise<number> {
+    const amAvailable = await this.deps.memory.isAvailable();
+    let written = 0;
+
+    for (const signal of signals) {
+      const lesson = {
+        type: signal.type,
+        content: signal.detail,
+        sessionId,
+        timestamp: signal.timestamp,
+        toolName: signal.toolName,
       };
+
+      if (amAvailable) {
+        const result = await this.deps.memory.saveLesson(lesson);
+        if (result.ok) written++;
+      } else {
+        // 降级: 写入 local-cache
+        const cacheKey = `pending_lesson_${signal.id}`;
+        this.deps.cache.set(cacheKey, lesson);
+        written++;
+      }
     }
 
-    return { ok: true, value: { learningEvents: events } };
+    return written;
+  }
+
+  private async writeLesson(sessionId: string, lesson: Record<string, unknown>): Promise<void> {
+    const amAvailable = await this.deps.memory.isAvailable();
+    if (amAvailable) {
+      await this.deps.memory.saveLesson({ ...lesson, sessionId });
+    } else {
+      this.deps.cache.set(`pending_lesson_${Date.now()}`, { ...lesson, sessionId });
+    }
   }
 }
