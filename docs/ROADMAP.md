@@ -1,7 +1,9 @@
 # Praxis RoadMap
 
 > 从 Feature List 认知系统到 World Model 认知引擎的演化路线图  
-> 起点: v0.7.2.0 (V13 架构, Phase 3 实现中) | 2026-06-25
+> 起点: v0.7.2.0 (V13 架构, Phase 3 实现中) | 2026-06-25  
+> 架构设计: [praxis-architecture.md](../architech/praxis-architecture.md) (World Model 完整蓝图, §1-§13)  
+> 核心张力: Feature List → World Model (架构文档 §1 header 显式命名)
 
 ---
 
@@ -24,27 +26,30 @@ Praxis V1-V13 建立了一个完整的认知架构概念——六层结构、多
 
 ## 一、演化全貌
 
+> 以下四个 Phase 的目标是实现架构文档 [§3 认知结构系统](../architech/praxis-architecture.md) 中定义的 ProtoStructure 完整能力。  
+> 架构文档 §3 已经定义了关系图、双重性质、版本链、五重结晶化门控、亚存在退役——这些是**设计目标**。本路线图定义的是**实现的先后顺序**。
+
 ```
 Phase I: 认知基础设施 (数据模型升级)
-  I-A: ProtoStructure 关系图        [P0] ← 一切后续能力的前置条件
-  I-B: 双重性质建模                 [P1] ← 依赖 I-A
-  I-C: 版本链                       [P1] ← 依赖 I-A
-  I-D: 反事实检验                   [P2] ← 依赖 I-A
+  I-A: ProtoStructure 关系图        [P0] ← 架构 §3 关系图 + 关系类型表
+  I-B: 双重性质建模                 [P1] ← 架构 §3 结构面+功能面+teleological mapping
+  I-C: 版本链                       [P1] ← 架构 §3 版本链 + 生命周期状态机
+  I-D: 反事实检验                   [P2] ← 架构 §3 奎因式五重门控 (条件 3-5)
 
 Phase II: 约束系统 (从检测到预防)
-  II-A: 上下文约束注入               [P0] ← 可并行于 Phase I
-  II-B: before_tool_call 约束验证   [P1] ← 依赖 II-A
-  II-C: 约束自动提取                 [P2] ← 依赖 I-A + II-A/B
+  II-A: 上下文约束注入               [P0] ← 架构 §7 Tier A/B/C + §10 before_tool_call
+  II-B: before_tool_call 约束验证   [P1] ← 架构 §3 ProtoConstraint 类型 + §10
+  II-C: 约束自动提取                 [P2] ← 架构 §4 统计验证器 + §8 范畴审计
 
 Phase III: 自主学习闭环
-  III-A: 注意力遥测驱动的结构审计    [P1] ← 依赖 V9 遥测基础设施(已有)
-  III-B: 跨 session 模式挖掘         [P1] ← 依赖 I-A
-  III-C: 主动澄清请求               [P2] ← 依赖 III-A/B 数据积累
+  III-A: 注意力遥测驱动的结构审计    [P1] ← 架构 §7 注意力遥测 + §13 /praxis audit
+  III-B: 跨 session 模式挖掘         [P1] ← 架构 §6 自主学习触发 + §10 cron_tick
+  III-C: 主动澄清请求               [P2] ← 架构 §13 /praxis audit 报告
 
 Phase IV: 元认知自治 [假设]
-  IV-A: 范畴盲区检测                 [P3] ← 依赖 I-III 生产数据
-  IV-B: 新范畴提议                   [P3] ← 需人类审批
-  IV-C: 范畴合并/废弃               [P3] ← 依赖 IV-A 检测结果
+  IV-A: 范畴盲区检测                 [P3] ← 架构 §8 范畴审计 + 康德式诊断分叉
+  IV-B: 新范畴提议                   [P3] ← 架构 §8 领域范畴同质性检查 + 三种铁律
+  IV-C: 范畴合并/废弃               [P3] ← 架构 §8 范畴审计
 ```
 
 ---
@@ -390,9 +395,9 @@ session_end:
 
 ## 五、Phase IV: 元认知自治 [假设]
 
-**解决什么**: 当前 4 种 ProtoStructure 类型（Sequence/Role/Concept/Purpose）是 V6 定义的，从未被质疑过。如果 Praxis 需要在不熟悉领域中运行，范畴系统本身可能需要演化。
+**解决什么**: 架构文档已定义了 5 种 ProtoStructure 类型（Sequence/Role/Concept/Purpose/Constraint）。但它们是 V6 定义的，从未被生产数据验证过是否足够。如果 Praxis 需要在不熟悉领域中运行，范畴系统本身可能需要演化。
 
-**为什么是"假设"而非"计划"**: 这个阶段的价值依赖于 Phase I-III 完成后是否确实观察到范畴盲区。可能 4 种类型已经足够。标记为 [假设] 意味着我们承诺在 Phase III 完成后重新评估此阶段的必要性。
+**为什么是"假设"而非"计划"**: 这个阶段的价值依赖于 Phase I-III 完成后是否确实观察到范畴盲区。可能 5 种类型已经足够。标记为 [假设] 意味着我们承诺在 Phase III 完成后重新评估此阶段的必要性。
 
 **前置条件**: Phase I-III 充分生产验证 + 充足的跨领域数据。
 
@@ -404,7 +409,7 @@ session_end:
 
 ### IV-B: 新范畴提议 `[P3]`
 
-**是什么**: 盲区检测触发 → Meta Layer 提议一个新范畴类型（如 ProtoConstraint / ProtoQuantity / ProtoRelation），附带支持证据 → 等待人类审批。
+**是什么**: 盲区检测触发 → Meta Layer 提议一个新范畴类型（如 ProtoQuantity / ProtoRelation / ProtoAxiom），附带支持证据 → 等待人类审批。
 
 ### IV-C: 范畴合并/废弃 `[P3]`
 
@@ -446,25 +451,26 @@ session_end:
 
 4. **如果 III-A（僵尸结构检测）有意义**: 生产数据中存在置信度 > 0.7 但采纳率 < 20% 的结构。如果不存在 → 结构审计的优先级可下调。
 
-5. **如果 IV（范畴演化）不必要**: 在 Phase I-III 完成后，>= 95% 的用户纠正能被现有 4 种范畴处理。如果成立 → Phase IV 可以无限期推迟。
+5. **如果 IV（范畴演化）不必要**: 在 Phase I-III 完成后，>= 95% 的用户纠正能被现有 5 种 ProtoStructure 类型处理。如果成立 → Phase IV 可以无限期推迟。
 
 ---
 
 ## 八、与当前实现的关系
 
-当前代码库（`src/cognitive/`）实现了 V13 架构的一部分。此路线图中的 Phase I 直接修改 `src/cognitive/types.ts` 中的 ProtoStructure 接口——这是影响面最大的变更。
+当前代码库（`src/cognitive/`, v0.7.2.0）实现了架构文档定义的 ~20% 模块。此路线图中的 Phase I 直接修改 `src/cognitive/types.ts` 中的 ProtoStructure 接口——这是影响面最大的变更。架构文档 §11 定义了目标模块树（含 `adapters/` + `orchestration/` + `analysis/` + `hooks/` + `memory/` + `prompts/` + `types/` + `tests/`）。
 
-| 路线图项 | 影响现有代码 | 新增文件 |
-|---------|------------|---------|
-| I-A 关系图 | `types.ts` (+relations 字段), `confidence-fuser.ts` (+传播逻辑) | `structure-graph.ts` |
-| I-B 双重性质 | `types.ts` (+structure/function/teleological_mapping) | — |
-| I-C 版本链 | `types.ts` (+versions[]), session-end/agent-end (写版本) | `structure-version.ts` |
-| I-D 反事实检验 | `confidence-fuser.ts` (+leave-one-out 对比) | `counterfactual.ts` |
-| II-A 约束注入 | `session-start.ts` (+约束注入段) | `constraint-injector.ts` |
-| II-B 工具前验证 | `before-tool-call` hook (+约束检查) | `constraint-validator.ts` |
-| II-C 约束提取 | `statistical-verifier.ts` (+约束生成) | `constraint-extractor.ts` |
-| III-A 结构审计 | `session-end.ts` (+遥测报告) | `structure-auditor.ts` |
-| III-B 模式挖掘 | — | `pattern-miner.ts` (+cron 入口) |
+| 路线图项 | 影响现有代码 | 新增文件 | 架构参考 |
+|---------|------------|---------|---------|
+| I-A 关系图 | `types.ts` (+relations 字段), `confidence-fuser.ts` (+传播逻辑) | `structure-graph.ts` | §3 关系图 |
+| I-B 双重性质 | `types.ts` (+structure/function/teleological_mapping) | — | §3 双重性质 |
+| I-C 版本链 | `types.ts` (+versions[]), session-end/agent-end (写版本) | `structure-version.ts` | §3 版本链 |
+| I-D 反事实检验 | `confidence-fuser.ts` (+leave-one-out 对比) | `counterfactual.ts` | §3 结晶化条件 |
+| II-A 约束注入 | `session-start.ts` (+约束注入段) | `constraint-injector.ts` | §7 Tier A/B/C, §10 |
+| II-B 工具前验证 | `before-tool-call` 事件处理器 (+约束检查) | `constraint-validator.ts` | §3 ProtoConstraint, §10 |
+| II-C 约束提取 | `statistical-verifier.ts` (+约束生成) | `constraint-extractor.ts` | §4 统计验证器 |
+| III-A 结构审计 | `session-end.ts` (+遥测报告) | `structure-auditor.ts` | §7 注意力遥测, §13 |
+| III-B 模式挖掘 | — | `pattern-miner.ts` (+cron 入口) | §6 自主学习触发 |
+| — 适配器层 | `platform-adapter.ts` (改造) | `adapters/` 目录 (5 文件) | §1 三层拓扑, §10 |
 
 ---
 
@@ -480,4 +486,7 @@ session_end:
 
 ---
 
-> **下一迭代目标**: Phase I-A (ProtoStructure 关系图) + Phase II-A (上下文约束注入)。这两项可并行，预计 3-4 周。
+> **下一迭代目标 (双轨并行)**:
+> - **轨道 1 — 快速价值**: II-A 上下文约束注入 + III-A 注意力遥测。这两项不依赖 I-A，可在 3-4 周内交付用户可感知的价值（LLM 违规减少 + 僵尸结构可见）。同时积累生产数据来验证架构假设。
+> - **轨道 2 — 深层基础**: I-A ProtoStructure 关系图。3-4 周。为 I-B/C/D 和 III-B 提供数据模型基础。
+> - **设计参考**: 架构文档 §3（ProtoStructure 完整设计）、§7（上下文编排）、§9（数据模型）、§11（目标模块树）。
