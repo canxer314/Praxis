@@ -525,3 +525,148 @@ export interface ProtoStructureSeed {
   typicalTools: string[];
   typicalDomains: string[];
 }
+
+// ══════════════════════════════════════════════════════════════════
+// M0: 标准生命周期事件类型 (对应架构 §10)
+// ══════════════════════════════════════════════════════════════════
+
+/** session_start — 会话开始时触发 */
+export interface SessionStartEvent {
+  sessionId: string;
+  projectScope?: string;
+  timestamp: number;
+}
+
+/** message_received — 收到用户/助手消息时触发 */
+export interface MessageReceivedEvent {
+  sessionId: string;
+  message: {
+    role: "user" | "assistant";
+    content: string;
+  };
+  timestamp: number;
+}
+
+/** before_tool_call — LLM 准备调用工具时触发 */
+export interface ToolCallRequest {
+  toolName: string;
+  toolParams: Record<string, unknown>;
+}
+
+export interface BeforeToolCallEvent {
+  sessionId: string;
+  toolCall: ToolCallRequest;
+}
+
+/** after_tool_call — 工具调用完成后触发 */
+export interface ToolCallResult {
+  success: boolean;
+  output?: unknown;
+  error?: string;
+}
+
+export interface AfterToolCallEvent {
+  sessionId: string;
+  toolName: string;
+  toolParams: Record<string, unknown>;
+  result: ToolCallResult;
+}
+
+/** agent_end — Agent 执行单元结束时触发 */
+export interface ToolCallRecord {
+  toolName: string;
+  toolParams: Record<string, unknown>;
+  result: ToolCallResult;
+  timestamp: number;
+}
+
+export interface AgentEndEvent {
+  sessionId: string;
+  toolCalls: ToolCallRecord[];
+}
+
+/** session_end — 会话结束时触发 */
+export interface SessionEndEvent {
+  sessionId: string;
+  /** 完整对话记录 (用户消息 + 助手响应 + 工具输出) */
+  transcript: string;
+  timestamp: number;
+}
+
+/** cron_tick — 定时触发 */
+export interface CronTickEvent {
+  timestamp: number;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M0: 上下文注入类型
+// ══════════════════════════════════════════════════════════════════
+
+/** 会话开始时注入 system prompt 的结构化上下文 */
+export interface SessionContextInjection {
+  /** 能力概况 */
+  competency: {
+    overallProficiency: number;
+    domainProficiencies: Record<string, number>;
+    strongestDomains: string[];
+    weakestDomains: string[];
+    currentLearningFocus: string | null;
+  };
+  /** 从 AgentMemory 检索的相关知识条目 */
+  knowledge: {
+    title: string;
+    content: string;
+    confidence: number;
+    source: string;
+  }[];
+  /** 上次会话的思维状态 */
+  mentalState: string | null;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M0: 学习信号类型
+// ══════════════════════════════════════════════════════════════════
+
+/** M0.4 信号捕获 — 会话中检测到的待处理学习信号 */
+export interface PendingSignal {
+  id: string;
+  type: "correction" | "success" | "failure";
+  sessionId: string;
+  timestamp: number;
+  detail: string;
+  /** 关联的工具名 (after_tool_call 检测到时填充) */
+  toolName?: string;
+  /** 用户纠正的具体内容 (message_received 检测到时填充) */
+  correction?: {
+    what: string;
+    correctedTo: string;
+    likelyRootCause: string;
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M0: 自主性策略类型
+// ══════════════════════════════════════════════════════════════════
+
+export type AutonomyLevel = "novice" | "advanced_beginner" | "competent" | "proficient" | "expert";
+
+export interface AutonomyPolicy {
+  defaultPolicy: {
+    unknownOperation: "confirm";
+    lowRiskKnown: "inform";
+    highRiskKnown: "confirm";
+    afterError: "downgrade_one";
+  };
+  operationPolicies: {
+    operation: string;
+    requiredProficiency: number;
+    autonomy: "supervised" | "semi_autonomous" | "fully_autonomous";
+    exceptions: string[];
+  }[];
+  riskLevels: {
+    low: string[];
+    medium: string[];
+    high: string[];
+    critical: string[];
+  };
+}
