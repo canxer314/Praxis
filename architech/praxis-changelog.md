@@ -218,3 +218,21 @@ V13  "谁推动这一切？"                  → 完全主动驱动
 - 轨道 2: I-A — 深层基础设施建设
 
 这个修正不影响架构设计本身（该有的模块一个不少），只影响实现优先级——而实现优先级不属于架构文档，属于 ROADMAP。
+
+---
+
+## 适配器架构修正 (2026-06-25)
+
+> Praxis 不应绑定到任何单一的 Agent 运行时。OpenClaw 只是其中一个适配器。
+
+### 修订内容
+
+**§1 — 架构定位图**: "外部世界"中 OpenClaw/Claude Code 从独占角色改为与 Hermes/Codex/Pi 并列的 Agent 运行时列表。
+
+**§1 — 三层运行时拓扑**: 从"Praxis 寄生于 OpenClaw"改为适配器模式。新增适配器层——每个 Agent 运行时通过轻量适配器接入 Praxis。适配器只做协议转换（运行时原生事件↔Praxis 标准生命周期事件），不做认知处理。
+
+**§2 L1**: "工具由 OpenClaw/MCP 提供" → "工具由 Agent 运行时/MCP 提供"。
+
+**§10 — 生命周期事件**: 从"Praxis 通过 Hook 介入 OpenClaw 的 Agent 生命周期"改为"Praxis 定义 7 个标准生命周期事件，每个运行时适配器负责映射"。表头保留 OpenClaw Hook 命名作为参考，但明确适配器接口是运行时无关的。
+
+**§11 — 模块树**: 新增 `adapters/` 目录（adapter-interface + openclaw/claude-code/hermes/codex 适配器）。根路径从 `openclaw/src/plugins/praxis-plugin/` 改为 `praxis/`。hooks/ 注释从"Hook 事件处理器"改为"标准生命周期事件处理器 (运行时无关)"。
