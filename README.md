@@ -267,6 +267,7 @@ Praxis/
 ## 相关文档
 
 - [演化路线图](docs/ROADMAP.md) — Phase I-IV: 从 Feature List 到 World Model 的四阶段演化
-- [完整架构设计](architech/praxis-architecture.md) — V1-V13 所有版本特性、数据模型、模块树
+- [完整架构设计](architech/praxis-architecture.md) — 合成架构（六层+ProtoStructure+学习引擎+编排引擎+主动驱动+上下文编排+元认知）
+- [架构演变史](architech/praxis-changelog.md) — V1→V13 完整演变过程（增删对照+跨版本设计主题）
 - [原始设计迭代](draft/) — 每个版本的 why/what/how/when/where/who + design
 - [CLAUDE.md](CLAUDE.md) — 行为准则和 skill 路由

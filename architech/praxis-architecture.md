@@ -1,816 +1,735 @@
 # Praxis 架构设计
 
-> **当前迭代**: V13 (完整认知引擎)  
-> **架构状态**: 设计完成，部分实现（见末尾实现对照）  
-> **设计哲学**: 每个版本聚焦一个核心问题角度，有增有减，非全量替换
+> Praxis 是一个 AI 认知操作系统——在无状态的 LLM 与外部世界之间的中间件层。  
+> 它赋予 LLM 跨会话的记忆、学习和主动任务编排能力。  
+> 它的本质是 **Context Orchestration Layer**（上下文编排层）：在正确的时间，以正确的格式，将正确的结构化记忆注入 LLM 的上下文窗口。
 
 ---
 
-## 〇、阅读指引：V1→V13 的迭代本质
+## 一、Praxis 是什么
 
-Praxis 的 13 个版本不是 13 次"推翻重做"。每个版本从一个特定的核心问题出发，在已有架构上增加新维度，同时删除被新约束证明不必要的部分。
+### 一句话定义
 
-理解 Praxis 的关键不是记住每个版本加了什么，而是理解**每个版本试图回答的那个核心问题**，以及**它为什么在那个时间点成为最重要的角度**。
+Praxis 是 AI 的"大脑皮层"。它记住每次任务中学到的东西，在下次任务前把相关经验注入 LLM 的上下文窗口，让 AI 不再每次都从零开始。它学到的不仅仅是"怎么用工具"，还包括"任务怎么做"、"领域里有什么"、"用户在想什么"、"自己还缺什么"——并且会主动发现知识缺口、主动推进任务、主动检测自身的框架缺陷。
 
-```
-V1   "AI 需要什么认知架构？"           → 六层分类法诞生
-V2   "这个架构跑在哪里？"              → 载体选择（OpenClaw）
-V3   "学什么？谁发起学习？"            → 从被动工具学习到主动多维学习
-V4   "下一步该干什么？"                → 从任务执行到过程驱动
-V5   "框架本身有问题怎么办？"          → 元层面的结构自演化
-V6   "完全陌生怎么办？"                → 零先验的认知从零构建
-V7   "怎么把设计变成代码？"            → 工程落地——Context Orchestration Layer
-V8   "token 不稀缺了怎么办？"          → 删除 token 妥协,引入独立验证
-V9   "token 又不够了怎么办？"          → 压力自适应,优雅降级
-V10  "现在在做什么任务？"              → 任务级认知感知
-V11  "知识怎么变成行动？"              → 结构化知行闭环
-V12  "任务怎么编排？"                  → 状态机驱动的主动认知引擎
-V13  "谁推动这一切？"                  → 完全主动驱动
-```
-
-每个版本的细节见下文。注意每个版本都有"增加"和"删减/重新审视"两栏——这是理解架构完整性的关键。
-
----
-
-## V1: 核心架构 — "AI 需要什么认知架构？"
-
-**核心问题**: 如果给一个无状态的 LLM 装上"记忆和学习能力"，它需要哪些组成部分？
-
-### V1 新增
-
-**六层架构**（自底向上）:
+### 架构定位
 
 ```
-L6: 自主决策层 (Autonomy Engine)
-    • 跨工具的自主性判断 — proficiency × risk → action
-L5: 能力模型层 (Competency Manager)
-    • 多维度技能树（领域 × 工具 × 熟练度）
-L4: 学习闭环层 (Learning Engine)
-    • 统一的 执行→评估→差距→更新→固化 循环
-L3: 知识管理层 (Knowledge Manager)
-    • 多模态知识摄入 + 工具特定知识库 + 关联索引
-L2: 任务编排层 (Task Orchestrator)
-    • 复杂任务→子任务→工具调用序列 + 错误恢复
-L1: 工具与集成层 (Tool Registry)
-    • 工具注册、发现、反馈解释器
+┌────────────────────────────────────────────┐
+│              用户 (User)                    │
+└────────────────┬───────────────────────────┘
+                 │ 对话、任务分配、反馈
+                 ▼
+┌────────────────────────────────────────────┐
+│         AI 推理引擎 (LLM)                   │
+│         • 通用推理 • 无状态 • 无记忆        │
+└────────────────┬───────────────────────────┘
+                 │
+    ┌────────────┴────────────┐
+    │                         │
+    ▼                         ▼
+┌──────────────┐    ┌────────────────────────┐
+│   Praxis     │◀──▶│    AgentMemory         │
+│  (中间件)    │    │    (持久存储后端)       │
+│              │    │                        │
+│ • 能力模型   │    │ • Slot 状态管理         │
+│ • 学习闭环   │    │ • 记忆存储/检索/版本链  │
+│ • 任务编排   │    │ • 知识图谱/模式检测     │
+│ • 自主决策   │    │ • 多实例同步            │
+│ • 主动驱动   │    │                        │
+└──────┬───────┘    └────────────────────────┘
+       │
+       │ MCP / REST / WebSocket
+       ▼
+┌────────────────────────────────────────────┐
+│            外部世界                         │
+│  • OpenClaw / Claude Code (Agent 运行时)    │
+│  • MCP Servers (工具集成)                  │
+│  • IoT 设备 / API / 数据库                 │
+└────────────────────────────────────────────┘
 ```
 
-**核心数据模型**（6 个）:
-- `Tool` — 工具注册（id, interface, feedback signals, risk 评估）
-- `Task` — 任务追踪（assignment, execution, outcome, lessons）
-- `Knowledge` — 知识条目（source, modality, organization, confidence）
-- `LearningEvent` — 学习事件（type, impact on skills, evidence）
-- `CompetencyModel` — 能力模型（skill_tree, composite_skills, working_style）
-- `AutonomyPolicy` — 自主性策略（proceed/inform/confirm/block 决策）
+### 三层运行时拓扑
 
-**4 种记忆类型**: Episodic（情景）| Procedural（程序）| Semantic（语义）| Metacognitive（元认知）
+Praxis 寄生于 OpenClaw Agent 框架，形成三层关系:
 
-**学习闭环（3 阶段）**: task_receive（任务前评估+记忆注入）→ task_execute（捕获修正信号）→ session_end（学习提取+持久化）
-
-**Result\<T\> 模式**: 所有异步 API 返回 discriminated union，不用 try-catch。
-
-**AgentMemory 集成**: 21 种存储映射（slot/save/search/lesson/pattern/reflect 等）。
-
-**V1 范围边界**: 明确包含 12 项，明确排除 7 项（音频/视频实时转写、跨工具工作流、多实例 mesh sync、自我驱动学习等——目标 V2-V4）。
-
-### V1 的局限（被后续版本识别的）
-
-V1 回答的是"应该有什么部件"。它没有回答：这些部件在哪里运行、如何运行、数据怎么流转、以及——这些部件之间的关系是什么。V1 是分类法，不是架构。
-
----
-
-## V2: 架构载体 — "这个架构跑在哪里？"
-
-**核心问题**: V1 假设自建 Harness。但现实中已经有 OpenClaw（开源 Agent 框架）、Hermes（PI 桌面自动化）等候选载体。Praxis 应该作为独立系统还是寄生在现有框架中？
-
-### V2 新增
-
-**架构载体决定**: Praxis 作为 **OpenClaw Memory Plugin** 运行。原因：PI 桌面自动化场景太窄；Hermes 有独立学习循环与 Praxis 冲突；OpenClaw 开源、Plugin 成熟、MCP 原生、Hook 完整、无学习循环重叠。
-
-**三层模型（Praxis 的核心拓扑）**:
 ```
 AgentMemory (大脑皮层, 持久存储)
-    ↕ MCP
-Praxis (心智模型, 学习+决策)
-    ↕ Hook
-OpenClaw (身体, 工具执行+Agent调度+通信)
+    ↕ MCP 协议
+Praxis (心智模型, 学习+决策+编排)
+    ↕ Hook 系统
+OpenClaw (身体, 工具执行+Agent调度+多通道通信)
 ```
 
-**5 个核心 Hook 映射**:
-| Hook | 职责 | 返回值 |
-|------|------|--------|
-| `session_start` | 加载能力模型+工具注册表+思维状态 → 注入 system prompt | prompt 注入 |
-| `before_tool_call` | proficiency × risk → autonomy 决策 | proceed/inform/confirm/block |
-| `after_tool_call` | 匹配 feedback signals → 检测学习事件 | 追踪记录 |
-| `agent_end` | 汇总工具调用 → 学习循环 → 更新能力模型 | TaskTrace 持久化 |
-| `session_end` | 反思 + 模式检测 + mental_state 保存 | 状态快照 |
-
-**AutonomyPolicy 决策映射**: 将 V1 的抽象策略映射到 OpenClaw 可执行指令。
-
-**新增数据类型**: ToolProficiency（工具来源追踪）、TaskTrace（调用链追踪）、会话内缓存策略（session_start 批量加载→内存操作→session_end 批量写回）。
-
-### V2 的删减/重新审视
-
-**删除**: V1 的"自建 Harness"假设。V1 设计了独立的消息通道、自建 Hook 系统、Claude Code 特定集成——这些全部被 OpenClaw Plugin 模式替代。
-
-**保留**: V1 的六层架构、数据模型、学习闭环——全部保留，只是运行载体变了。
-
-### V1→V2 的关键差异
-
-| V1 自建 | V2 使用 OpenClaw |
-|---------|-----------------|
-| Tool Registry（自建数据模型） | Tool Registry（OpenClaw 工具列表 + Praxis 元数据叠加） |
-| Claude Code Harness Hooks | OpenClaw Plugin Hook System |
-| Claude Code Slash Commands | OpenClaw Plugin Commands |
-| 自建消息通道 | OpenClaw 20+ 消息通道 |
+- **AgentMemory**: Praxis 的持久化后端。所有认知结构、任务状态、学习历史通过 MCP 调用存取。
+- **Praxis**: 位于中间的心智层。不执行工具、不调度 Agent、不管理通信——这些由 OpenClaw 负责。Praxis 只做认知: 记忆组织、经验学习、场景匹配、置信度管理、任务编排决策。
+- **OpenClaw**: 执行层。提供 Hook 系统（Praxis 通过 Hook 介入 Agent 生命周期）、工具执行（MCP 工具和内置工具）、多通道通信（Telegram/Discord 等）。
 
 ---
 
-## V3: 多维学习 + 主动好奇心 — "学什么？谁发起学习？"
+## 二、六层认知架构
 
-**核心问题**: V2 把学习简化为"工具调用的成功/失败反馈"。但一个大学毕业生在工作中成长时，学到的远不止"怎么用咖啡机"。V3 追问：学习的真正对象是什么？学习应该是被动的还是主动的？
+Praxis 内部采用六层架构。每层职责独立，层间通过明确的接口通信。
 
-### V3 新增
+```
+┌──────────────────────────────────────────────────────────────┐
+│ L6: 自主决策层 (Autonomy Engine)                              │
+│     proficiency × risk → proceed / inform / confirm / block  │
+│     工具自主性 + 提问自主性 + 驱动自主性                        │
+├──────────────────────────────────────────────────────────────┤
+│ L5: 能力模型层 (Competency Manager)                           │
+│     8D 能力评估: 工具、领域、任务、用户、过程管理、             │
+│     行动可靠性、原型认知、学习速度                              │
+├──────────────────────────────────────────────────────────────┤
+│ L4: 学习闭环层 (Learning Engine)                              │
+│     执行 → 评估 → 差距 → 更新 → 固化                          │
+│     + Curiosity Engine (主动检测知识缺口)                      │
+│     + Momentum Engine (主动推动过程阻塞)                       │
+│     + MidSessionLearner (会话中实时修正)                       │
+├──────────────────────────────────────────────────────────────┤
+│ L3: 知识管理层 (Knowledge Manager)                            │
+│     5 类知识: 领域/任务/用户/流程/工具                         │
+│     + 知识缺口追踪 + 跨场景语义消歧                            │
+│     + Role Model (多角色关系图)                                │
+├──────────────────────────────────────────────────────────────┤
+│ L2: 任务编排层 (Task Orchestrator)                            │
+│     两层嵌套状态机 (任务级 7 状态 + 子任务级 4 状态)           │
+│     + plan-generator (ProtoTask → 计划文档)                   │
+│     + verifier (5 种验收标准)                                  │
+│     + pitfall-tracker (陷阱追踪与反馈学习)                     │
+├──────────────────────────────────────────────────────────────┤
+│ L1: 工具与集成层 (Tool Registry)                              │
+│     工具注册/发现 + 熟练度追踪 + 反馈解释器                    │
+│     (工具由 OpenClaw/MCP 提供，Praxis 叠加认知元数据)          │
+└──────────────────────────────────────────────────────────────┘
 
-**4D 能力模型**（V2 的 1D 工具熟练度→V3 的 4D）:
-| 维度 | 内容 | 示例 |
-|------|------|------|
-| `tool_skills` | 每工具熟练度（V2 保留） | coffee: 0.72 |
-| `domain_familiarity` | 业务领域理解度 | 膜力云水务: 0.65 |
-| `task_type_proficiency` | 任务类型熟练度 | 周报制作: 0.80 |
-| `user_model_confidence` | 用户偏好/风格了解度 | 沟通风格: 0.75 |
-
-**Curiosity Engine（4 阶段）**: Gap Detection → Prioritization（relevance×frequency×impact×urgency）→ Action Generation（Level 0-3）→ Question Governance（频率/质量/静默时段限制）。
-
-**5 种学习事件**（V2 的 1 种→V3 的 5 种）: mistake_correction | domain_insight | preference_discovery | task_pattern_recognition | procedural_optimization
-
-**5 种知识类型**: domain_knowledge | task_pattern | user_model | procedural_knowledge | tool_knowledge
-
-**message_received Hook（第 6 个）**: 语义意图分析 — teaching_mode / correction_mode / preference_expression / task_evaluation / gap_signal
-
-**双向交互**: Praxis 可通过 OpenClaw 通道主动向用户提问（受治理策略约束）。
-
-### V3 的删减/重新审视
-
-**重新审视**: V2 的"被动学习"假设。V2 认为所有学习由 Hook 事件驱动（用户纠正→Praxis 响应）。V3 引入了内部驱动的 Curiosity Engine——不依赖 Hook，在 agent_end / session_end 主动运行。
-
-### V3 的设计洞察
-
-> V2 的 AI 像一个好用的工具——你教它，它学会，下次做得更好。  
-> V3 的 AI 像一个有心气的新人——它不仅学会你教的，还会自己发现自己哪里不懂，在你不忙的时候带着具体问题来请教。
+横切关注点:
+  Meta Layer (L5.5): 监控所有层的结构性缺陷——框架本身是否有盲区
+  Context Orchestration: 所有认知操作的最终落地方式——
+    在正确时间以正确格式将正确信息注入 LLM prompt
+```
 
 ---
 
-## V4: 过程驱动 — "下一步该干什么？"
+## 三、认知结构系统: ProtoStructure
 
-**核心问题**: V3 让 Praxis 知道"学什么"。但任务不是孤立的工具调用序列——任务是过程网络，涉及多个角色、有等待和阻塞、需要推动和升级。V4 追问：Praxis 如何管理"工作流"而非"工具链"？
+### 核心概念
 
-### V4 新增
+ProtoStructure 是 Praxis 的**认知基本单元**——从对话和工具调用中提取的概率化、可演化的结构模式。它们是 Praxis "学到的东西"的物质载体。
 
-**Process Engine（过程引擎）**: 嵌入 L2（任务编排层），将 V3 的工具链任务模型升级为过程网络模型。
+ProtoStructure 和传统知识图谱的关键区别: 知识图谱由人类专家手动定义，是静态的确定性结构；ProtoStructure 由 LLM 从观察中自动提取，是概率性的（带置信度）、随时间演化的（版本链）、可衰退的（被推翻后可回退）。
+
+### 五种认知结构类型
+
+| 类型 | 捕捉什么 | 示例 |
+|------|---------|------|
+| **ProtoSequence** | 行为序列模式——"先做什么后做什么" | 门诊流程: 挂号→分诊→问诊→检查→开药 |
+| **ProtoRole** | 角色关系——"谁负责什么、和谁交互" | 门诊医生: 诊断决策者, 依赖挂号员+检验科 |
+| **ProtoConcept** | 概念定义——"X 是什么、和其他概念的关系" | "分诊": 根据病情紧急程度分配就诊优先级 |
+| **ProtoPurpose** | 目标意图——"为什么做这件事" | 挂号的目的: 建立医患法律关系, 确定就诊优先级 |
+| **ProtoConstraint** | 约束公理——"什么绝对不能做/必须做" | 处方开具必须在诊断完成之后 |
+
+### 双重性质: 结构面 + 功能面
+
+每个 ProtoStructure 同时记录两个不可互相还原的维度:
 
 ```
-ProcessTemplate → ProcessInstance → ProcessStep
-    "流程模板"       "流程实例"       "流程步骤"
-  "软件开发流程       "用户管理模块      "架构设计这个
-   应该怎么走"       开发现在走到哪"    步骤的具体情况"
+ProtoSequence "门诊流程":
+  ┌─ 结构面 (可观察的行为)
+  │  步骤 1: 挂号 (挂号员, 3-5分钟)
+  │  步骤 2: 分诊 (分诊护士, 2-3分钟)
+  │  步骤 3: 候诊 (患者, 5-30分钟)
+  │  步骤 4: 问诊 (门诊医生, 10-15分钟)
+  │
+  ┌─ 功能面 (为什么每一步存在)
+  │  挂号目的: 建立医患法律关系, 确定就诊优先级
+  │  分诊目的: 按病情紧急程度分配资源
+  │  候诊目的: 缓冲医生资源的不均匀需求
+  │  问诊目的: 采集病史+体格检查→初步诊断
+  │
+  └─ 结构→功能映射 (teleological mapping)
+     步骤 1 → 服务于"建立法律关系" (essential)
+     步骤 1 → 服务于"确定优先级" (supporting)
+     
+当用户说"我们取消了挂号窗口, 全部在线预检分诊":
+  → Praxis 检查功能面: "建立法律关系"和"确定优先级"两个目的
+    是否仍然被满足?
+  → 是 → 结构改变但功能不变 → 只更新 teleological_mapping
+    否 → 结构改变且功能失败 → 置信度下调
 ```
 
-**三种步骤类型**: `self`（Praxis 自己做）| `delegated`（找协作者做）| `collaborative`（混合——Praxis 组织+协作者参与）
+### 关系图: 结构之间的依赖
 
-**步骤状态机**: `pending → ready → in_progress → completed` / `blocked → waiting → nudge → escalated`
+ProtoStructure 不是孤立的。它们之间通过显式的关系边连接:
 
-**Role Model（角色模型）**: 嵌入 L3（知识管理），将 V3 的单 UserModel 扩展为多角色注册表——RoleRegistry、角色关系图（谁对谁有依赖、谁能批准谁）、沟通适配。
+| 关系类型 | 语义 | 置信度传播规则 |
+|---------|------|--------------|
+| `depends_on` | A 的正确性依赖 B | B 置信度下降 Δ → A 下降 Δ × 依赖强度 |
+| `contradicts` | A 和 B 不能同时为真 | A 上升 Δ → B 下降 Δ × 矛盾强度 |
+| `specializes` | A 是 B 的子类型 | B 变化 → A 同向变化 × 特化因子 |
+| `precedes` | A 必须在 B 之前发生 | B 在 A 之前出现 → 两个结构都降级 |
+| `constrains` | A 对 B 施加约束 | B 违反约束 → B 降级 |
+| `alternative_to` | A 和 B 是同一功能的不同实现 | B 置信度上升 → A 可降级（功能覆盖） |
 
-**Momentum Engine（推动引擎）**: 对称于 V3 的 Curiosity Engine。Curiosity Engine 管理"知识缺口"→ Momentum Engine 管理"过程阻塞"。
+传播深度限制: ≤ 3 跳，防止远距离弱依赖造成噪声震荡。所有传播规则为确定性逻辑，不调 LLM。
+
+### 生命周期与版本链
+
+每个 ProtoStructure 在以下状态间流转:
 
 ```
-阻塞检测 → 推动策略决策树:
-  wait → nudge (催办, 最多 N 次) → escalate (升级给用户)
-  → bypass (绕过, 找替代角色) → abandon (放弃, 记录原因)
+hypothesized → candidate → experimental → crystallized → deprecated/rejected
+                                          ↑__________________↓
+                                          (衰退可逆转)
 ```
 
-**Action Verification Loop（5 维验证）**: 步骤决策正确性 | 角色路由准确性 | 时机适当性 | 沟通适配性 | 流程效率
+**结晶化条件（四重门控）**:
+1. 置信度 > 0.8
+2. 观察次数 ≥ 5
+3. 反事实检验: 移除该结构后，LLM 的预测准确率是否显著下降？（是 → 通过）
+4. 人类审批（V5 铁律: 无新结构不经过人类审批）
 
-**cron_tick Hook（第 7 个）**: 时间驱动的定期扫描。扫描活跃 ProcessInstance → 检查等待超时 → 触发 Momentum Engine。
+**版本链**: 每次修改（用户纠正/自动优化/结晶化/衰退/融合）产生一个新版本，记录 diff、rationale、evidence、performance。支持回滚到任意历史版本。支持从多个版本融合。
 
-**4D→6D 能力模型**: 新增 `process_management`（管理过程、推动步骤、处理阻塞）和 `action_reliability`（行动决策的可信度）。
+### 退役与亚存在
 
-### V4 的删减/重新审视
-
-**重新审视**: V1-V3 隐含的"任务=工具调用序列"模型。V4 指出任务是过程网络，涉及人、等待、阻塞、推动——这些不是工具调用能覆盖的。
-
-### V4 的设计洞察
-
-> V3 让 Praxis 知道"学什么"。V4 让 Praxis 知道"下一步该干什么"——不是调哪个工具，而是推动什么、找谁推动、卡住了怎么办。
+被取代的结构不会被删除。它们进入"亚存在"状态——当前不活跃，但保留了到新结构的映射和关键教训。当旧场景重现或新结构衰退时，可重新激活。
 
 ---
 
-## V5: Meta Layer — "框架本身有问题怎么办？"
+## 四、学习引擎
 
-**核心问题**: V1-V4 的架构假设六层分类法和学习策略本身是正确的。但如果框架本身有缺陷呢？V5 引入 Meta Layer——一个不对任务做处理的侧观察者，专门监控子系统是否存在**结构性不足**（框架本身的缺陷，而非知识缺口）。
+### 学习闭环
 
-### V5 新增
+```
+┌──────────────────────────────────────────────────────┐
+│                  Learning Loop                        │
+│                                                       │
+│  ┌──────────┐   ┌──────────┐   ┌──────────────┐     │
+│  │ 执行任务  │──▶│ 评估结果  │──▶│ 识别能力差距  │     │
+│  │ (L2)     │   │          │   │              │     │
+│  └──────────┘   └────┬─────┘   └──────┬───────┘     │
+│       ▲               │               │              │
+│       │          ┌────▼─────┐   ┌─────▼────────┐    │
+│       │          │ 用户反馈  │   │ 更新能力模型  │    │
+│       │          │ (稀缺)    │   │ (L5)         │    │
+│       │          └──────────┘   └──────┬────────┘    │
+│       │                                │              │
+│       │          ┌──────────┐   ┌─────▼────────┐    │
+│       └──────────┤ 应用到   │◀──┤ 更新行为指引  │    │
+│                  │ 下次任务  │   │ (注入上下文)  │    │
+│                  └──────────┘   └──────────────┘    │
+└──────────────────────────────────────────────────────┘
+```
 
-**StructuralGap vs KnowledgeGap 区分**:
+**三条学习路径**:
+- **路径 A — 工具反馈**: before_tool_call/after_tool_call → 匹配成功/失败信号 → 更新工具熟练度
+- **路径 B — 对话语义**: message_received → 语义意图分析（教导模式/纠正模式/偏好表达/任务评价）→ 提取知识/更新用户模型
+- **路径 C — 任务级反思**: agent_end → 跳出单工具视角 → 评估整体任务成败 → 提取任务模式 → 更新 ProtoTask
+
+### Governor: 学习决策编排器
+
+Governor 是学习管道的统一入口。4 阶段:
+
+```
+信号进入 → classify (分类: correction/insight/preference/pattern) 
+        → gate (门控: 去噪/去重/频次限制) 
+        → decide (裁决: 是否学习/学什么/调整幅度) 
+        → dispatch (分发: 更新能力模型/存储知识/生成 ProtoTask)
+```
+
+降级策略: Governor 自身抛错 → 信号旁路到原始执行反馈收集器（不丢失学习信号）。
+
+### 多源置信度融合
+
+每个 ProtoStructure 的置信度由 7 个独立信号源加权融合:
+
+| 信号源 | 权重 | 独立性 | 说明 |
+|--------|------|--------|------|
+| statistical | 0.25 | 独立于 LLM | 工具序列实际匹配 vs ProtoSequence 预测 |
+| llm_marker | 0.25 | 来自 LLM | [PREDICTION_CONFIRMED/FAILED/UNCERTAIN] 标记 |
+| user_correction | 0.12 | 独立于 LLM | 用户显式纠正 |
+| role_verifier | 0.12 | 独立 | ProtoRole 行为 vs 实际工具调用者模式 |
+| concept_verifier | 0.08 | 独立 | 对抗 prompt 寻找反例 |
+| outcome_feedback | 0.10 | 独立 | 子任务成败→使用的结构表现 |
+| mid_session | 0.08 | 独立 | 会话中实时矛盾检测 |
+
+融合后的单一置信度决定该结构的注入策略（Tier A/B/C/不注入）。
+
+### Curiosity Engine: 主动知识缺口检测
+
+不依赖 Hook 触发——在 agent_end 和 session_end 主动运行:
+
+```
+阶段 1 — 缺口检测: 扫描任务中的未知术语/被反复纠正的模式/长期不增长的技能
+阶段 2 — 缺口排序: relevance × frequency × impact × urgency → priority 0.0-1.0
+阶段 3 — 行动生成: 
+  priority < 0.3 → 静默标记等待自然填充
+  priority 0.3-0.6 → 下次相关任务时检索外部资源
+  priority 0.6-0.8 → 生成提问草稿等待合适时机
+  priority > 0.8 → 立即请求用户协助
+阶段 4 — 提问治理: 频率限制 + 静默时段 + 批量合并 + 冗余检查
+```
+
+### MidSessionLearner: 会话中实时学习
+
+不等到 session_end——在 message_received 和 before_tool_call 中同步运行（< 10ms，纯规则匹配，不调 LLM）:
+- 用户说"不对，应该是 X" → 即时下调关联 ProtoStructure 置信度
+- 工具调用模式违反 ProtoConstraint 3+ 次 → 即时下调该结构置信度
+- 单会话下调总量上限: 0.2（防止过度修正）
+
+---
+
+## 五、任务编排引擎
+
+### 两层嵌套状态机
+
+```
+外层循环 (任务级, 7 状态):
+TASK_NOT_STARTED → TASK_ASSESSING → TASK_PLAN_GENERATING → TASK_IN_PROGRESS
+    → TASK_VERIFYING → TASK_COMPLETE
+    ↕ (verification_failed 时)
+    TASK_ITERATING → TASK_IN_PROGRESS
+
+内层循环 (子任务级, 4 状态 + 1 中间态):
+SUBTASK_PENDING → SUBTASK_ACTIVE → SUBTASK_COMPLETING → SUBTASK_VERIFIED
+                                                      → SUBTASK_FAILED
+中间态: SUBTASK_BLOCKED (用户纠正或工具违反 3+ 次时触发)
+```
+
+**驱动方式**: 每个到达 Praxis 的 Hook 事件（session_start, message_received, before_tool_call, after_tool_call, agent_end, session_end）推进状态机一步。V13 的主动驱动层在此基础上增加了自动触发: TaskScheduler 在 session_end 时决定是否自主发起下一个动作。
+
+### 计划生成: ProtoTask → PlanDocument
+
+Praxis 从历史同类任务中学习任务模式（ProtoTask），用于指导新任务的计划:
+
+```
+bootstrap (0 个项目, 置信度 0.2):
+  LLM 通用知识 → 基本的阶段划分 + 常见陷阱
+
+累积成长:
+  1 个项目 → 0.3 (开始与现实校准)
+  3 个项目 → 0.5 (团队模式开始浮现)
+  5 个项目 → 0.65 (阶段时长和陷阱开始可靠)
+  10+ 个项目 → 0.8-0.95 (高度可靠)
+```
+
+plan-generator 将 ProtoTask 模板 + 当前 TaskContext 转化为可执行的 PlanDocument（含 phases, subtasks, criteria, guidance signals）。
+
+### 验收: 5 种验证标准
+
+| 类型 | 自动化程度 | 示例 |
+|------|----------|------|
+| `command_output` | 自动 | `npm test -- --testPathPattern=X` → 匹配输出 |
+| `file_existence` | 自动 | 检查文件是否已生成 |
+| `test_pass` | 自动 | 运行测试套件 |
+| `llm` | 半自动 | LLM 审查代码/文档质量 |
+| `user_approval` | 手动 | 部署/安全/财务类操作必须人类确认 |
+
+命令白名单: `npm test`, `cargo test`, `go test`, `pytest`（防止任意命令执行）。
+
+### 陷阱追踪
+
+子任务失败 → 关键词匹配 ProtoTask.common_pitfalls → 命中反馈（ProtoTask 置信度 +0.02）→ 误报率控制（> 30% 自动降 severity）。陷阱知识随项目积累成长——第 1 次遇到是意外，第 3 次就是已知陷阱。
+
+---
+
+## 六、主动驱动系统
+
+### TaskScheduler: 主动调度决策
+
+在 session_end 时触发决策矩阵:
+
+```
+评估: 自主驱动是否启用？是否在静默时段？今日触发次数是否超限？
+  ↓
+决策:
+  subagent_run        → 存在可并行子任务 → spawn 子 Agent
+  scheduleSessionTurn  → 存在需本 Agent 继续的任务 → 调度下个会话 (< 1h 相对时间)
+  scheduleSessionTurn  → 存在需等待外部反馈的任务 → 调度下个会话 (1-24h 绝对时间)
+  cron_job            → 存在需定期检查的任务 → 注册定期任务 (> 24h)
+```
+
+### SubagentManager: 并行子 Agent 生命周期
+
+```
+spawnSubagent()         构建上下文(子任务+陷阱预警+验收标准, 不含父对话历史)
+  → waitForCompletion()  等待完成 + 超时检测
+  → retrySubagent()      失败重试 (max_retries 次)
+  → aggregateResults()   汇总所有子 Agent 结果
+```
+
+约束: 最大并行度 3（可配置）。失败隔离: 一个子 Agent 失败不影响其他子 Agent。
+
+### HeartbeatMonitor: 心跳停顿检测
+
+每 5 分钟检查所有活跃任务的子任务状态:
+
+```
+Level 1 — NUDGE:   有活跃 session → 注入提醒到 LLM 上下文
+Level 2 — WAKE:    无活跃 session → 主动请求唤醒
+Level 3 — ESCALATE: 停顿 > 24h → 标记 SUBTASK_BLOCKED + 推进外循环到 TASK_ITERATING
+```
+
+### 自主学习触发
+
+定期 cron 任务:
+- 分析 task_history → 达到 min_observations → 自动构造/更新 ProtoTask
+- 置信度 plateau 检测（连续 3 次观察无提升）→ 请求更多同类任务
+- 能力模型定期审计 → 识别停滞技能 → 生成学习建议
+
+### 跨 Agent 认知同步
+
+子 Agent session_end → 写入 ProtoStructure 更新（乐观锁 + version 号）→ 父 Agent session_start 读取最新版本。确保子 Agent 学到的经验回流到父 Agent 的认知模型中。
+
+---
+
+## 七、上下文编排系统
+
+### 场景识别
+
+session_start 时，LLM 分析当前对话的初始上下文，将其分类到一个或多个已知场景（scenario_id）。场景是 Praxis 选择注入哪些认知结构的首要维度。
+
+### 四级压力自适应
+
+Praxis 在每次注入前测量上下文利用率，按压力级别调整注入策略:
+
+| 级别 | 利用率 | 注入量 | 策略 |
+|------|--------|--------|------|
+| **Normal** | < 60% | ~30K tokens | Tier A/B/C 全量: 当前场景全量详情 + 相关场景摘要 + 其他场景索引 |
+| **Elevated** | 60-75% | ~16K tokens | Tier A 全量 + Tier B 压缩 + Tier C 移除 |
+| **High** | 75-90% | ~3.5K tokens | 仅 Tier A 摘要 |
+| **Critical** | > 90% | ~1K tokens | 仅结构索引 + recall_structure 工具注册 (Lazy Loading) |
+
+**关键设计**: 即使在 Critical 下，LLM 仍知道所有结构存在（通过索引 + Lazy Loading）。LLM 需要时可以主动调用 `recall_structure("门诊流程")`。Push（Praxis 主动注入）和 Pull（LLM 按需拉取）混合，区别于 V7 的纯选择性注入（"不注入就是不让你知道"）。
+
+### Tier A/B/C 分层组织
+
+全量结构按优先级分为三层注入:
+
+```
+Tier A: 当前场景 + TaskContext.relevant_scenarios 的结构
+  → 全量详情 + 置信度校准 + 约束标记
+
+Tier B: 与当前任务间接相关的结构
+  → 摘要 + 引用 ID (LLM 可通过 recall_structure 拉取详情)
+
+Tier C: 不相关场景的结构
+  → 名称 + 一行描述
+
+排序权重 = 场景匹配度 × 0.55 + 任务相关性 × 0.35 + 信号推荐 × 0.10
+```
+
+### TaskContext: 任务级认知定位
+
+~200 tokens 的极轻量任务感知层。不替代场景识别——场景是横向分类（"门诊流程"属于 healthcare 场景），任务是纵向时间轴（"构建医院系统 Phase 2"是当前任务）。
+
+```
+TaskContext:
+  task_id: "task_hospital_sys_2026"
+  task_name: "构建医院管理系统"
+  task_type: "software_project"
+  current_phase: "Phase 2: API 开发"
+  progress_summary: "数据模型完成, API 60%, 预约挂号进行中"
+  active_subtask: "实现预约挂号接口"
+  relevant_scenarios: ["hospital_outpatient", "api_design", "rest_patterns"]
+```
+
+session_end 时 LLM 自动推断进度变化（置信度 < 0.7 不自动更新，用户可覆盖）。
+
+### 注意力遥测
+
+LLM 在输出中使用 `[STRUCTURE_USED: proto_id]` 标记实际引用了哪个结构。Praxis 追踪每个结构的采纳率。发现"僵尸结构"（置信度 > 0.7 但采纳率 < 20%）→ 降级或提议退化。发现"低估结构"（置信度 < 0.4 但采纳率 > 60%）→ 提议重新评估。
+
+---
+
+## 八、元认知系统: Meta Layer
+
+Meta Layer 是一个不对任务做处理的侧观察者。它不操作 ProtoStructure，它操作的是"ProtoStructure 的框架本身"。
+
+### 核心区分: KnowledgeGap vs StructuralGap
+
 | 类型 | 定义 | 处理引擎 |
 |------|------|---------|
-| `KnowledgeGap` | "我不知道 X"（信息缺口） | Curiosity Engine (V3) |
-| `StructuralGap` | "我对这类问题的思考框架本身是错的"（框架缺陷） | Meta Layer (V5) |
+| **KnowledgeGap** | "我不知道 X" | Curiosity Engine (L4) |
+| **StructuralGap** | "我对这类问题的思考框架本身是错的" | Meta Layer |
 
-**5 种 StructuralGap 检测信号**: 模板匹配度下降 | 跨场景行动验证得分低 | 用户挫败模式 | 认知边界停滞 | 升级模式异常
+### 五种 StructuralGap 检测信号
 
-**Cognitive Structure Registry**: 带版本的历史注册表。生命周期: `hypothesized → candidate → experimental → crystallized → deprecated/rejected`。每个结构有独立版本链、验证实验记录、置信度追踪。
+1. **模板匹配度下降**: ProcessTemplate 适应得分连续降低
+2. **跨场景验证低**: 同一操作在不同场景反复出错
+3. **用户挫败模式**: 用户反复纠正同一类问题
+4. **认知边界停滞**: 某技能熟练度长期不增长
+5. **升级模式异常**: escalation 频率或类型偏离预期
 
-**三种铁律**:
-1. 无新结构不经过人类审批 — 不可自动创建
-2. 实验必须有范围限制 — 不能无限实验
-3. 任何结构可回滚 — 保留所有历史版本
+### 范畴审计
 
-**10→15 种学习事件**: 新增 structural_inadequacy_detected, structure_constructed, structure_validated, structure_regression, governance_override
+Meta Layer 定期检查一个根本问题: **现有的 5 种 ProtoStructure 类型是否足够？**
 
-### V5 的删减/重新审视
+场景中反复出现但无法被现有类型捕获的模式 → 标记为 `category_blind_spot`。积累到阈值 → 提议新范畴类型（如 ProtoQuantity / ProtoRelation），附带证据 → 等待人类审批。
 
-**重新审视**: V1-V4 隐含的"框架自身是真理"的假设。V5 是在架构上开了一个"自检"的维度。
+### 三种铁律（不可自动突破）
 
-### V5 的设计洞察
-
-> V5 不是增加新功能——它是增加了"对功能本身的质疑能力"。正如海德格尔区分"存在"和"存在者"，V5 区分"认知结构"（学到的具体知识）和"认知框架"（学到知识的能力本身是否有缺陷）。
-
----
-
-## V6: Proto-Cognitive Engine — "完全陌生怎么办？"
-
-**核心问题**: V5 的 StructuralGap 检测需要部分模板匹配作为锚点（需要已有结构才能检测"结构出了问题"）。但如果适应度 = 0——完全陌生，没有任何模板——怎么办？V6 去除该要求，从零构建认知。
-
-### V6 新增
-
-**Proto-Cognitive Engine 四阶段**:
-
-**Phase 1: Open Perception（开放感知）** — 标记 SalientElements（不分组、不分类）。信号: 重复、用户强调、序列位置、用户纠正、新奇度。
-
-**Phase 2: Proto-Structure Construction（原型构造）** — 从共现对形成模糊概率原型。4 种类型:
-| 结构类型 | 初始置信度 | 说明 |
-|---------|----------|------|
-| `ProtoSequence` | 0.30 | 模糊的行为序列假设 |
-| `ProtoRole` | 0.35 | 模糊的角色关系假设 |
-| `ProtoConcept` | 0.25 | 模糊的概念定义假设 |
-| `ProtoPurpose` | 0.25 | 模糊的目标意图假设 |
-
-**Phase 3: Interactive Validation（交互式验证）** — 场景复现→激活原型→做预测→对比现实。置信度更新公式: 成功 +0.1×(1-conf) / 失败 -0.2×conf / 用户纠正 -0.4×conf。
-
-**Phase 4: Crystallization/Degradation** — 固化（conf>0.8+观察≥5→CandidateStructure）和退化（>3个反例→衰退为 ProtoStructure、conf<0.2+60天→标记 degraded）。
-
-**预测协议**: LLM 在输出中用 `[PREDICTION_CONFIRMED: proto_id]` / `[PREDICTION_FAILED: proto_id, reason]` / `[PREDICTION_UNCERTAIN: proto_id, reason]` 标记。
-
-**信息演化管线**: `Raw Observation → SalientElement → ProtoStructure (概率) → CandidateStructure → CrystallizedStructure`。任意阶段可衰退。
-
-**6D→8D 能力模型**: 新增 `proto_cognition` 维度（AI 在完全陌生环境中从零构建认知的能力）。
-
-**Layer Self-Modification**: V5 允许添加/修改 CognitiveStructures。V6 允许修改层定义、层边界甚至 Meta Layer 本身（需人类治理，逐级审批）。
-
-### V6 的删减/重新审视
-
-**重新审视**: V5 的"必须有锚点才能检测缺陷"的假设。V6 证明即使没有锚点，从开放感知开始也可以构建认知。
-
-### V6 的设计洞察
-
-> V5 需要一面镜子才能看到自己的缺陷。V6 问：如果连镜子都没有呢？答案是：从零开始打磨自己的镜子。ProtoStructure 的 4 种类型（Sequence/Role/Concept/Purpose）成为后续所有版本的认知基本单元——这是 V6 对整个架构最深远的贡献。
+1. **无新结构不经过人类审批** — Meta Layer 可以提议，不能自动创建
+2. **实验必须有范围限制** — 不能无限实验新范畴
+3. **任何结构可回滚** — 保留所有历史版本，支持任意版本恢复
 
 ---
 
-## V7: 工程落地 — "怎么把设计变成代码？"
+## 九、数据模型
 
-**核心问题**: V1-V6 的"六层架构"是设计概念，不是代码模块。V7 进行第一次工程映射，并在此过程中发现了一个本质洞察。
-
-### V7 新增
-
-**核心洞察——Context Orchestration Layer**: Praxis 不是传统 AI 系统。所有"认知操作"的底层实现 = Hook 回调函数 + LLM Prompt 调用 + AgentMemory 数据读写。**Praxis 的本质是一个上下文编排层**——在正确的时间，以正确的格式，将正确的结构化记忆注入 LLM 的上下文窗口。质量上限 = LLM 质量 × 上下文构建质量。
-
-**第一个具体模块树**:
-```
-openclaw/src/plugins/praxis-plugin/
-├── hooks/          (6 个 Hook 处理函数)
-├── orchestration/  (场景匹配、上下文构建、原型构造、模式检测、置信度更新)
-├── analysis/       (transcript 分析、显著性标记、预测协议、衰退检查)
-├── memory/         (AgentMemory 客户端、查询、schema、slot)
-├── prompts/        (system/、analysis/、user/ 三级 prompt 模板)
-├── types/          (memory.ts、scene.ts、hooks.ts)
-└── tests/
-```
-
-**场景匹配器 (scene-matcher)**: 分类用户当前交互场景 → 决定注入哪些认知结构。
-
-**上下文构建器 (context-builder)**: 4 种注入策略 — `exact`（全量,~1000t）| `fuzzy`（摘要,~300t）| `weak`（名称列表,~100t）| `zero_prior`（开启 Open Perception）。
-
-**性能预算**: message_received < 50ms（只做轻量标记）/ session_end < 20s（批量 LLM 调用）/ 系统提示注入 < 1000 tokens。
-
-### V7 的删减/重新审视
-
-**工程缺陷分析（10 个缺陷，3 类根因）**:
-
-V7 在工程落地过程中，诚实地识别了设计中的 3 类根本缺陷：
-1. **验证真空**: LLM 标记→LLM 归纳→LLM 审计。无独立地面真值。
-2. **接地脆弱性**: 正则+关键词匹配不能可靠捕获语义显著性。
-3. **人工依赖**: 学习循环在多个节点需要人类介入，无降级路径。
-
-这些缺陷不是 V7 的 bug——它们是 V7 对 V1-V6 设计假设的诚实检验结果。它们成为 V8-V9 的核心驱动力。
-
-### V7 的设计洞察
-
-> V7 是 Praxis 从"认知设计"到"工程系统"的转折点。Context Orchestration Layer 的定义——"在正确时间、以正确格式、将正确信息注入 LLM 上下文"——从 V7 起成为所有后续版本的基础假设。
-
----
-
-## V8: 1M 上下文重架构 — "token 不稀缺了怎么办？"
-
-**核心问题**: V7 假设 token 极度稀缺（注入预算 ~1000 tokens）。但如果上下文窗口是 1M tokens 呢？V8 重新审视 V7 在 token 稀缺约束下做的所有妥协。
-
-### V8 新增
-
-**统计验证器（打破 LLM 自循环）**: V7 最严重的缺陷是"LLM 标记→LLM 归纳→LLM 审计"的自循环。V8 的统计验证器提供**第一个不依赖 LLM 的验证信号**——从 ProtoSequence 提取预测的工具映射，与 AgentMemory 中记录的实际工具调用序列进行模糊匹配。匹配成功→statistical 信号=1.0，失败→0.0。与 LLM 标记独立——一致则高置信度，矛盾则偏信统计。
-
-**上下文组织器 (Tier A/B/C)**: 替代 V7 的选择性注入:
-- Tier A: 当前场景结构 → 全量详情 + 置信度校准
-- Tier B: 相关场景结构 → 摘要 + 引用
-- Tier C: 不相关场景结构 → 名称 + 一行描述
-
-**Transcript Analyzer（端到端）**: 合并 V7 的 proto-constructor + pattern-detector → 一次端到端 LLM 调用。完整对话记录 → 直接输出 SalientElement + ProtoStructure。消除 PMI 预过滤的信息损失。
-
-**置信度融合器**: 替代 V7 的单一 confidence-updater。多源融合: statistical + llm_marker + user_correction。初始权重: statistical 0.30, llm_marker 0.30, user_correction 0.15。
-
-**AgentMemory 降级缓存**: 7 天 TTL 文件缓存。AgentMemory 不可用时自动降级→恢复后自动同步。
-
-### V8 的删减（关键的减法）
-
-| V7 模块 | V8 状态 | 原因 |
-|---------|--------|------|
-| `salience-marker.ts` | ❌ 删除 | 正则预标记——token 够用，全量 transcript 给 LLM |
-| `pattern-detector.ts` | ❌ 删除 | PMI 预过滤——token 够用，且导致信息损失 |
-| `scene-matcher.ts` 的选择性注入 | ❌ 删除 | 全量注入下不需要"选择"——Tier A/B/C 替代 |
-| `context-builder.ts` 的 token 预算策略 | ❌ 删除 | 从"选择性注入"转为"组织性注入" |
-| `confidence-updater.ts` | ❌ 替换为 confidence-fuser | 从单一公式变为多源融合 |
-
-**保留**: scene-matcher 的场景识别功能（非选择性注入功能）→ 重新定位为 `scene-recognizer.ts`。
-
-**净效应**: 模块数 -3 +5 = 净增 2 模块，但实现周期从 4-5 月缩减到 3 月（因复杂度删除）。
-
-### V8 的设计洞察
-
-> V8 的深层教训不是"1M tokens 好"，而是"审视你的架构中有多少是来自约束而非本质"。V7 近一半模块是 token 稀缺的产物——它们不该存在。
-
----
-
-## V9: 上下文压力自适应 — "token 又不够了怎么办？"
-
-**核心问题**: V8 假设 1M tokens 够用。但在复杂连续任务中，非 Praxis 消耗可达 600K-900K tokens（代码、工具输出、长对话历史）。Praxis 的注入可能成为压垮骆驼的最后一根稻草。V9 解决"当 V8 的假设再次被打破时怎么办"。
-
-### V9 新增
-
-**四级压力自适应**:
-| 级别 | 利用率 | Praxis 注入量 | 策略 |
-|------|--------|-------------|------|
-| Normal | < 60% | ~30K tokens | Tier A/B/C 全量 |
-| Elevated | 60-75% | ~16K | Tier A 全量 + Tier B 压缩 + Tier C 移除 |
-| High | 75-90% | ~3.5K | Tier A 摘要仅 |
-| Critical | > 90% | ~1K | 仅结构索引 + recall_structure 工具注册 |
-
-**Lazy Loading (Critical 压力下)**: LLM 获得结构索引 + `recall_structure` 工具。LLM 需要时主动调用 `recall_structure("门诊流程")`。Push（Praxis 主动注入）→ Pull（LLM 按需拉取）混合。
-
-**注意力遥测**: LLM 标记 `[STRUCTURE_USED: proto_id]` 当实际引用结构时。追踪每个结构的采纳率。发现"僵尸结构"（高置信度但从未被 LLM 实际使用）。
-
-**角色/概念独立验证器**: Role Verifier（比较 ProtoRole 定义的行为与实际工具调用者模式）+ Concept Verifier（对抗 prompt——"尝试找反例"）。
-
-**结构生命周期管理**: 一致性检查器 + 配置自适应 + 衰退检测 + 架构审计。
-
-**3 源→5 源置信度融合**: 新增 role_verifier (0.15) 和 concept_verifier (0.10)。
-
-### V9 的删减/重新审视
-
-**重新审视**: V8 的"全量注入总是可行的"假设。V9 恢复了选择性——但不是 V7 的"只注入匹配度最高的"，而是"注入全部，但压缩深度"——即使在 Critical 下，LLM 仍知道所有结构存在（通过索引+Lazy Loading）。这是 V7 选择性注入和 V9 自适应压缩的关键区别。
-
-### V9 的设计洞察
-
-> V9 在 V7（token 稀缺→选择性注入）和 V8（token 充裕→全量注入）之间找到了第三条路：全量但自适应深度。LLM 始终知道"有哪些结构"，只是"知道多少细节"随压力变化。
-
----
-
-## V10: 任务级认知 — "现在在做什么任务？"
-
-**核心问题**: V1-V9 的 Praxis 知道所有场景模式，但不知道"当前在做什么项目"。场景是横向的（"门诊流程"是一个场景），任务是纵向的（"构建医院管理系统"是一个任务，跨越多个场景）。V10 填补这个 gap。
-
-### V10 新增
-
-**TaskContext（~200 tokens，极轻量）**:
-```typescript
-interface TaskContext {
-  task_id: string;                // "task_hospital_sys_2026"
-  task_name: string;              // "构建医院管理系统"
-  task_type: string | null;       // "software_project"
-  current_phase: string | null;   // "Phase 2: API Development"
-  progress_summary: string;       // "数据模型完成, API 60%"
-  active_subtask: string | null;  // "实现预约挂号接口"
-  relevant_scenarios: string[];   // ["hospital_outpatient", "api_design"]
-  auto_updated: boolean;          // LLM 自动推断?
-}
-```
-
-**session_end 自动进度推断**: LLM 分析 transcript→推断进度变化→置信度 < 0.7 不自动更新→用户可覆盖。
-
-**任务感知优先级排序**: Tier A 排序从"纯场景匹配度"变为 `场景匹配度 × 0.60 + 任务相关性 × 0.40`。
-
-**ProtoTask（Phase 2+, 可选）**: 从多次同类项目中学习任务模式。V10 仅概念设计，V11 升格为 Phase 1 核心。
-
-### V10 的删减/重新审视
-
-**重新审视**: V1-V9 的"场景=认知的基本单位"假设。V10 指出任务和场景是两个正交维度——任务是纵向时间轴（项目阶段），场景是横向分类（活动类型）。两者都需要建模。
-
----
-
-## V11: 知行合一闭环 — "知识怎么变成行动？"
-
-**核心问题**: V10 的知识只能以 prompt 文本注入 LLM。但执行层（planning-with-files 的任务计划、OpenClaw 的调度策略）不能消费 prompt 文本。V11 建立四个结构化接口，使知识可被执行层消费。
-
-### V11 新增
-
-**四个结构化接口**:
-
-| 接口 | 方向 | 功能 |
-|------|------|------|
-| KnowledgeQuery | Praxis→执行层 | planning-with-files 查询 Praxis 获取 ProtoTask 阶段模板/陷阱 |
-| GuidanceSignal | Praxis→LLM/OpenClaw | 类型化信号（phase_suggestion, pitfall_warning, structure_recommendation, contradiction_alert, confidence_advisory）+ severity + 建议行动 |
-| OutcomeFeedback | 执行层→Praxis | 子任务成败 → 置信度调整 ±0.05 + ProtoTask 阶段时长修正 |
-| MidSessionLearner | LLM 交互→Praxis | 会话中实时矛盾检测（用户纠正 + 工具模式违反）→即时置信度下调 |
-
-**ProtoTask 升格为 Phase 1 核心**: 从 V10 的"可选，>=3 项目触发"升格为"Phase 1 核心交付"。Bootstrap 机制（零样本 LLM 通用知识，置信度 0.2）。随项目积累成长: 0→0.2, 1→0.3, 3→0.5, 5→0.65, 10→0.8。
-
-**5 源→7 源置信度融合**: 新增 outcome_feedback (0.10) 和 mid_session (0.08)。
-
-### V11 的删减/重新审视
-
-**重新审视**: V10 的"开环注入"假设。V10 认为"知识注入 prompt = 完成了知识传递"。V11 指出开环注入不够——知识需要结构化才能被非 LLM 组件（planning-with-files、OpenClaw 调度器）消费，执行结果需要结构化才能反馈到认知系统。
-
----
-
-## V12: 主动认知引擎 — "任务怎么编排？"
-
-**核心问题**: V11 的四个外部接口存在是因为画错了 Praxis 与 planning-with-files 的边界。planning-with-files 是一个 SKILL.md prompt 模板，不是架构组件。V12 拆除这个错误边界——Praxis 直接做任务分解。
-
-### V12 新增
-
-**两层嵌套状态机**:
-
-外层循环（任务级，7 状态）: `TASK_NOT_STARTED → TASK_ASSESSING → TASK_PLAN_GENERATING → TASK_IN_PROGRESS → TASK_VERIFYING → TASK_ITERATING → TASK_COMPLETE / TASK_ABANDONED`
-
-内层循环（子任务级，4 状态+中间态）: `SUBTASK_PENDING → SUBTASK_ACTIVE → SUBTASK_COMPLETING → SUBTASK_VERIFIED / FAILED`。中间态: `SUBTASK_BLOCKED`（用户纠正/工具违反 3+ 次时触发）。
-
-**plan-generator**: `getProtoTaskTemplate(task_type) → ProtoTask → PlanDocument`（含 phases, subtasks, criteria, guidance）。
-
-**verifier（5 种验收标准）**:
-| 类型 | 自动化 | 示例 |
-|------|--------|------|
-| `command_output` | 自动 | `npm test -- --testPathPattern=X` → 匹配输出 |
-| `file_existence` | 自动 | 检查文件是否存在 |
-| `test_pass` | 自动 | 运行测试套件 |
-| `llm` | 半自动 | LLM 审查代码/文档 |
-| `user_approval` | 手动 | 安全/部署类操作 |
-
-**pitfall-tracker**: 子任务失败→关键词匹配 ProtoTask.common_pitfalls→命中反馈（ProtoTask.confidence +0.02）→误报率控制（>30% 自动降 severity）。
-
-**plan-file-writer**: 生成 task_plan.md / progress.md / findings.md（兼容 planning-with-files 格式）。
-
-### V12 的删减（关键的减法）
-
-| V11 组件 | V12 状态 | 说明 |
-|---------|--------|------|
-| KnowledgeQuery | 内部化 | 接口不再暴露给外部——plan-generator 内部调用 |
-| GuidanceSignal | 内部化 | 嵌入 PlanDocument 的 PhaseGuidance 字段 |
-| OutcomeFeedback | 内部化 | task-orchestrator 内部 processSubtaskOutcome() |
-| planning-with-files 的"任务分解"功能 | 移除 | 迁移到 plan-generator |
-| planning-with-files 的"进度跟踪"功能 | 移除 | 迁移到 progress-tracker |
-
-**保持独立的模块**: MidSessionLearner（LLM 交互在 Praxis 外部，无法内部化）。
-
-**planning-with-files 降格**: 从"任务编排者"降格为"文件持久化工具"（保留 Hook 脚本和 SHA-256 验证，移除任务分解/计划模板/进度跟踪）。
-
-### V12 的设计洞察
-
-> V12 不是增加功能——它是纠正了一个架构边界错误。planning-with-files 从来不应该做任务分解——它是一个 prompt 模板。真正的任务编排引擎应该（而且必须）在 Praxis 内部。V12 外部接口从 4 个减少到 1 个，模块数从 32 简化到 29（+6 新, -3 移）。
-
----
-
-## V13: 完全主动引擎 — "谁推动这一切？"
-
-**核心问题**: V12 的状态机完整但被动——它等待 Hook 事件（session_start, message_received）来推进状态。谁决定"该开始下一个子任务了"？V13 激活 OpenClaw 预留的所有主动驱动能力。
-
-### V13 新增
-
-**四大核心能力最终形成**:
-1. **Memory（持久化）** — AgentMemory: 所有认知结构、任务状态、学习历史的持久存储
-2. **Learning（学习）** — Proto-Cognitive Engine + Curiosity Engine + 置信度融合 + MidSessionLearner
-3. **Orchestration（编排）** — 两层嵌套状态机 + plan-generator + verifier + pitfall-tracker
-4. **Drive（驱动）← V13 新增** — 主动调度 + 子 Agent 管理 + 心跳监控
-
-**Task Scheduler**: session_end 触发决策矩阵 — 自主驱动启用？静默时段？每日触发限制？→ 决定机制: subagent_run（可并行子任务）| scheduleSessionTurn（< 1h / 1-24h）| cron_job（> 24h）。
-
-**Subagent Manager**: spawnSubagent()→waitForCompletion()→retrySubagent()→aggregateResults()。最大并行度 3。子 Agent 上下文: 子任务定义 + 陷阱预警 + 验收标准（无父对话历史）。失败隔离: 一个子 Agent 失败不影响其他。
-
-**Heartbeat Monitor**: 每 5 分钟检测子任务停顿。Level 1 (nudge): 注入提醒到活跃会话 → Level 2 (wake): requestHeartbeat() 主动唤醒 → Level 3 (escalate): markSubtaskBlocked() + 推进外循环。
-
-**5 种 Trigger 全部激活**: hook:session_start (V12) + hook:session_end (V12) + cron:scheduled (V13) + subagent:completed (V13) + heartbeat:wake (V13)。
-
-**自主学习触发**: cron 分析 task_history→达到 min_observations→自动构造 ProtoTask。置信度 plateau 检测（3 次观察无提升）→请求更多同类任务。能力模型定期审计→识别停滞技能→生成学习建议。
-
-**跨 Agent 认知同步**: 子 Agent session_end→写入 ProtoStructure 更新（乐观锁+version 号）→父 Agent session_start 读取最新版本。
-
-### V13 的删减/重新审视
-
-**状态机零修改原则**: V13 不修改 V12 状态机的一行代码。`advanceOuterLoop()` 保持不变。仅新增触发调用点——V12 的被动编排和 V13 的主动驱动是同一状态机的两种驱动模式。
-
-**净增 < 530 行代码**: V13 的驱动层很薄——它只是调度和触发的逻辑，真正的"做事"仍然在 V12 的状态机中。
-
-### V13 的设计洞察
-
-> V13 完成了 Praxis 从"被动的记忆系统"到"主动的认知操作系统"的转变。但关键的设计克制是：驱动层不修改编排层。V12 的状态机是真理——V13 只是给真理安上了引擎。
-
----
-
-## 最终整合: V13 完整架构
-
-### 模块树 (V13 最终版)
+### 核心实体
 
 ```
-openclaw/src/plugins/praxis-plugin/
-├── index.ts                                 # 插件入口
-├── config.ts                                # GovernancePolicy 配置聚合
-│
-├── orchestration/                           # 任务编排核心层
-│   ├── task-orchestrator.ts                 # [V12] 两层嵌套状态机
-│   ├── plan-generator.ts                    # [V12] ProtoTask → PlanDocument
-│   ├── verifier.ts                          # [V12] 5 种验收标准
-│   ├── progress-tracker.ts                  # [V12] 进度事件管理
-│   ├── task-scheduler.ts                    # [V13] 主动调度决策
-│   ├── subagent-manager.ts                  # [V13] 子 Agent 生命周期
-│   ├── heartbeat-monitor.ts                 # [V13] 心跳停顿检测
-│   ├── context-pressure-monitor.ts          # [V9] 四级压力
-│   ├── scene-recognizer.ts                  # [V7] 场景识别
-│   ├── context-organizer.ts                 # [V8] Tier A/B/C 组织
-│   ├── task-context.ts                      # [V10] TaskContext 管理
-│   ├── confidence-fuser.ts                  # [V7/V8] 多源融合
-│   └── prediction-protocol.ts              # [V7] 预测协议
-│
-├── analysis/                                # 分析与学习层
-│   ├── mid-session-learner.ts               # [V11] 实时学习
-│   ├── proto-task.ts                        # [V10/V11] ProtoTask 构造
-│   ├── pitfall-tracker.ts                   # [V12] 陷阱追踪
-│   ├── transcript-analyzer.ts               # [V8] 端到端分析
-│   ├── statistical-verifier.ts              # [V8] 独立统计验证
-│   ├── role-verifier.ts                     # [V9] 角色验证
-│   ├── concept-verifier.ts                  # [V9] 概念验证
-│   ├── attention-telemetry.ts               # [V9] 注意力遥测
-│   ├── consistency-checker.ts               # [V9] 一致性检查
-│   ├── config-adapter.ts                    # [V9] 配置自适应
-│   ├── degradation-checker.ts               # [V9] 衰退检查
-│   ├── structure-lifecycle.ts               # [V9] 结构生命周期
-│   └── architecture-auditor.ts              # [V9] 架构审计
-│
-├── files/                                   # 文件持久化层 [V12]
-│   └── plan-file-writer.ts
-│
-├── hooks/                                   # Hook 事件处理
-│   ├── session-start.ts
-│   ├── message-received.ts
-│   ├── before-tool-call.ts
-│   ├── after-tool-call.ts
-│   ├── agent-end.ts
-│   └── session-end.ts
-│
-├── memory/                                  # AgentMemory 接口
-│   ├── client.ts / recall-structure.ts / local-cache.ts
-│   ├── schemas.ts / slots.ts / queries.ts
-│
-├── prompts/                                 # Prompt 模板
-│   ├── system/ (memory-context, plan-injection, prediction-markers, critical-mode)
-│   ├── analysis/ (extract-and-update, construct-proto-task, generate-plan, 
-│   │              verify-progress, consistency-scan, audit-architecture)
-│   └── user/ (perception-summary, crystallization-proposal)
-│
-├── types/                                   # 类型定义
-│   └── memory.ts / scene.ts / hooks.ts
-│
-└── tests/
+ProtoStructure (认知基本单元)
+  ├─ ProtoSequence  — 行为序列模式 + 功能目的 + 结构→功能映射
+  ├─ ProtoRole      — 角色关系 + 行为定义 + 沟通模式
+  ├─ ProtoConcept   — 概念定义 + 与其它概念的关系
+  ├─ ProtoPurpose   — 目标意图 + 成功标准
+  └─ ProtoConstraint — 约束公理 + 严重度(block/confirm/warn) + 来源
+
+relations: [                            # 关系图
+  { target_id, type: depends_on|contradicts|specializes|precedes|constrains|alternative_to,
+    strength: 0.0-1.0, evidence: [...], established_at, last_validated_at }
+]
+
+version_chain: [                        # 版本历史
+  { version_id, parent_version, merge_sources, created_at, created_by,
+    diff: [{ type, path, old_value, new_value }],
+    rationale, evidence, performance: { prediction_accuracy, user_satisfaction, active_days } }
+]
+
+lifecycle: hypothesized | candidate | experimental | crystallized | deprecated | rejected
+confidence: 0.0-1.0 (由 7 源融合)
+observations_count: int
+adoption_rate: float (注意力遥测)
 ```
 
-### AgentMemory 集成 (V13 最终版)
+```
+TaskContext (轻量任务感知)
+  task_id, task_name, task_type, current_phase,
+  progress_summary, active_subtask, relevant_scenarios[]
 
-| Slot 名 | 内容 | 大小 | 版本引入 |
-|---------|------|------|---------|
-| `competency_model` | 8D 能力模型 | < 50KB | V1 |
-| `autonomy_policy` | 自主性策略 | < 10KB | V1 |
-| `tool_registry` | 工具注册表 | < 20KB | V1 |
-| `task_context` | 任务上下文 | < 1KB | V10 |
-| `task_orchestration_state` | 编排状态机状态 | < 10KB | V12 |
-| `task_plan` | 计划文档 + markdown | < 20KB | V12 |
-| `progress_log` | 进度事件 (最近 100 条) | < 5KB | V12 |
-| `proto_task` | ProtoTask 结构 | < 5KB | V11 |
+ProtoTask (任务模式——跨项目的同类任务知识)
+  task_type, confidence, source: bootstrap|cumulative,
+  typical_phases: [{ name, subtasks, criteria, guidance, relevant_structure_ids }],
+  common_pitfalls: [{ description, severity, mitigation, hit_count }],
+  observations_count, source_tasks[]
+
+CompetencyModel (8D 能力模型)
+  tool_skills, domain_familiarity, task_type_proficiency,
+  user_model_confidence, process_management, action_reliability,
+  proto_cognition, learning_velocity
+
+LearningEvent (学习事件 — 15 种类型)
+  mistake_correction, domain_insight, preference_discovery,
+  task_pattern_recognition, procedural_optimization,
+  action_decision_*, role_routing_*, timing_*, communication_*, process_efficiency_*,
+  structural_inadequacy_detected, structure_constructed, structure_validated,
+  structure_regression, governance_override
+```
+
+### AgentMemory 存储映射
+
+| Praxis 数据 | AgentMemory 工具 | 存储方式 |
+|-------------|-----------------|---------|
+| CompetencyModel | `memory_slot_get/set "competency_model"` | Slot (project) |
+| AutonomyPolicy | `memory_slot_get/set "autonomy_policy"` | Slot |
+| Tool Registry | `memory_slot_get/set "tool_registry"` | Slot |
+| TaskContext | `memory_slot_get/set "task_context"` | Slot |
+| TaskOrchestrationState | `memory_slot_get/set "task_orchestration_state"` | Slot |
+| TaskPlan | `memory_slot_get/set "task_plan"` | Slot |
+| ProgressLog | `memory_slot_get/set "progress_log"` | Slot |
+| ProtoTask | `memory_slot_get/set "proto_task"` | Slot |
+| ProtoStructures | `memory_smart_search` + `memory_save type="proto_structure"` | Memory (typed) |
+| Knowledge entries | `memory_save type="knowledge"` | Memory (typed) |
+| Learning events | `memory_lesson_save` | Lesson |
+| Behavior patterns | `memory_patterns` | Pattern |
+| Mental state | `memory_save type="mental_state"` | Memory |
+| Multi-modal (image) | `memory_save` + imageRef + `memory_vision_search` | Memory (image) |
 
 ### GovernancePolicy 关键配置
 
 ```yaml
-autonomy_policy: { ... }         # V1
-context_pressure:                # V9
+autonomy:
+  default_policy:
+    unknown_operation: "confirm"
+    low_risk_known: "inform"
+    high_risk_known: "confirm"
+    after_error: "downgrade_one"
+
+context_pressure:
   normal_threshold_k: 500
-  moderate_threshold_k: 200
+  elevated_threshold_k: 200
   high_threshold_k: 100
-task_context:                    # V10
+  critical_threshold_k: 0
+
+task_context:
   auto_update_confidence_threshold: 0.7
-mid_session_learner:             # V11
+
+mid_session_learner:
   contradiction_threshold: 3
   max_immediate_penalty_per_session: 0.2
-proto_task:                      # V11
+
+proto_task:
   bootstrap_on_task_start: true
-task_orchestration:              # V12
+  min_observations_for_update: 1
+
+task_orchestration:
   auto_generate_plan: true
   auto_verify_on_session_end: true
-verification:                    # V12
+
+verification:
   allowed_check_commands: [npm test, cargo test, go test, pytest]
-pitfall_tracking:                # V12
+
+pitfall_tracking:
   auto_downgrade_misrate: 0.3
-task_scheduler:                  # V13
+
+task_scheduler:
   max_daily_triggers: 10
+  max_parallel_subagents: 3
   quiet_hours_start: "22:00"
   quiet_hours_end: "07:00"
+
+curiosity:
+  mode: "ask_when_confident"
+  max_questions_per_day: 3
+  quiet_hours: "22:00-07:00"
+
+meta_layer:
+  structural_gap_scan_interval_hours: 168    # 每周
+  category_audit_interval_hours: 720         # 每月
+  max_experimental_structures: 3
 ```
 
 ---
 
-## 跨版本设计主题（正交于版本迭代的演化线索）
+## 十、Hook 系统 — Praxis 对 Agent 生命周期的介入点
 
-以下线索不是"某个版本引入"的——它们在多个版本中逐步浮现和强化。
+Praxis 通过 7 个 Hook 介入 OpenClaw 的 Agent 生命周期:
 
-### 线索 1: 从原子化到关系化
+| Hook | 触发时机 | Praxis 操作 |
+|------|---------|------------|
+| **session_start** | 会话开始 | 加载能力模型+TaskContext+ProtoStructures → 场景识别 → 上下文压力测量 → 注入 system prompt (含约束+认知指导+相关结构) |
+| **message_received** | 收到用户消息 | 语义意图分析 → 检测用户纠正 → MidSessionLearner 实时调整 |
+| **before_tool_call** | LLM 准备调用工具 | 查询自主性策略 → 检查约束违反 → 决定 proceed/inform/confirm/block |
+| **after_tool_call** | 工具调用完成 | 追踪工具使用 → 匹配成功/失败信号 → 暂存学习事件 |
+| **agent_end** | Agent 执行单元结束 | 汇总工具调用链 → 统计验证器进行独立验证 → 任务级反思 → 触发 Curiosity Engine |
+| **session_end** | 会话结束 | 全量 transcript 分析 → 提取 ProtoStructures → 置信度融合更新 → TaskContext 自动进度推断 → TaskScheduler 决策 → 持久化 |
+| **cron_tick** | 定时触发 | 扫描活跃 ProcessInstance → 检查等待超时 → HeartbeatMonitor 停顿检测 → 跨 session 模式挖掘 → 自主学习触发 |
 
-```
-V1: {tool_id → proficiency} 独立映射
-V3: 4D 能力模型（4 个独立维度）
-V5: Cognitive Structure Registry（版本链）
-V6: ProtoStructure（4 种类型，但仍独立）
-V8: 置信度融合（多源→单一置信度，但结构仍独立）
-→ 缺口: 没有 StructureDependencyGraph。一个结构被推翻后，依赖它的结构不受影响。
-```
+---
 
-### 线索 2: 从被动到主动
-
-```
-V1-V2: 纯被动（用户教导→Praxis 记录）
-V3: 主动好奇心（Curiosity Engine，AI 主动提问）
-V4: 主动推动（Momentum Engine，AI 催促进度）
-V11: 主动指导（GuidanceSignal，AI 给出结构化的行动建议）
-V13: 主动驱动（TaskScheduler, SubagentManager, Heartbeat——AI 自己决定下一步）
-```
-
-### 线索 3: 从事后检测到事前约束
+## 十一、模块树
 
 ```
-V6: 预测协议（LLM 犯错后标记 [PREDICTION_FAILED]）
-V8: 统计验证器（独立于 LLM 的事后验证）
-→ 缺口: OntologicalConstraintLayer。没有在 LLM 生成前注入硬约束。
-```
-
-### 线索 4: 从单一范畴到范畴演化
-
-```
-V6: 4 种 ProtoStructure 类型（固定，从未被质疑）
-V9: ConsistencyChecker（在检测约束违反，但约束本身不被建模）
-→ 缺口: Meta Layer 不审计"为什么是这 4 种类型？有没有第 5 种？"
-```
-
-### 线索 5: 从 token 稀缺到注意力稀缺
-
-```
-V7: token 极度稀缺（~1000 tokens 预算）→ 选择性注入
-V8: token 充裕（1M 上下文）→ 全量注入 + Tier 排序
-V9: 注意力稀缺（窗口大但有效关注度有限）→ 自适应压缩深度
-→ 缺口: 粒度控制仍是纯量化的（按 token 数）。认知成熟度未被纳入粒度决策。
-```
-
-### 线索 6: 从"场景"到"任务+场景"双轴
-
-```
-V1-V9: 场景是认知的基本单位
-V10: 任务（纵向时间轴）和场景（横向分类）是两个正交维度
-→ 缺口: 跨场景语义消歧（同形异义词在不同场景中的含义不同）
+openclaw/src/plugins/praxis-plugin/
+├── index.ts                              # 插件入口, 注册 Hook + Service
+├── config.ts                             # GovernancePolicy 配置聚合
+│
+├── orchestration/                        # 编排层: 决定"什么信息何时进入 LLM"
+│   ├── task-orchestrator.ts              # 两层嵌套状态机 + 事件路由
+│   ├── plan-generator.ts                 # ProtoTask → PlanDocument
+│   ├── verifier.ts                       # 5 种验收标准执行
+│   ├── progress-tracker.ts               # 进度事件收集 + 摘要生成
+│   ├── pitfall-tracker.ts                # 陷阱匹配 + 命中反馈 + 误报率控制
+│   ├── task-scheduler.ts                 # 主动调度决策矩阵
+│   ├── subagent-manager.ts               # 子 Agent 生命周期 + 并行控制
+│   ├── heartbeat-monitor.ts              # 停顿检测 + 三级介入 (nudge/wake/escalate)
+│   ├── context-pressure-monitor.ts       # 四级压力测量
+│   ├── scene-recognizer.ts               # 场景识别 + 场景→结构匹配
+│   ├── context-organizer.ts              # Tier A/B/C 分层 + 排序 + 压缩
+│   ├── task-context.ts                   # TaskContext 读写 + 自动进度推断
+│   ├── confidence-fuser.ts               # 7 源加权融合 + 关系图传播
+│   └── prediction-protocol.ts            # [PREDICTION_*] 标记解析
+│
+├── analysis/                             # 分析层: 从原始数据提取认知结构
+│   ├── transcript-analyzer.ts            # 端到端: 对话 transcript → ProtoStructures + LearningEvents
+│   ├── statistical-verifier.ts           # 独立统计验证: 工具序列匹配
+│   ├── proto-task.ts                     # ProtoTask: bootstrap + 累积构造 + 置信度成长
+│   ├── mid-session-learner.ts            # 实时矛盾检测 + 即时置信度下调
+│   ├── pitfall-tracker.ts                # (同 orchestration/pitfall-tracker, 分析侧逻辑)
+│   ├── role-verifier.ts                  # 角色行为 vs 实际工具调用者模式
+│   ├── concept-verifier.ts               # 对抗 prompt 寻找反例
+│   ├── attention-telemetry.ts            # [STRUCTURE_USED] 采纳率追踪 + 僵尸/低估检测
+│   ├── consistency-checker.ts            # 跨结构一致性验证
+│   ├── degradation-checker.ts            # 衰退条件检测
+│   ├── structure-lifecycle.ts            # 生命周期状态机 + 结晶化/退化门控
+│   ├── architecture-auditor.ts           # Meta Layer: 对抗性架构审计
+│   ├── category-auditor.ts               # Meta Layer: 范畴盲区检测 + 新范畴提议
+│   ├── config-adapter.ts                 # 配置自适应
+│   └── semantic-disambiguator.ts         # 跨场景同形异义词消歧
+│
+├── files/                                # 文件持久化 (兼容 planning-with-files 格式)
+│   └── plan-file-writer.ts               # task_plan.md / progress.md / findings.md
+│
+├── hooks/                                # Hook 事件处理器
+│   ├── session-start.ts                  # 上下文加载 + 注入
+│   ├── message-received.ts               # 语义分析 + 实时学习
+│   ├── before-tool-call.ts               # 自主性 + 约束验证
+│   ├── after-tool-call.ts                # 工具追踪
+│   ├── agent-end.ts                      # 统计验证 + 任务反思
+│   ├── session-end.ts                    # 全量分析 + 调度决策 + 持久化
+│   └── cron-tick.ts                      # 定期扫描 + 模式挖掘
+│
+├── memory/                               # AgentMemory 接口
+│   ├── client.ts                         # MCP 客户端
+│   ├── local-cache.ts                    # 7 天 TTL 降级缓存
+│   ├── recall-structure.ts               # Lazy Loading: LLM 按需拉取结构详情
+│   ├── schemas.ts                        # JSON Schema 定义
+│   ├── slots.ts                          # Slot 名称 + 大小 + 版本
+│   └── queries.ts                        # 复合查询封装
+│
+├── prompts/                              # Prompt 模板
+│   ├── system/                           # 注入到 system prompt
+│   │   ├── memory-context.md             # 认知状态概览
+│   │   ├── plan-injection.md             # 任务计划 + 认知指导 (GuidanceSignal)
+│   │   ├── constraint-injection.md       # CRITICAL CONSTRAINTS 段
+│   │   ├── prediction-markers.md         # 预测协议说明
+│   │   └── critical-mode.md             # Critical 压力下的极简格式
+│   ├── analysis/                         # LLM 分析任务
+│   │   ├── extract-and-update.md         # transcript → ProtoStructures + LearningEvents
+│   │   ├── construct-proto-task.md       # task_history → ProtoTask
+│   │   ├── generate-plan.md              # ProtoTask + TaskContext → PlanDocument
+│   │   ├── verify-progress.md            # 自动进度推断
+│   │   ├── consistency-scan.md           # 结构一致性检查
+│   │   └── audit-architecture.md         # 对抗性架构审计
+│   └── user/                             # 面向用户的输出
+│       ├── perception-summary.md         # 会话感知摘要
+│       └── crystallization-proposal.md   # 结晶化审批提案
+│
+├── types/                                # TypeScript 类型定义
+│   ├── memory.ts                         # ProtoStructure, ProtoTask, LearningEvent, CompetencyModel...
+│   ├── scene.ts                          # Scenario, TaskContext, GuidanceSignal...
+│   └── hooks.ts                          # Hook 上下文类型
+│
+└── tests/                                # 测试
+    ├── orchestration/                    # 编排层测试
+    ├── analysis/                         # 分析层测试
+    ├── hooks/                            # Hook 处理器测试
+    └── integration/                      # 端到端集成测试
 ```
 
 ---
 
-## 版本追溯矩阵
+## 十二、设计原则
 
-| 特性 | V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 | V10 | V11 | V12 | V13 |
-|------|----|----|----|----|----|----|----|----|----|-----|-----|-----|-----|
-| 六层架构设计概念 | ✅ | M | 增强 | 增强 | 增强 | 增强 | E→模块 | E | E | E | E | E | E |
-| OpenClaw Plugin 形态 | — | ✅ | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 |
-| 三层模型 (AM↔Praxis↔OC) | — | ✅ | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 |
-| 工具注册+反馈解释器 | ✅ | E | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 |
-| 能力模型 | ✅1D | 2D | 4D | 6D | 6D | 8D | 8D | 8D | 8D | 8D | 8D | 8D | 8D |
-| 自主性策略 | ✅ | E | 保留 | E | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 |
-| 学习闭环+事件 | ✅1种 | 1种 | 5种 | 10种 | 15种 | 15种 | 15种 | 15种 | 15种 | 15种 | 15种 | 15种 | 15种 |
-| Curiosity Engine | — | — | ✅ | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 |
-| Process Engine | — | — | — | ✅ | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | E→Orch | E→HB |
-| Role Model + Momentum | — | — | — | ✅ | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | E |
-| Meta Layer + StructGap | — | — | — | — | ✅ | 保留 | 实用化 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 |
-| Proto-Cognitive Engine | — | — | — | — | — | ✅ | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 |
-| ProtoStructure (4类型) | — | — | — | — | — | ✅ | ✅ | E | E | 保留 | 保留 | 保留 | 保留 |
-| 预测协议 | — | — | — | — | — | ✅ | ✅ | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 |
-| Context Orchestration Layer | — | — | — | — | — | — | ✅ | 保留 | 保留 | 保留 | 保留 | 保留 | 保留 |
-| 统计验证器 (独立信号) | — | — | — | — | — | — | — | ✅ | 保留 | 保留 | 保留 | 保留 | 保留 |
-| Tier A/B/C 上下文组织 | — | — | — | — | — | — | — | ✅ | 保留 | E | 保留 | E | E |
-| 置信度融合 (多源) | — | — | — | — | — | — | — | ✅3源 | 5源 | 保留 | 7源 | 7源 | 保留 |
-| 四级压力自适应 | — | — | — | — | — | — | — | — | ✅ | 保留 | 保留 | 保留 | 保留 |
-| Lazy Loading | — | — | — | — | — | — | — | — | ✅ | 保留 | 保留 | 保留 | 保留 |
-| 注意力遥测 | — | — | — | — | — | — | — | — | ✅ | 保留 | 保留 | 保留 | 保留 |
-| 结构生命周期管理 | — | — | — | — | — | — | — | — | ✅ | 保留 | 保留 | 保留 | 保留 |
-| TaskContext | — | — | — | — | — | — | — | — | — | ✅ | 保留 | E | E |
-| 任务感知优先级排序 | — | — | — | — | — | — | — | — | — | ✅ | 保留 | E | E |
-| GuidanceSignal | — | — | — | — | — | — | — | — | — | — | ✅ | I | I |
-| MidSessionLearner | — | — | — | — | — | — | — | — | — | — | ✅ | E | E |
-| ProtoTask (bootstrap) | — | — | — | — | — | — | — | — | — | P2 | P0 | P0 | P0 |
-| 两层嵌套状态机 | — | — | — | — | — | — | — | — | — | — | — | ✅ | E |
-| plan-generator | — | — | — | — | — | — | — | — | — | — | — | ✅ | E |
-| verifier (5 种验收) | — | — | — | — | — | — | — | — | — | — | — | ✅ | E |
-| pitfall-tracker | — | — | — | — | — | — | — | — | — | — | — | ✅ | E |
-| plan-file-writer | — | — | — | — | — | — | — | — | — | — | — | ✅ | 保留 |
-| Task Scheduler | — | — | — | — | — | — | — | — | — | — | — | R | ✅ |
-| Subagent Manager | — | — | — | — | — | — | — | — | — | — | — | — | ✅ |
-| Heartbeat Monitor | — | — | — | — | — | — | — | — | — | — | — | — | ✅ |
-| 自主学习触发 | — | — | — | — | — | — | — | — | — | — | — | — | ✅ |
+1. **Context Orchestration Layer** — Praxis 不能执行代码、不能调用工具、不能读写文件（除 AgentMemory 外）。它唯一的"执行"方式是: 在正确时间、以正确格式、将正确信息注入 LLM 的上下文窗口。
 
-> 图例: M=修改, E=增强/演进, I=内部化, R=架构就绪, P0/P1/P2=优先级
+2. **LLM 是不可靠的概率引擎** — 任何依赖 LLM 做唯一判断源的环节最终会崩。Praxis 的验证必须包含独立于 LLM 的信号: 统计验证器（工具序列匹配）、角色/概念验证器、用户纠正、任务成败反馈。
+
+3. **从原子化到关系化** — 认知结构不是孤立的概率标签。它们之间存在依赖、矛盾、特化、时序、约束、替代关系。一个结构的置信度变化必须沿关系图传播。传播规则为确定性逻辑（不调 LLM），传播深度 ≤ 3 跳。
+
+4. **从事后检测到事前约束** — LLM 犯错后再标记 [PREDICTION_FAILED] 不够。已结晶的 ProtoConstraint 应在 LLM 调用前作为 hard constraint 注入 system prompt。`before_tool_call` Hook 应在工具执行前拦截违规操作。
+
+5. **优雅降级** — 四级压力自适应保证在上下文紧张时仍保留核心功能。Critical 下 LLM 仍知道所有结构存在（索引 + Lazy Loading），只是"知道多少细节"随压力变化。
+
+6. **知行闭环** — 知识必须能够结构化地驱动执行（GuidanceSignal 进入 system prompt + plan-generator 生成可执行计划），执行结果必须能够结构化地反馈知识（OutcomeFeedback → 置信度调整 + ProtoTask 更新）。
+
+7. **人类治理** — 新范畴的创建、结构的结晶化/退化、超过 20% 的置信度调整——需人类审批。任何结构可回滚到任意历史版本。
+
+8. **元认知自检** — Meta Layer 周期性地审计: 框架本身是否有缺陷？范畴系统是否足够？是否存在范畴盲区？这区别于"学到了什么"（知识缺口），追问的是"学习的框架本身是否有问题"（结构缺口）。
 
 ---
 
-## 当前实现状态（2026-06-25）
-
-以上为完整架构设计。当前代码库 (`src/cognitive/`, v0.7.2.0) 的实现覆盖情况:
-
-### 已实现（7/34 特性）
-
-| 特性 | 版本 | 实现模块 |
-|------|------|---------|
-| 学习闭环（1 种事件） | V1 | `learning-loop.ts`, `metacognitive-engine.ts` |
-| 两层嵌套状态机 | V12 | `task-state-machine.ts` |
-| ProtoTask bootstrap | V11 | `proto-task.ts` |
-| TaskScheduler | V13 | `task-scheduler.ts` |
-| SubagentManager | V13 | `subagent-manager.ts` |
-| HeartbeatMonitor | V13 | `heartbeat-monitor.ts` |
-| Scene Recognizer | V7 | `scene-recognizer.ts` |
-
-### 部分实现（5/34 特性）
-
-| 特性 | 状态 |
-|------|------|
-| 六层架构 | 概念存在于 CognitiveCore 中，但未形式化分层 |
-| 能力模型 | 停在 ~2D（domainProficiencies + inferredPreferences），未达 8D |
-| 自主性策略 | 类型接口定义存在，决策引擎不存在 |
-| TaskContext | proto-task.ts 实现了 3/8 字段 |
-| 跨 Agent 认知同步 | subagent-manager 有基础上下文构建，但无乐观锁+version 同步 |
-
-### 未实现（22/34 特性）
-
-包括但不限于: OpenClaw Plugin 形态、Curiosity Engine、Process Engine、Meta Layer、Proto-Cognitive Engine (含 4 种 ProtoStructure 数据模型)、预测协议、统计验证器、Tier A/B/C 上下文组织、置信度融合(多源)、四级压力自适应、注意力遥测、GuidanceSignal、MidSessionLearner、plan-generator、verifier、pitfall-tracker、自主学习触发。
-
-**最关键的缺失**: ProtoStructure 的 4 种类型（Sequence/Role/Concept/Purpose）数据模型不存在。它是 V7-V12 所有认知操作的操作对象。没有 ProtoStructure，Context Orchestration Layer 没有"内容"可编排。
-
-### 当前代码结构 (实际)
-
-```
-src/
-├── cognitive/
-│   ├── index.ts                 # 公共 API 导出
-│   ├── cognitive-core.ts        # 主入口 + Session 隔离
-│   ├── governor.ts              # [Phase 1] 学习决策编排器 (4 阶段管道)
-│   ├── task-state-machine.ts    # [V12] 两层嵌套状态机
-│   ├── proto-task.ts            # [V11] 零样本任务模板
-│   ├── task-scheduler.ts        # [V13] 主动调度决策
-│   ├── subagent-manager.ts      # [V13] 子 Agent 管理
-│   ├── heartbeat-monitor.ts     # [V13] 心跳监控
-│   ├── scene-recognizer.ts      # [Phase 2] 场景识别
-│   ├── signal-detector.ts       # [Phase 1] 修正信号检测
-│   ├── embedding.ts             # [Phase 2] 文本向量化
-│   ├── scenario-registry.ts     # [Phase 0] 场景注册表
-│   ├── scenario-cache.ts        # [Phase 0] 场景缓存
-│   ├── metacognitive-engine.ts  # 元认知引擎
-│   ├── learning-loop.ts         # 学习环路
-│   ├── types.ts                 # 类型系统
-│   └── ... (共 29 个模块, 482 个测试)
-├── transcript-analyzer.ts       # [V8] Transcript→学习事件
-├── transcript-analyzer-v2.ts    # Transcript 分析器 v2
-├── session-start.ts             # Session 启动
-├── session-end.ts               # Session 结束
-├── agentmemory-client.ts        # AgentMemory MCP 客户端
-└── platform-adapter.ts          # 平台适配层
-```
-
----
-
-> **Praxis V1→V13 完整架构迭代完成。** 从 V1 的六层分类法开始，经过 13 个角度各异的迭代——载体选择、学习范围、过程驱动、元认知、零先验学习、工程落地、约束转移、压力适应、任务感知、知行闭环、主动编排、完全驱动——最终形成了一个完整的、可指导工程落地的认知操作系统架构。每个版本有增有减：增加新的思考维度，删除被新约束证明不必要的部分。当前工程实现主要集中在底层的记忆和学习环路（V1）以及顶层的任务编排和主动驱动（V12-V13）。中段的认知引擎（V3-V9+部分V11-V12）是下一步工程化的核心。
+> **附录**: 架构从 V1 到 V13 的演变过程见 [praxis-changelog.md](praxis-changelog.md)。本文档是合成后的最终架构设计，不再按版本时间线组织。
