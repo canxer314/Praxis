@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.8.0.0] - 2026-06-25
+
+### Added
+- **M0 EventOrchestrator:** pure-function event router for 7 standard lifecycle events (session_start, message_received, before_tool_call, after_tool_call, agent_end, session_end, cron_tick). Session-scoped state management (pendingSignals, toolCallTrace). Independent of CognitiveCore — runs in parallel.
+- **M0Deps interface:** standardized dependency injection (MemorySubsystem, CacheSubsystem, LLMSubsystem) for all M0 event handlers. Includes DEFAULT_AUTONOMY_POLICY and assessRiskLevel().
+- **MessageReceivedHandler:** user correction detection with 9 regex patterns. Signals stashed to session-scoped array for session_end processing.
+- **BeforeToolCallHandler:** autonomy decision engine (proceed/inform/confirm/block) based on risk level × policy matching.
+- **AfterToolCallHandler:** tool call trace recording with failure signal capture.
+- **AgentEndHandler:** tool call summary (count, success/failure distribution, duration).
+- **CronTickHandler:** M0 skeleton (noop, deferred to M2/M5).
+- **LocalCache:** 7-day TTL file-based degradation cache for AgentMemory unavailability. get/set/list/stats/delete/purgeExpired/clear operations. All operations silently catch errors.
+- **M0 event types:** SessionStartEvent, MessageReceivedEvent, BeforeToolCallEvent, AfterToolCallEvent, AgentEndEvent, SessionEndEvent, CronTickEvent, SessionContextInjection, PendingSignal, AutonomyPolicy.
+
+### Changed
+- **SessionStartHandler:** refactored to use M0Deps (removed CognitiveCore dependency). Returns structured SessionContextInjection instead of flat string prompt.
+- **SessionEndHandler:** simplified to signal→lesson direct write with AgentMemory degradation to local-cache. Optional LLM transcript analysis.
+
+### Docs
+- **Architecture document:** complete rewrite as synthesized World Model blueprint (13 sections). Extracted V1→V13 evolution history to praxis-changelog.md.
+- **ROADMAP:** rewritten as 6-milestone implementation plan (M0→M6, 26-36 weeks).
+- **M0 dev plan:** file-by-file implementation plan for core runtime (Step 1-4, 12 days).
+
 ## [0.7.2.0] - 2026-06-25
 
 ### Added
