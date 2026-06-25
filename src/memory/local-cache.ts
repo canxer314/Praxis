@@ -3,10 +3,9 @@
  *
  * 职责:
  *   - AgentMemory 不可用时，学习事件和 slot 更新写入本地文件
- *   - AgentMemory 恢复时，flush() 批量同步
  *   - 7 天 TTL — 超过 7 天未同步的缓存条目过期
  *
- * M0 实现。后续里程碑 (M2) 可能增加压缩和增量同步。
+ * M0 实现。后续里程碑 (M2) 增加 flush() 批量同步、压缩和增量同步。
  */
 
 import * as fs from "node:fs";
