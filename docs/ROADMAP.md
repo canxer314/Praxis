@@ -16,10 +16,11 @@
 ## 路线图总览
 
 ```
-M0: 核心运行时        (3-4 周)
+✅ M0: 核心运行时        (已完成, v0.8.0.1)
   │  最小 Praxis = 观察 → 存储 → 检索 → 注入
+  │  交付: EventOrchestrator + 7 handlers + M0Deps + localCache
   │
-  ├─→ M1: 认知数据结构   (4-6 周)
+  ├─→ M1: 认知数据结构   (4-6 周)  ← 下一步
   │     ProtoStructure 5 类型 + 关系图 + 版本链 + 生命周期
   │
   ├─→ M2: 上下文编排     (4-5 周)
@@ -38,7 +39,7 @@ M0: 核心运行时        (3-4 周)
         Meta Layer + 范畴审计 + 适配器接口 + 多运行时
 ```
 
-**总计: 26-36 周**。并行化后关键路径约 20-28 周。
+**进度: M0 ✅ | M1-M6 待开始**。剩余预计 22-32 周。
 
 ---
 
@@ -107,12 +108,38 @@ cron_tick         → 定时扫描 (空实现，后续里程碑填充)
 
 ### M0 完成标准
 
-- [ ] 7 个生命周期事件处理器能正确路由事件
-- [ ] AgentMemory slot 读写正常，typed memory 存取正常
-- [ ] session_start 时 system prompt 包含从 AgentMemory 检索的相关内容
-- [ ] 用户纠正信号被捕获并写入 learning_events
-- [ ] AgentMemory 不可用时系统不崩溃（降级到 local-cache 或跳过）
-- [ ] 所有新模块有对应的测试文件
+- [x] 7 个生命周期事件处理器能正确路由事件
+- [x] AgentMemory slot 读写正常，typed memory 存取正常
+- [x] session_start 时 system prompt 包含从 AgentMemory 检索的相关内容
+- [x] 用户纠正信号被捕获并写入 learning_events
+- [x] AgentMemory 不可用时系统不崩溃（降级到 local-cache 或跳过）
+- [x] 所有新模块有对应的测试文件
+
+### M0 实际交付 (v0.8.0.1, 2026-06-25)
+
+**新增模块 (10 files)**:
+| 文件 | 说明 |
+|------|------|
+| `orchestrator.ts` | 纯函数事件路由器, 7 种生命周期事件统一入口 |
+| `m0-deps.ts` | M0Deps 依赖注入接口 + 默认自主性策略 |
+| `message-received.ts` | 用户纠正检测 (9 正则) + 信号暂存 |
+| `before-tool-call.ts` | 自主性决策 (proceed/inform/confirm/block) |
+| `after-tool-call.ts` | 工具调用追踪 + 失败信号捕获 |
+| `agent-end.ts` | 工具调用摘要 (count/success/failure distribution) |
+| `cron-tick.ts` | M0 skeleton (noop) |
+| `memory/local-cache.ts` | 7 天 TTL 文件缓存, AgentMemory 降级 |
+| `memory/local-cache.test.ts` | 15 测试 |
+| `orchestrator.test.ts` | 9 测试 (完整生命周期 + 降级) |
+
+**重构模块 (4 files)**:
+| 文件 | 变更 |
+|------|------|
+| `session-start.ts` | 移除 CognitiveCore 依赖, 直连 AgentMemory |
+| `session-end.ts` | 简化信号→lesson 直写 + local-cache 降级 |
+| `cognitive-core.ts` | 添加 @deprecated JSDoc |
+| `cognitive/index.ts` | 导出 15 个 M0 模块 |
+
+**质量**: 31 test files, 498 tests passing. Typecheck: clean. Zero regression.
 
 ---
 
