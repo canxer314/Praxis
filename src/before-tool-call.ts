@@ -73,12 +73,8 @@ export class BeforeToolCallHandler {
           ok: true,
           value: { action: "block", reason: "关键操作，禁止自主执行" },
         };
-      default:
-        return {
-          ok: true,
-          value: { action: defaultPolicy.unknownOperation as "proceed" | "inform" | "confirm" | "block", reason: "未知操作，使用默认策略" },
-        };
     }
+    // assessRiskLevel always returns one of the 4 levels — no fallthrough needed
   }
 
   /** 重新加载 autonomy_policy（AgentMemory 恢复时调用） */
