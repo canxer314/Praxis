@@ -489,26 +489,150 @@ export interface ConfidenceView {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// 场景感知类型 (Phase 0 — Scenario-Contextual Memory)
+// M1: ProtoStructure 认知结构系统 (架构 §3 + §9)
 // ══════════════════════════════════════════════════════════════════
 
-/** 认知原型结构 — V6 Proto-Cognitive Engine 的核心数据模型 */
-export interface ProtoStructure {
-  protoId: string;
-  scenarioId: string;
-  tentativeName: string;
-  protoType: "sequence" | "role" | "concept" | "purpose";
-  /** 典型工具链 — 此场景下常用的工具 */
-  typicalTools: string[];
-  /** 典型领域 — 此场景关联的业务/技术领域 */
-  typicalDomains: string[];
-  /** 置信度 — V6 生命周期: hypothesized(0.3) → candidate(0.5) → crystallized(0.8) */
-  confidence: number;
-  /** 观察次数 */
-  observationCount: number;
-  /** 生命周期阶段 */
-  lifecycleStage: "seed" | "active" | "degraded" | "archived";
+// ---- ProtoStructure 基础类型 ----
+
+export type ProtoType = "sequence" | "role" | "concept" | "purpose" | "constraint";
+
+export type LifecycleStage =
+  | "hypothesized"
+  | "candidate"
+  | "experimental"
+  | "crystallized"
+  | "deprecated"
+  | "rejected";
+
+export type RelationType =
+  | "depends_on"
+  | "contradicts"
+  | "specializes"
+  | "precedes"
+  | "constrains"
+  | "alternative_to";
+
+export type ConstraintSeverity = "block" | "confirm" | "warn";
+
+export type ConstraintSource = "user_taught" | "auto_derived";
+
+/** 关系边 — 连接两个 ProtoStructure */
+export interface Relation {
+  targetId: string;
+  type: RelationType;
+  strength: number; // 0.0-1.0
+  evidence: string[];
+  establishedAt: number;
+  lastValidatedAt: number;
 }
+
+/** 版本快照 — 每次修改产生一个新版本 */
+export interface VersionSnapshot {
+  versionId: string;
+  parentVersion: string | null;
+  mergeSources?: string[];
+  createdAt: number;
+  createdBy: "user_correction" | "auto_refinement" | "crystallization" | "degradation" | "fusion";
+  diff: {
+    type: "step_added" | "step_removed" | "step_reordered" | "confidence_changed" | "purpose_refined" | "relation_changed";
+    path: string;
+    oldValue: unknown;
+    newValue: unknown;
+  }[];
+  rationale: string;
+  evidence: string[];
+  performance: {
+    predictionAccuracy: number;
+    userSatisfaction: number;
+    activeDurationDays: number;
+  };
+}
+
+/** ProtoStructure 基础接口 — 所有子类型的公共字段 */
+export interface ProtoStructure {
+  id: string;
+  protoType: ProtoType;
+  tentativeName: string;
+  scenarioId: string;
+  confidence: number;       // 0.0-1.0 (7 源融合后)
+  observationsCount: number;
+  adoptionRate: number;     // 注意力遥测
+  lifecycle: LifecycleStage;
+  relations: Relation[];
+  versionChain: VersionSnapshot[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+// ---- 五种子类型 ----
+
+/** ProtoSequence — 行为序列模式 */
+export interface ProtoSequenceStep {
+  position: number;
+  action: string;
+  agent: string;
+  observedDuration?: string;
+}
+
+export interface TeleologicalMapping {
+  stepIndex: number;
+  contributesTo: string;
+  criticality: "essential" | "supporting" | "optional";
+}
+
+export interface ProtoSequence extends ProtoStructure {
+  protoType: "sequence";
+  /** 结构面: 可观察的行为步骤 */
+  structure: {
+    steps: ProtoSequenceStep[];
+    observedTiming?: string;
+  };
+  /** 功能面: 为什么每一步存在 */
+  function: {
+    purpose: string;
+    precondition: string[];
+    postcondition: string[];
+    failureModes: string[];
+  };
+  /** 结构→功能映射 */
+  teleologicalMapping: TeleologicalMapping[];
+}
+
+/** ProtoRole — 角色关系 */
+export interface ProtoRole extends ProtoStructure {
+  protoType: "role";
+  behaviors: string[];
+  dependsOn: string[];        // 依赖的角色 IDs
+  communicationPreferences?: {
+    channel?: string;
+    style?: string;
+  };
+}
+
+/** ProtoConcept — 概念定义 */
+export interface ProtoConcept extends ProtoStructure {
+  protoType: "concept";
+  definition: string;
+  relatedConcepts: string[];
+}
+
+/** ProtoPurpose — 目标意图 */
+export interface ProtoPurpose extends ProtoStructure {
+  protoType: "purpose";
+  goal: string;
+  successCriteria: string[];
+}
+
+/** ProtoConstraint — 约束公理 */
+export interface ProtoConstraint extends ProtoStructure {
+  protoType: "constraint";
+  severity: ConstraintSeverity;
+  source: ConstraintSource;
+  /** 约束的英文描述 (用于 before_tool_call 规则匹配) */
+  rulePatterns: string[];
+}
+
+// ---- Phase 0 兼容类型 ----
 
 /** 场景匹配结果 — scene-recognizer 输出 */
 export interface ScenarioMatch {
@@ -521,7 +645,7 @@ export interface ScenarioMatch {
 export interface ProtoStructureSeed {
   scenarioId: string;
   tentativeName: string;
-  protoType: ProtoStructure["protoType"];
+  protoType: ProtoType;
   typicalTools: string[];
   typicalDomains: string[];
 }
