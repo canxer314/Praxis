@@ -1,520 +1,607 @@
 # Praxis RoadMap
 
-> 从已实现的 ~20% 到完整 World Model 认知引擎的里程碑路线图  
-> 架构设计: [praxis-architecture.md](../architech/praxis-architecture.md)  
-> 起点: v0.7.2.0 | 482 tests | 29 modules
+> 从零开始，按架构文档 [praxis-architecture.md](../architech/praxis-architecture.md) 的完整设计，逐里程碑构建 World Model 认知引擎。
 
 ---
 
-## 〇、当前状态 (2026-06-25)
+## 原则
 
-### 已实现
-
-```
-✅ 学习记忆环路 (V1)
-   CognitiveCore + MetacognitiveEngine + LearningLoop
-   + 4记忆类型 + Result<T> + AgentMemory MCP集成
-
-✅ 学习决策编排 (Phase 1)
-   Governor (4阶段管道: classify→gate→decide→dispatch)
-   + TimingController + SignalDetector
-
-✅ 场景感知基础设施 (Phase 0-2)
-   SceneRecognizer + ScenarioRegistry + ScenarioCache + Embedding
-
-✅ 任务编排与主动驱动 (V12-V13)
-   TaskStateMachine (两层嵌套) + TaskScheduler
-   + SubagentManager + HeartbeatMonitor
-   + ProtoTask bootstrap + TranscriptAnalyzer
-```
-
-### 核心缺口
-
-```
-❌ ProtoStructure 数据模型 (V6)
-   5种类型(Sequence/Role/Concept/Purpose/Constraint) 均无类型定义
-   → 没有操作对象，所有认知操作(§3-§9)无法落地
-
-❌ 上下文编排系统 (§7)
-   场景识别有, 但 Tier A/B/C 组织、四级压力自适应、
-   认知成熟度粒度、注意力遥测 — 全部未实现
-
-❌ 学习引擎深化 (§4)
-   Curiosity Engine、MidSessionLearner、7源置信度融合 — 未实现
-
-❌ 约束系统 (§3+§10)
-   ProtoConstraint 数据不存在, 约束注入+验证 — 无法实现
-
-❌ 元认知系统 (§8)
-   Meta Layer + 范畴审计 + StructuralGap检测 — 未实现
-
-❌ 适配器层 (§1+§10)
-   标准生命周期事件接口、多运行时适配器 — 未实现
-```
-
-### 架构定位
-
-当前 Praxis 是 Feature List 认知系统（原子化的独立结构）。目标是 World Model 引擎（关系图+置信度传播+事前约束）。架构文档 §1 header 显式命名了这个核心张力。本路线图是实现这个目标的工程计划。
+1. **架构文档是唯一真理源**。每个里程碑交付的模块、接口、行为必须与架构文档一致。
+2. **不假设已有代码正确**。每个模块都需要自己的测试来验证行为，不依赖已有的 482 个测试作为正确性证明。
+3. **每个里程碑独立可验证**。完成一个里程碑意味着可以在该里程碑的范围内端到端运行，不依赖后续里程碑。
+4. **先建骨架，再填血肉**。M0-M1 建立数据流通路，M2-M4 增加认知深度，M5-M6 增加自主性和多运行时支持。
 
 ---
 
-## 一、路线图概览
+## 路线图总览
 
 ```
-M0 (当前) ──→ M1 ──→ M2 ──→ M3 ──→ M4 ──→ M5 ──→ M6
-已实现       数据    上下文   约束    置信度  自主    元认知+
-   ~20%     模型    编排    系统    系统    学习    适配器
-
-每个里程碑交付一个用户可感知的能力跃升。
+M0: 核心运行时        (3-4 周)
+  │  最小 Praxis = 观察 → 存储 → 检索 → 注入
+  │
+  ├─→ M1: 认知数据结构   (4-6 周)
+  │     ProtoStructure 5 类型 + 关系图 + 版本链 + 生命周期
+  │
+  ├─→ M2: 上下文编排     (4-5 周)
+  │     Tier A/B/C 分层 + 四级压力自适应 + 注意力遥测 + 语义粒度
+  │
+  ├─→ M3: 约束系统       (3-4 周)
+  │     ProtoConstraint 注入 + before_tool_call 拦截 + 自动提取
+  │
+  ├─→ M4: 置信度系统     (4-6 周)
+  │     7 源融合 + 统计验证器 + 奎因式结晶化 + Curiosity Engine
+  │
+  ├─→ M5: 自主学习       (4-5 周)
+  │     MidSessionLearner + 跨 session 挖掘 + 双重性质建模 + 退役
+  │
+  └─→ M6: 元认知 + 适配器 (4-6 周)
+        Meta Layer + 范畴审计 + 适配器接口 + 多运行时
 ```
 
-| 里程碑 | 核心交付 | 用户看到什么 | 预计周期 |
-|--------|---------|------------|---------|
-| **M1** 认知基础 | ProtoStructure 数据模型 + 关系图 | 经验以有类型的结构存储，可按场景检索 | 4-6 周 |
-| **M2** 上下文编排 | Tier A/B/C + 四级压力 + 注意力遥测 | LLM 在正确的时机获得正确深度的经验 | 3-5 周 |
-| **M3** 约束系统 | ProtoConstraint + 注入 + before_tool_call 验证 | LLM 不再重复已知的错误 | 3-4 周 |
-| **M4** 置信度系统 | 7 源融合 + Curiosity Engine + 版本链 | 经验质量从"猜的"变为"多源验证的" | 4-6 周 |
-| **M5** 自主学习 | MidSessionLearner + 跨session挖掘 + 双重性质 | AI 主动发现知识缺口，自我修正 | 4-6 周 |
-| **M6** 元认知+ | Meta Layer + 适配器 + 用户命令 | AI 能审视自身框架缺陷，多运行时兼容 | 4-6 周 |
-
-**总计: 22-33 周**（可并行路径缩短后约 16-24 周）
+**总计: 26-36 周**。并行化后关键路径约 20-28 周。
 
 ---
 
-## 二、M1: 认知基础设施（ProtoStructure 数据模型）
+## M0: 核心运行时 — "能跑的最小 Praxis"
 
-**目标**: ProtoStructure 从"不存在的概念"变为"可创建、存储、检索、注入的一等公民"。
+**目标**: 建立一个端到端的数据通道——观察用户行为、存储经验、检索相关经验、在下次会话中注入。这是所有后续认知能力的物理基础。如果这个通道不通，后面的 M1-M6 都是空中楼阁。
 
-**为什么是第一个里程碑**: ProtoStructure 是架构文档 §3-§9 所有认知操作的唯一操作对象。它不先存在，后续所有"智能"都是空中楼阁。
+**对应架构**: §1 (Praxis 是什么), §2 (六层架构——L1/L4 的最小实现), §10 (生命周期事件), §9 (AgentMemory 映射)
 
-### M1.1 数据模型定义 `[P0]`
+### M0.1 生命周期事件处理器 `[P0]`
 
-**要做什么**:
-- 在 `types.ts` 中定义 5 种 ProtoStructure 类型（Sequence/Role/Concept/Purpose/Constraint）
-- 实现 `relations[]` 字段（6 种关系类型: depends_on/contradicts/specializes/precedes/constrains/alternative_to）
-- 实现关系图置信度传播（确定性逻辑，≤3 跳，不调 LLM）
-- 实现生命周期状态机（hypothesized→candidate→experimental→crystallized→deprecated/rejected）
+实现 7 个标准生命周期事件的入口处理。每个事件处理器遵循架构文档 §10 的职责定义。事件处理器是运行时无关的——不绑定到 OpenClaw 或任何特定 Agent 运行时。
 
-**架构参考**: [§3 认知结构系统](../architech/praxis-architecture.md)  
-**影响代码**: `types.ts` (+ProtoStructure 接口族), 新增 `structure-graph.ts`  
-**验证**: 创建 ProtoSequence → 添加 depends_on 边 → 修改依赖结构置信度 → 传播到依赖方
+```
+session_start     → 加载记忆 → 构建上下文 → 注入 system prompt
+message_received  → 解析用户意图 → 检测学习信号
+before_tool_call  → 自主性判断 (proceed/inform/confirm/block 的简化版)
+after_tool_call   → 记录工具使用
+agent_end         → 汇总会话数据
+session_end       → 提取经验 → 持久化 → 调度下一动作
+cron_tick         → 定时扫描 (空实现，后续里程碑填充)
+```
 
-### M1.2 存储与检索 `[P0]`
+**验证**: 模拟一个完整 session 生命周期——session_start → message_received → before_tool_call → after_tool_call → agent_end → session_end。每个事件被正确路由到对应的处理器。
 
-**要做什么**:
-- AgentMemory slot: `proto_structures`（Memory typed, 非 Slot——结构太多不适合 slot）
-- `memory_save type="proto_structure"` + `memory_smart_search` 按 scenario_id/task_type 检索
-- session_start 时按当前场景检索相关 ProtoStructures
+### M0.2 记忆存取 `[P0]`
 
-**影响代码**: `agentmemory-client.ts` (+proto_structure 存取), `session-start.ts` (+结构检索)  
-**验证**: 创建 5 个 ProtoStructure → session_start 按场景检索 → 返回匹配的结构列表
+实现与 AgentMemory 的基本通信: slot 读写、typed memory 存取、smart search。
 
-### M1.3 基本注入 `[P0]`
+按照架构文档 §9 的 AgentMemory 存储映射，至少实现以下 slot 的读写:
+- `competency_model` (能力模型)
+- `autonomy_policy` (自主性策略)
 
-**要做什么**:
-- 在 session_start 时将检索到的 ProtoStructures 注入 system prompt
-- 注入格式: 结构名称 + 置信度 + 关键内容摘要
-- 先做最简单的注入（不分 Tier，不区分压力级别——那是 M2 的事）
+至少实现以下 typed memory:
+- `knowledge` (知识条目): save + smart_search
+- `learning_events` (学习事件): lesson_save + lesson_recall
 
-**影响代码**: `session-start.ts` (+结构注入段), 新增 `prompts/system/memory-context.md`  
-**验证**: 创建 3 个 ProtoStructure → session_start → system prompt 中包含这 3 个结构
+**验证**: 写入一条 knowledge → smart_search 检索到它 → 写入一个 lesson → lesson_recall 检索到它。AgentMemory 不可用时，系统能降级运行（local-cache 作为降级路径）。
 
-### M1.4 ProtoStructure 提取（最小版）`[P1]`
+### M0.3 上下文注入 `[P0]`
 
-**要做什么**:
-- 在 session_end 时，transcript-analyzer 输出 ProtoStructure 候选（不仅是 LearningEvent）
-- 利用已有的 TranscriptAnalyzer + LLM prompt 模板
-- 仅提取 ProtoSequence（先做一种类型验证链路）
+在 session_start 时，从 AgentMemory 检索相关信息，构建 system prompt 注入段。初版注入格式简单直接——列出相关内容，不涉及 Tier 分层或压力自适应（那是 M2 的事）。
 
-**影响代码**: `transcript-analyzer.ts` (+ProtoStructure 提取), 新增 `prompts/analysis/extract-structures.md`  
-**验证**: 模拟一次门诊流程对话 → session_end → 自动提取出 ProtoSequence "挂号→分诊→问诊"
+```
+## Praxis Context
+
+### 能力概况
+- 总体熟练度: [从 competency_model slot 加载]
+
+### 相关知识
+- [从 smart_search 检索的 knowledge 条目]
+
+### 上次停下的地方
+- [从 mental_state 加载]
+```
+
+**验证**: 提前写入 3 条 knowledge → session_start → system prompt 中包含这 3 条知识。
+
+### M0.4 学习信号捕获 `[P1]`
+
+实现基本的用户纠正检测——当用户说"不对，应该是..."时，Praxis 捕获这个信号。实现基本的反馈信号匹配——工具调用成功/失败时记录。
+
+提示: 这不是完整的 Governor 管道（那是 M4 的事）。初版只需要: 检测到信号 → 暂存 → session_end 时写入 learning_events。
+
+**验证**: 模拟用户纠正 → session_end → AgentMemory 中出现对应的 lesson。
+
+### M0 完成标准
+
+- [ ] 7 个生命周期事件处理器能正确路由事件
+- [ ] AgentMemory slot 读写正常，typed memory 存取正常
+- [ ] session_start 时 system prompt 包含从 AgentMemory 检索的相关内容
+- [ ] 用户纠正信号被捕获并写入 learning_events
+- [ ] AgentMemory 不可用时系统不崩溃（降级到 local-cache 或跳过）
+- [ ] 所有新模块有对应的测试文件
+
+---
+
+## M1: 认知数据结构 — "经验有了形状"
+
+**目标**: ProtoStructure 从概念变为代码。5 种类型、关系图、版本链、生命周期状态机全部实现。经验从无结构的文本片段升级为有类型、有关系、可演化的结构化认知单元。
+
+**对应架构**: §3 (认知结构系统——全部), §9 (ProtoStructure 数据模型)
+
+### M1.1 ProtoStructure 类型系统 `[P0]`
+
+实现 5 种 ProtoStructure 类型及其完整字段:
+
+```
+ProtoSequence   — 行为序列 + 功能目的 + teleological_mapping
+ProtoRole       — 角色关系 + 行为定义 + 沟通模式
+ProtoConcept    — 概念定义 + 与其他概念的关系
+ProtoPurpose    — 目标意图 + 成功标准
+ProtoConstraint — 约束公理 + 严重度(block/confirm/warn) + 来源
+```
+
+每个类型按照架构文档 §3 定义的字段实现。特别注意:
+- ProtoSequence 的**双重性质**: structure（结构面）+ function（功能面）+ teleological_mapping。这是 §3 的核心设计，不是可选的。
+- ProtoConstraint 的**严重度分级**: block 约束在 before_tool_call 被违反时必须拒绝执行。
+
+**验证**: 每种类型至少创建一个实例 → 序列化 → 反序列化 → 字段完整性校验通过。
+
+### M1.2 关系图 `[P0]`
+
+实现 6 种关系类型和置信度传播规则:
+
+| 关系 | 传播规则 | 架构 §3 参考 |
+|------|---------|------------|
+| depends_on | B↓Δ → A↓Δ×strength | 关系图表 |
+| contradicts | A↑Δ → B↓Δ×strength | 关系图表 |
+| specializes | BΔ → AΔ×factor | 关系图表 |
+| precedes | B 在 A 前出现 → 两者降级 | 关系图表 |
+| constrains | B 违反 → B 降级 | 关系图表 |
+| alternative_to | B↑ → A 可降级 | 关系图表 |
+
+所有传播规则为**确定性逻辑**，不调 LLM。传播深度 ≤ 3 跳。
+
+**风险**: 依赖图引入后，单次置信度更新从 O(n) 变为 O(n+e)。初次实现传播 1 跳，生产验证后扩展到 3 跳。
+
+**验证**: A depends_on B → B 置信度 -0.4 → A 置信度同步下调。contradicts 关系 → A 上升 → B 下降。
+
+### M1.3 生命周期状态机 `[P1]`
+
+实现 ProtoStructure 的 6 个生命周期状态及其转换规则:
+
+```
+hypothesized → candidate → experimental → crystallized
+                                          ↑        ↓
+                                          └─ deprecated/rejected
+```
+
+结晶化条件（五重门控——奎因式本体论承诺，§3）:
+1. 置信度 > 0.8
+2. 观察次数 ≥ 5
+3. 必要性检验
+4. 充分性检验
+5. 奥卡姆剃刀
+6. 人类审批
+
+条件 3-5 在 M4（置信度系统）实现验证器后才真正生效。M1 实现状态机框架和转换逻辑，验证器接口预留。
+
+**验证**: 模拟 ProtoStructure 经历完整生命周期 hypothesized→crystallized→degraded→rejected。
+
+### M1.4 版本链 `[P1]`
+
+每次 ProtoStructure 修改产生新版本，记录: version_id + parent_version + 结构化 diff + rationale + evidence + performance。支持回滚到任意版本。这是 V5 铁律"任何结构可回滚"的工程实现。
+
+**验证**: 修改 3 次 → 3 个版本 → rollback 到 v1 → 恢复 v1 状态。
+
+### M1.5 ProtoStructure 提取 `[P2]`
+
+在 session_end 时，LLM 分析 transcript → 输出 ProtoStructure 候选。先实现 ProtoSequence 提取（一种类型验证端到端链路）。
+
+Prompt 模板按照架构文档 §11 的 `prompts/analysis/extract-and-update.md` 设计。
+
+**验证**: 模拟一次门诊流程对话 → session_end → 自动提取 ProtoSequence "挂号→分诊→问诊"（置信度 0.3-0.5）。
+
+### M1.6 存储与检索 `[P0]`
+
+ProtoStructures 通过 AgentMemory typed memory 存取（`memory_save type="proto_structure"` + `memory_smart_search`）。session_start 时按当前场景检索相关结构并注入。
+
+**验证**: 创建 5 个 ProtoStructure（不同 scenario） → session_start 按 scenario_id 检索 → 返回 2 个匹配。
 
 ### M1 完成标准
 
-- [ ] 5 种 ProtoStructure 类型在 TypeScript 中有完整接口定义
-- [ ] ProtoStructure 可通过 AgentMemory 创建、存储、检索
+- [ ] 5 种 ProtoStructure 类型可创建、序列化、存储、检索、修改
+- [ ] 关系图传播在单元测试中验证（所有 6 种关系类型 + 传播深度限制）
+- [ ] 生命周期状态机覆盖全部 6 个状态和转换
+- [ ] 版本链支持回滚到任意历史版本
+- [ ] ProtoSequence 可从 session transcript 自动提取（端到端）
 - [ ] session_start 时 ProtoStructures 被注入 system prompt
-- [ ] session_end 时自动提取 ProtoSequence（至少 1 种类型跑通端到端）
-- [ ] 关系图置信度传播在单元测试中验证（A depends_on B → B 下调 → A 同步下调）
-- [ ] 相关测试覆盖 ≥ 80%
+- [ ] 每个模块有独立测试文件
 
 ---
 
-## 三、M2: 上下文编排（从"注入"到"编排"）
+## M2: 上下文编排 — "在正确的时机注入正确的内容"
 
-**目标**: 注入从"全部堆进去"升级为"在正确时间、以正确深度、注入正确的结构"。
+**目标**: 注入从 M1 的"全堆进去"升级为智能编排——按场景匹配度排序、按上下文压力自适应压缩深度、按认知成熟度调整语义粒度、追踪哪些结构被 LLM 实际使用。
 
-**前置条件**: M1 完成。
+**对应架构**: §7 (上下文编排系统——全部)
 
-### M2.1 Tier A/B/C 分层 + 排序 `[P0]`
+### M2.1 Tier A/B/C 分层组织 `[P0]`
 
-**要做什么**:
-- 实现三层注入策略: Tier A（当前场景全量）、Tier B（相关场景摘要）、Tier C（其余索引）
-- 排序权重: 场景匹配度 × 0.55 + 任务相关性 × 0.35 + 信号推荐 × 0.10
-- context-organizer 模块: 输入 ProtoStructures + 场景 + TaskContext → 输出排序后的 Tier 列表
+实现三层注入策略:
+- Tier A: 当前场景 + TaskContext.relevant_scenarios 的结构 → 全量详情
+- Tier B: 间接相关的结构 → 摘要+引用
+- Tier C: 其余 → 名称+一行描述
 
-**架构参考**: [§7 Tier A/B/C 分层组织](../architech/praxis-architecture.md)  
-**影响代码**: 新增 `orchestration/context-organizer.ts`, `session-start.ts` (改造)  
-**验证**: 10 个结构跨 3 个场景 → 排序后 Tier A 全部与当前场景匹配
+排序权重: 场景匹配度 × 0.55 + 任务相关性 × 0.35 + 信号推荐 × 0.10
 
-### M2.2 四级压力自适应 `[P1]`
+**验证**: 10 个结构跨 3 个场景 → Tier A 全部与当前场景匹配 → Tier B 包含间接相关的 → Tier C 包含其余。
 
-**要做什么**:
-- 实现 context-pressure-monitor: 测量当前上下文利用率
-- Normal/Elevated/High/Critical 四级 + 对应注入策略
-- Critical 下 Lazy Loading（注册 `recall_structure` 工具，LLM 按需拉取）
-- GovernancePolicy 配置: normal=400K/elevated=250K/high=100K/critical=50K
+### M2.2 四级压力自适应 `[P0]`
 
-**架构参考**: [§7 四级压力自适应](../architech/praxis-architecture.md)  
-**影响代码**: 新增 `orchestration/context-pressure-monitor.ts`, `memory/recall-structure.ts`  
-**验证**: 模拟 95% 上下文占用 → Critical 模式 → 注入 ~1K tokens → LLM 可通过 recall_structure 拉取详情
+测量上下文利用率，按级别调整注入策略:
+
+| 级别 | 剩余 | 注入量 | 策略 |
+|------|------|--------|------|
+| Normal | > 400K | ~30K | Tier A/B/C 全量 |
+| Elevated | 250-400K | ~16K | Tier A 全量 + Tier B 压缩 + Tier C 移除 |
+| High | 100-250K | ~3.5K | 仅 Tier A 摘要 |
+| Critical | < 50K | ~1K | 结构索引 + recall_structure Lazy Loading |
+
+**关键设计**: 即使在 Critical 下，LLM 仍知道所有结构存在（通过索引 + Lazy Loading）。Push→Pull 混合。
+
+**验证**: 模拟 95% 占用 → Critical → 注入 ~1K → LLM 可通过 recall_structure("门诊流程") 按需拉取。
 
 ### M2.3 注意力遥测 `[P1]`
 
-**要做什么**:
-- LLM 输出中解析 `[STRUCTURE_USED: proto_id]` 标记
-- 追踪每个结构的采纳率（被引用的 session 数 / 应该被使用的 session 数）
-- 僵尸结构检测: confidence > 0.7 + 采纳率 < 20% → 标记 needs_review
-- 低估结构检测: confidence < 0.4 + 采纳率 > 60% → 标记 confidence_suspect
+LLM 输出中解析 `[STRUCTURE_USED: proto_id]` → 追踪采纳率 → 僵尸检测（confidence > 0.7 + 采纳 < 20%）→ 低估检测（confidence < 0.4 + 采纳 > 60%）。
 
-**架构参考**: [§7 注意力遥测](../architech/praxis-architecture.md)  
-**影响代码**: 新增 `analysis/attention-telemetry.ts`, `session-end.ts` (+遥测解析)  
-**验证**: 注入 5 个结构 → LLM 在输出中标记 3 个 → 遥测数据显示 3/5 采纳
+**验证**: 注入 5 个结构 → LLM 标记 3 个 → 遥测报告正确显示采纳率。
 
-### M2.4 认知成熟度驱动的语义粒度 `[P2]`
+### M2.4 认知成熟度驱动的语义粒度 `[P1]`
 
-**要做什么**:
-- 按同类 session 数分级: Novice (0-10) / Competent (10-50) / Expert (50+)
-- 同一 Tier 下，Novice 注入粗粒度概括，Expert 注入高密度细节（数值+标准差+陷阱命中率）
-- 粒度与压力双维交互: Critical+Expert = 极少量极高密度数据
+同一 token 预算下，Novice (0-10 sessions) 注入粗粒度概括，Competent (10-50) 注入中等粒度，Expert (50+) 注入高密度细节。粒度与压力双维交互——Critical + Expert = 极少量极高密度数据。
 
-**架构参考**: [§7 认知成熟度驱动的语义粒度](../architech/praxis-architecture.md)  
-**影响代码**: `context-organizer.ts` (+成熟度参数)  
-**验证**: Novice + Normal → 粗粒度概括 / Expert + Normal → 细粒度数据丰富
+**验证**: Novice+Normal → 粗粒度 / Expert+Normal → 细粒度数据丰富 / Expert+Critical → 极短极高密度。
+
+### M2.5 TaskContext `[P1]`
+
+实现 TaskContext 的完整 8 字段（task_id/name/type/current_phase/progress_summary/active_subtask/relevant_scenarios/auto_updated）。session_end LLM 自动推断进度变化，置信度 < 0.7 不自动更新。
+
+**验证**: 创建 TaskContext → 模拟一个 session → 进度自动推断 → TaskContext 更新。
+
+### M2.6 跨场景语义消歧 `[P2]`
+
+维护同形异义词注册表。message_received 时用场景上下文消歧——如"对接"在 API 场景 = 系统集成，在干系人沟通场景 = 会议确认。
+
+**验证**: 同一词"对接"在两个不同场景中被正确消歧为不同含义。
 
 ### M2 完成标准
 
-- [ ] Tier A/B/C 分层注入正常工作
-- [ ] 四级压力自适应在 4 种利用率下正确切换注入策略
-- [ ] Critical 下 Lazy Loading 可用（LLM 可以主动拉取结构详情）
-- [ ] 注意力遥测正确追踪至少 20 个 session 的结构采纳率
-- [ ] 僵尸/低估结构检测逻辑通过单元测试
+- [ ] Tier A/B/C 分层注入正确排序和压缩
+- [ ] 四级压力自适应在每种级别下正确切换
+- [ ] Critical 下 Lazy Loading 可用
+- [ ] 注意力遥测追踪 ≥ 20 个 session 的结构采纳率
+- [ ] 认知成熟度影响注入粒度
+- [ ] TaskContext 自动进度推断正确
+- [ ] 每个模块有独立测试文件
 
 ---
 
-## 四、M3: 约束系统（从事后到事前）
+## M3: 约束系统 — "在 LLM 犯错之前阻止它"
 
-**目标**: LLM 在犯错之前就被阻止。约束从"不存在"变为"在 LLM 生成前主动拦截"。
+**目标**: ProtoConstraint 不再只是被动存储的数据——它在 LLM 生成前主动介入，在 before_tool_call 时拦截违规操作，违反被记录并用于持续改进约束质量。
 
-**前置条件**: M1 完成（需要 ProtoConstraint 类型）。M2 的部分能力可并行（Tier A/B/C 可以容纳约束注入段）。
+**对应架构**: §3 (ProtoConstraint 类型), §10 (before_tool_call), §7 (约束注入段)
 
-### M3.1 上下文约束注入 `[P0]`
+### M3.1 ProtoConstraint 的完整实现 `[P0]`
 
-**要做什么**:
-- 在 session_start 注入 Tier A/B/C 之前插入 CRITICAL CONSTRAINTS 段
-- 从已结晶的 ProtoConstraint 中选取与当前场景相关的约束（最多 5 个）
-- 注入格式: `⛔ CRITICAL CONSTRAINTS (不可违反):` + 约束描述 + 来源标注
-- 约束段在 Critical 压力下仍然注入（~100 tokens 几乎无成本）
+在 M1 类型定义的基础上，实现 ProtoConstraint 的完整生命周期: 创建（手动教导或自动提取）→ 验证（反例检测）→ 结晶化→ 注入→ 衰退。
 
-**架构参考**: [§3 ProtoConstraint 类型](../architech/praxis-architecture.md), [§7 Tier A/B/C](../architech/praxis-architecture.md)  
-**影响代码**: `session-start.ts` (+约束注入), 新增 `prompts/system/constraint-injection.md`  
-**验证**: 创建 3 个结晶化 ProtoConstraint → 匹配当前场景 → 注入到 system prompt 的 CRITICAL CONSTRAINTS 段
+实现严重度分级:
+- `block`: 绝对禁止。违反时 before_tool_call 返回 block。
+- `confirm`: 暂停等待用户确认。
+- `warn`: 执行但记录警告。
 
-### M3.2 before_tool_call 约束验证 `[P1]`
+**验证**: 创建 block 级约束"数据库迁移前必须备份" → 检测到 migrate 调用前无 backup → 返回 block。
 
-**要做什么**:
-- 在 before_tool_call 事件处理器中，检查即将执行的操作是否违反任何活跃约束
-- 三级拦截: block（绝对禁止）、confirm（等待用户确认）、warn（执行但记录警告）
-- 纯规则匹配，< 10ms 延迟
-- 违反约束时返回拦截理由 + 约束 ID
+### M3.2 上下文约束注入 `[P0]`
 
-**架构参考**: [§10 生命周期事件](../architech/praxis-architecture.md)  
-**影响代码**: `hooks/before-tool-call.ts` (+约束验证), 新增 `orchestration/constraint-validator.ts`  
-**验证**: 约束"数据库迁移前必须备份" → 检测到 migrate 调用前无 backup 调用 → 返回 block
+session_start 时，在 Tier A/B/C 之前插入 CRITICAL CONSTRAINTS 段。注入格式:
 
-### M3.3 约束从观察中自动提取 `[P2]`
+```
+⛔ CRITICAL CONSTRAINTS (不可违反):
+1. 处方开具必须在诊断完成之后 [3次观察, 0次违规]
+2. 数据库迁移操作前必须完成备份 [用户明确教导]
 
-**要做什么**:
-- 当 statistical-verifier 检测到"A 步骤在 B 步骤之前执行时失败率显著更低"→ 自动生成 ProtoConstraint
-- 触发: 步骤顺序差异 > 30% 成功率 + 观察 ≥ 5 + 无用户纠正过相反顺序
-- 自动提取的约束: severity=warn, confidence=0.3, source=auto_derived
+📋 推荐流程: [ProtoSequence 内容]
+[约束与流程冲突时，约束优先]
+```
 
-**架构参考**: [§8 范畴审计](../architech/praxis-architecture.md)  
-**影响代码**: `statistical-verifier.ts` (+约束生成), 新增 `analysis/constraint-extractor.ts`  
-**验证**: 模拟 10 次任务 → 步骤 X→Y 成功率 95%, Y→X 成功率 65% → 自动生成 ProtoConstraint
+约束段在 Critical 压力下仍然注入（~100 tokens）。
 
-### M3.3 用户可见: `/praxis ontology` `[P2]`
+**验证**: 3 个已结晶 ProtoConstraint → session_start → system prompt 包含 CRITICAL CONSTRAINTS 段。
 
-**要做什么**:
-- 实现架构文档 §13 定义的 `/praxis ontology` 命令
-- 输出: 已结晶结构 + 原型结构 + 亚存在结构 + 范畴系统 + 置信度分布
-- 纯文本报告格式
+### M3.3 before_tool_call 约束验证 `[P1]`
 
-**影响代码**: 新增命令处理逻辑  
-**验证**: 创建若干结构 → `/praxis ontology` → 输出完整清单
+在 before_tool_call 事件处理器中，检查即将执行的操作是否违反任何活跃约束。违反时按照约束的严重度采取对应行动。拦截延迟 < 10ms（纯规则匹配，不调 LLM）。
+
+**验证**: block 约束被违反 → 返回拒绝理由 + 约束 ID。confirm 约束被违反 → 触发用户确认流程。
+
+### M3.4 约束自动提取 `[P2]`
+
+当统计验证器（M4 实现）检测到"A 步骤在 B 步骤之前执行时失败率显著更低"→ 自动生成 ProtoConstraint (severity=warn, confidence=0.3, source=auto_derived)。
+
+触发条件: 步骤顺序差异 > 30% + 观察 ≥ 5 + 无用户纠正过相反顺序。
+
+**验证**: 模拟 10 次任务 → X→Y 成功率 95%, Y→X 成功率 65% → 自动生成约束。
+
+### M3.5 `/praxis ontology` 命令 `[P2]`
+
+实现架构文档 §13 定义的本体论承诺审计命令。输出: 已结晶结构 + 原型结构 + 亚存在结构 + 范畴系统 + 置信度分布。
+
+**验证**: `/praxis ontology` 正确列出所有结构及其状态。
 
 ### M3 完成标准
 
-- [ ] 约束注入后，违反已结晶约束的 LLM 行为减少 ≥ 70%
-  - 如果 < 30% → 说明 hard constraint 格式无效，需要更强的机制
+- [ ] 约束注入后，违反已结晶约束的 LLM 行为减少 ≥ 70%（或统计上显著减少）
 - [ ] before_tool_call 拦截延迟 < 10ms
-- [ ] 自动提取的约束在 3 次人工确认后置信度达到可注入水平
-- [ ] `/praxis ontology` 可运行
+- [ ] 自动提取的约束经过 3 次确认后置信度达到可注入水平
+- [ ] `/praxis ontology` 可运行并输出正确
 
 ---
 
-## 五、M4: 置信度系统（从"猜"到"验证"）
+## M4: 置信度系统 — "经验质量的量化验证"
 
-**目标**: ProtoStructure 的置信度从单一的观察计数升级为 7 源加权融合。结构质量可被多维度独立验证。
+**目标**: ProtoStructure 的置信度从 M1 的简单观察计数，升级为 7 个独立信号源的加权融合。每个信号源可独立验证——打破 LLM 自评循环。
 
-**前置条件**: M1+M2+M3 完成（需要 ProtoStructure 数据 + 注意力遥测数据 + 约束违反日志）。
+**对应架构**: §4 (学习引擎——Governor + 多源置信度融合 + Curiosity Engine), §3 (结晶化条件)
 
-### M4.1 多源置信度融合 `[P0]`
+### M4.1 Governor 完整管道 `[P0]`
 
-**要做什么**:
-- 实现 7 源加权融合算法: statistical(0.25) + llm_marker(0.25) + user_correction(0.12) + role_verifier(0.12) + concept_verifier(0.08) + outcome_feedback(0.10) + mid_session(0.08)
-- 实现 statistical-verifier（V8 核心——独立于 LLM 的工具序列匹配）
-- 实现 role-verifier + concept-verifier（对抗 prompt 验证）
-- 融合算法: 加权平均。信号源 NA 时按比例重新分配权重
-- 融合后置信度直接决定 Tier 分配（高置信度→Tier A 优先级提升）
+实现完整的 4 阶段 Governor 管道（替代 M0 的简化版信号捕获）:
 
-**架构参考**: [§4 多源置信度融合](../architech/praxis-architecture.md)  
-**影响代码**: 改造 `orchestration/confidence-fuser.ts`, 新增 `analysis/statistical-verifier.ts`, `analysis/role-verifier.ts`, `analysis/concept-verifier.ts`  
-**验证**: 创建 ProtoStructure → 5 个 session 后 → 至少 3 个信号源贡献置信度
+```
+classify → gate → decide → dispatch
+  (粗分类)  (去噪)  (裁决)   (分发到具体更新路径)
+```
 
-### M4.2 版本链 `[P1]`
+classify 粗分类 → LearningEvent 细分类映射按照架构文档 §4 的映射表实现。
 
-**要做什么**:
-- 每次 ProtoStructure 修改产生一个新版本
-- 记录: version_id + parent_version + diff(结构化) + rationale + evidence + performance
-- 支持: 回滚到任意版本 + 多版本 diff + 从多个版本融合
-- 实现 V5 铁律"任何结构可回滚"
+**验证**: 模拟 5 种不同类型的信号 → Governor 正确分类 → 路由到对应的 LearningEvent 类型。
 
-**架构参考**: [§3 版本链](../architech/praxis-architecture.md)  
-**影响代码**: `types.ts` (+VersionChain), 新增 `analysis/structure-lifecycle.ts` (+版本管理)  
-**验证**: 修改 ProtoStructure 3 次 → 3 个版本 → rollback 到 v1 → 恢复 v1 状态
+### M4.2 多源置信度融合 `[P0]`
 
-### M4.3 奎因式结晶化门控 `[P1]`
+实现 7 源加权融合算法。初始权重:
 
-**要做什么**:
-- 实现五重门控: 置信度>0.8 + 观察≥5 + 必要性 + 充分性 + 奥卡姆剃刀
-- 必要性: leave-one-out 分析——移除该结构后预测准确率是否下降
-- 充分性: 该结构被使用的 session 预测准确率是否显著高于不被使用的 session
-- 奥卡姆剃刀: 是否存在更简单的替代结构
-- 条件 3-5 不调 LLM——基于遥测数据和统计验证器的日志
+| 信号源 | 权重 | 独立性 |
+|--------|------|--------|
+| statistical | 0.25 | 独立于 LLM |
+| llm_marker | 0.25 | 来自 LLM |
+| user_correction | 0.12 | 独立 |
+| role_verifier | 0.12 | 独立 |
+| concept_verifier | 0.08 | 独立 |
+| outcome_feedback | 0.10 | 独立 |
+| mid_session | 0.08 | 独立 |
 
-**架构参考**: [§3 结晶化条件](../architech/praxis-architecture.md)  
-**影响代码**: `structure-lifecycle.ts` (+门控逻辑), 新增 `analysis/counterfactual.ts`  
-**验证**: 置信度 0.85+观察 7 的"僵尸结构"→ 充分性检验失败(LLM 从不使用) → 拒绝结晶化
+信号源不可用时按比例重新分配权重。融合后置信度决定 Tier 分配策略。
 
-### M4.4 Curiosity Engine `[P2]`
+**注意**: 本里程碑实现融合算法框架。具体验证器（statistical/role/concept）在 M4.3 实现。user_correction 和 mid_session 在 M5 完善。M4 至少需要 3 个活跃信号源。
 
-**要做什么**:
-- 四阶段: 缺口检测→排序(relevance×frequency×impact×urgency)→行动生成→提问治理
-- priority < 0.3: 静默标记 / 0.3-0.6: 检索外部 / 0.6-0.8: 生成提问草稿 / > 0.8: 请求协助
-- 受 GovernancePolicy 的 curiosity 配置节控制
+**验证**: 3 个信号源同时输出 → 融合结果与单独信号源偏差在合理范围内 → 缺 2 个源时权重重分配正确。
 
-**架构参考**: [§4 Curiosity Engine](../architech/praxis-architecture.md)  
-**影响代码**: 新增 `orchestration/curiosity-engine.ts`  
-**验证**: 连续 3 个 session 遇到未知术语"HL7 协议" → priority 0.75 → 生成提问草稿
+### M4.3 独立验证器 `[P1]`
+
+实现三个独立于 LLM 的验证信号:
+
+- **statistical-verifier** (架构 §4, V8 核心): 从 ProtoSequence 提取预测的工具映射，与 AgentMemory 中记录的实际工具调用序列模糊匹配。一致→1.0, 不一致→0.0。
+- **role-verifier** (架构 §4, V9): 比较 ProtoRole 定义的行为与实际工具调用者模式。
+- **concept-verifier** (架构 §4, V9): 对抗 prompt——"尝试为这个概念的反例辩护"。
+
+**验证**: statistical-verifier 在 10 个 session 上的独立判断与 LLM 标记的一致性 ≥ 80%。
+
+### M4.4 奎因式结晶化门控 `[P1]`
+
+将 M1 预留的验证器接口实现为具体逻辑:
+- 必要性: leave-one-out——移除结构后预测准确率下降 ≥ 阈值？
+- 充分性: 结构被使用的 session 预测准确率 > 不被使用的 session？
+- 奥卡姆剃刀: 是否存在更简单的替代结构（更少步骤/更少依赖）？
+
+利用遥测数据和统计验证器日志，不调新 LLM。
+
+**验证**: 置信度 0.85 的"僵尸结构"→ 充分性失败（LLM 从不使用）→ 拒绝结晶化。
+
+### M4.5 Curiosity Engine `[P2]`
+
+实现 4 阶段: 缺口检测→ priority 排序(relevance×frequency×impact×urgency)→ 行动生成→ 提问治理。受 GovernancePolicy §9 的 curiosity 配置节控制。
+
+**验证**: 连续 3 个 session 遇到未知概念 → 自动标记 KnowledgeGap → priority 排序正确。
+
+### M4.6 退役与亚存在 `[P2]`
+
+被取代的结构进入"亚存在"状态（不删除）。保留 superseded_by 映射 + 关键教训 + reactivation_conditions。旧场景重现或新结构衰退时可重新激活。`/praxis ontology` 中可见。
+
+**验证**: 结构 A 被 B 取代 → A 标记为 retired + 保留映射 → B 置信度跌破阈值 → A 重新激活。
 
 ### M4 完成标准
 
-- [ ] 7 源置信度融合在生产环境中至少 3 个信号源活跃
-- [ ] statistical-verifier 的独立验证信号与 LLM 标记的一致性达到 ≥ 80%
-- [ ] 版本链能正确回滚到任意历史版本
-- [ ] 奎因式门控成功阻止至少 1 个"僵尸结构"的结晶化
-- [ ] Curiosity Engine 成功检测并排序至少 3 个知识缺口
+- [ ] Governor 正确处理 ≥ 5 种信号类型
+- [ ] 置信度融合至少 3 个信号源活跃
+- [ ] statistical-verifier 独立判断与 LLM 标记一致性 ≥ 80%
+- [ ] 奎因式门控至少成功阻止 1 个"僵尸结构"结晶化
+- [ ] Curiosity Engine 正确检测和排序知识缺口
+- [ ] 退役结构保留映射并可重新激活
 
 ---
 
-## 六、M5: 自主学习（AI 主动成长）
+## M5: 自主学习 — "AI 主动成长"
 
-**目标**: AI 不再等着被教——它主动发现自己的知识缺口、在会话中实时修正错误、从跨 session 模式中归纳规律。
+**目标**: Praxis 不再被动等待 session_end 来学习。它在会话中实时修正错误、从跨 session 模式中归纳规律、在用户纠正时判断"是结构错了还是功能变了"。
 
-**前置条件**: M1-M4 完成。
+**对应架构**: §4 (MidSessionLearner), §6 (自主学习触发), §3 (双重性质——已实现类型,本里程碑实现判断逻辑), §8 (StructuralGap 检测——基础)
 
 ### M5.1 MidSessionLearner `[P0]`
 
-**要做什么**:
-- message_received 中检测用户纠正（"不对，应该是..."）→ 即时下调关联 ProtoStructure 置信度
-- before_tool_call 中检测工具模式违反 ProtoConstraint 3+ 次 → 即时下调
-- 单会话下调总量上限: 0.2
-- 纯规则匹配, < 10ms, 不调 LLM
+message_received 中检测用户纠正 → 即时下调关联 ProtoStructure 置信度。before_tool_call 中检测工具模式违反 ProtoConstraint 3+ 次 → 即时下调。单会话下调总量 ≤ 0.2。纯规则匹配, < 10ms, 不调 LLM。
 
-**架构参考**: [§4 MidSessionLearner](../architech/praxis-architecture.md)  
-**影响代码**: `message-received.ts` (+纠正检测), `before-tool-call.ts` (+模式违反检测), 新增 `analysis/mid-session-learner.ts`  
-**验证**: 用户在会话中说 3 次不同方式纠正同一个 ProtoSequence → 置信度下调 0.24（不超过 0.2 上限）
+**验证**: 同一会话中 3 次不同方式纠正同一 ProtoSequence → 置信度下调 0.24（上限截断至 0.2）。
 
-### M5.2 跨 Session 模式挖掘 `[P1]`
+### M5.2 双重性质判断逻辑 `[P1]`
 
-**要做什么**:
-- cron_tick 触发（每 30 分钟），LLM 分析积累的 task_history
-- 三件事: (a) 自动更新 ProtoTask 阶段时长和陷阱命中率, (b) 检测跨场景同类纠错→可能的范畴盲区, (c) 衰退检测: 结构 60 天未引用→标记 inactive
-- session_end 的 20s 预算不变——挖掘在 cron 中异步执行
+用户在 M1 已有 ProtoSequence 的 structure/function/teleological_mapping 字段。本里程碑实现判断逻辑:
 
-**架构参考**: [§6 自主学习触发](../architech/praxis-architecture.md)  
-**影响代码**: `cron-tick.ts` (+模式挖掘), 新增 `analysis/pattern-miner.ts`  
-**验证**: 3 次同类任务 → ProtoTask 置信度从 0.2 升到 0.5
+```
+用户纠正步骤序列
+  ↓
+检查功能面: 原始目的是否仍被满足?
+  ├─ 是 → 替代实现 → 仅更新 teleological_mapping, 不降置信度
+  └─ 否 → 真错误 → 按置信度规则下调
+```
 
-### M5.3 双重性质建模 `[P1]`
+**验证**: 用户纠正"挂号窗口→自助挂号机" → 功能不变 → 置信度不下调。用户纠正"问了三个问题就开药了，没有体检" → 功能失败(缺少体格检查步骤) → 置信度下调。
 
-**要做什么**:
-- ProtoSequence 拆分为结构面(structure) + 功能面(function) + teleological_mapping
-- 用户纠正时先判断: 结构改变但功能不变？（替代实现）→ 只更新 mapping, 不降置信度
-- 实现架构文档 §3 中"门诊流程"示例的逻辑
+### M5.3 跨 Session 模式挖掘 `[P1]`
 
-**架构参考**: [§3 双重性质: 结构面+功能面](../architech/praxis-architecture.md)  
-**影响代码**: `types.ts` (+structure/function/teleological_mapping), `mid-session-learner.ts` (+功能检查)  
-**验证**: 用户纠正"挂号窗口→自助挂号机" → Praxis 判断功能未变 → 不降置信度
+cron_tick 触发（30min 间隔），LLM 分析积累的 task_history:
+1. ProtoTask 自动更新: 阶段时长估计 + 陷阱命中率 + 置信度成长
+2. 跨场景纠错模式: 同类纠正在不同场景反复出现 → 可能范畴盲区
+3. 衰退检测: 结构 60 天未引用 → inactive
 
-### M5.4 退役与亚存在 `[P2]`
+session_end 的 ~20s 预算不变——挖掘在 cron 中异步。
 
-**要做什么**:
-- 被取代的结构不删除→进入"亚存在"状态
-- 保留: superseded_by 映射 + 关键教训 + reactivation_conditions
-- 旧场景重现或新结构衰退时→可重新激活
-- `/praxis ontology` 中可见
+**验证**: 3 次同类任务 → ProtoTask 置信度 0.2→0.5。60 天未引用结构被正确标记为 inactive。
 
-**架构参考**: [§3 退役与亚存在](../architech/praxis-architecture.md)  
-**影响代码**: `structure-lifecycle.ts` (+退役策略)  
-**验证**: 结构 A 被结构 B 取代 → A 标记为 retired → B 置信度跌破阈值 → A 重新激活
+### M5.4 StructuralGap 基础检测 `[P1]`
+
+M6 的 Meta Layer 需要数据积累。本里程碑实现 5 种 StructuralGap 检测信号的数据采集框架（不要求完整分析）:
+
+1. ProtoTask 置信度在同类任务中连续下降
+2. 同一操作在不同场景反复出错
+3. 用户反复纠正同一类问题
+4. 技能熟练度长期不增长
+5. escalation 频率偏离预期
+
+检测结果写入 audit log，供 M6 的 Meta Layer 分析。
+
+**验证**: 连续 5 个 session 同一操作出错 → 日志中记录 signal #2 触发。
+
+### M5.5 `/praxis audit` 命令 `[P2]`
+
+输出当前结构健康度报告: 僵尸结构 + 低估结构 + 约束违反统计 + StructuralGap 触发日志。纯文本格式。为 M6 的完整 Meta Layer 审计报告打基础。
+
+**验证**: `/praxis audit` 输出包含至少僵尸/低估/违反三类数据。
 
 ### M5 完成标准
 
-- [ ] MidSessionLearner 在用户纠正时 < 10ms 内下调关联结构置信度
-- [ ] 跨 session 模式挖掘首次成功自动更新 ProtoTask 置信度
-- [ ] 双重性质建模成功区分"替代实现"和"真错误"（替代实现不降置信度）
-- [ ] 退役结构可在条件满足时重新激活
-
----
-
-## 七、M6: 元认知自治 + 适配器（自我审视 + 多运行时）
-
-**目标**: Praxis 能审视自身的框架缺陷 + 支持多个 Agent 运行时接入。
-
-**前置条件**: M1-M5 完成，且有充足的跨领域生产数据。
-
-### M6.1 Meta Layer + 范畴审计 `[P1]`
-
-**要做什么**:
-- 5 种 StructuralGap 检测信号（利用已有的遥测+审计数据）
-- 范畴完备性检查: 被反复纠正但无法被现有类型捕获的模式 → category_blind_spot
-- 康德式诊断分叉: "数据问题还是范畴问题？"
-- 领域范畴同质性检查: 不同领域是否需要不同的 ProtoStructure 子类型
-- 三种铁律: 人类审批 + 实验范围限制 + 可回滚
-
-**架构参考**: [§8 元认知系统](../architech/praxis-architecture.md)  
-**影响代码**: 新增 `analysis/category-auditor.ts`, `analysis/architecture-auditor.ts`  
-**验证**: 积累 50 个 session → Meta Layer 检测到 1 个 category_blind_spot → 提议新范畴 → 人类审批
-
-### M6.2 适配器接口 + 首个非 OpenClaw 适配器 `[P1]`
-
-**要做什么**:
-- 定义标准 AdapterInterface（7 个生命周期事件的方法签名）
-- 将现有的 session-start/session-end 等重构为适配器无关的事件处理器
-- 实现 openclaw-adapter（迁移现有逻辑）
-- 实现 claude-code-adapter（通过 Claude Code hooks）
-- 适配器层不做认知处理，只做协议转换
-
-**架构参考**: [§1 三层运行时拓扑](../architech/praxis-architecture.md), [§10 生命周期事件](../architech/praxis-architecture.md)  
-**影响代码**: 新增 `adapters/` 目录 (5 文件), 重构 `hooks/` 为运行时无关事件处理器  
-**验证**: OpenClaw + Claude Code 两个适配器 → 同一 session 场景在两个运行时中产生相同的 ProtoStructure 输出
-
-### M6.3 `/praxis audit` 命令 `[P2]`
-
-**要做什么**:
-- 输出 Meta Layer 审计报告: 范畴盲区 + 结构健康度(僵尸/低估) + 约束违反统计
-- 输出格式: 文本报告（和 `/praxis ontology` 一致）
-
-**架构参考**: [§13 用户可见的认知状态](../architech/praxis-architecture.md)  
-**验证**: 运行 `/praxis audit` → 输出当前僵尸结构列表 + 约束违反统计
-
-### M6.4 跨场景语义消歧 `[P2]`
-
-**要做什么**:
-- 维护跨场景同形异义词注册表
-- message_received 时用当前场景上下文消歧
-- 减少因"听错意思"导致的学习噪声
-
-**架构参考**: [§7 跨场景语义消歧](../architech/praxis-architecture.md)  
-**影响代码**: `analysis/semantic-disambiguator.ts` (+消歧逻辑)  
-**验证**: 用户说"对接" → API 开发场景 → 正确消歧为"系统集成"而非"会议确认"
-
-### M6 完成标准
-
-- [ ] Meta Layer 在生产数据上至少提出 1 个经过验证的范畴盲区
-- [ ] 至少 2 个适配器（OpenClaw + Claude Code）可互换运行
-- [ ] 适配器切换不改变 Praxis 的核心行为（同一测试用例在两个适配器上产生相同输出）
+- [ ] MidSessionLearner 在 < 10ms 内响应纠正并下调置信度
+- [ ] 双重性质判断正确区分"替代实现"和"真错误"
+- [ ] 跨 session 挖掘首次成功自动更新 ProtoTask
+- [ ] StructuralGap 数据采集覆盖全部 5 种信号
 - [ ] `/praxis audit` 可运行
 
 ---
 
-## 八、里程碑依赖与并行度
+## M6: 元认知自治 + 适配器 — "审视自身 + 无处不在"
+
+**目标**: Meta Layer 能基于 M5 积累的数据审计范畴盲区、提议新范畴。适配器层使 Praxis 可以接入多个 Agent 运行时，不绑定任何单一平台。
+
+**对应架构**: §8 (元认知系统), §1 (三层运行时拓扑 + 适配器层), §10 (运行时无关接口), §13 (用户命令)
+
+### M6.1 Meta Layer 范畴审计 `[P0]`
+
+基于 M5 积累的 StructuralGap 数据:
+- 范畴完备性检查: 被反复纠正但无法被现有 5 种类型捕获的模式 → category_blind_spot
+- 康德式诊断分叉: "数据不够？还是范畴不够？"（§8 诊断流程图）
+- 领域范畴同质性检查: 不同领域的 ProtoSequence 是否被强行统一？
+
+审计结果通过 `/praxis audit` 报告。新范畴提议需人类审批（三种铁律）。
+
+**验证**: 积累 50+ session 的审计数据 → Meta Layer 至少检测到 1 个 category_blind_spot → 附证据提议新范畴。
+
+### M6.2 适配器接口 `[P0]`
+
+定义标准 AdapterInterface——7 个生命周期事件的方法签名。适配器只做协议转换，不做认知处理。
+
+```typescript
+interface AgentRuntimeAdapter {
+  // 将运行时的原生事件映射为 Praxis 标准生命周期事件
+  mapToSessionStart(raw: RuntimeEvent): PraxisSessionStartEvent;
+  mapToMessageReceived(raw: RuntimeEvent): PraxisMessageReceivedEvent;
+  // ... 其余 5 个事件
+  // 将 Praxis 的决策映射回运行时指令
+  mapAutonomyDecision(decision: AutonomyDecision): RuntimeInstruction;
+  mapConstraintViolation(violation: ConstraintViolation): RuntimeInstruction;
+}
+```
+
+实现 openclaw-adapter 作为参考实现。适配器无状态——每次映射是纯函数。
+
+**验证**: 同一组模拟事件通过 adapter-interface 以 OpenClaw 格式输入 → Praxis 处理 → 决策通过 adapter-interface 以 OpenClaw 格式输出。
+
+### M6.3 Claude Code 适配器 `[P1]`
+
+基于 M6.2 的接口，实现 claude-code-adapter。将 Claude Code 的 Hook 事件（PreToolUse/PostToolUse/Notification 等）映射为 Praxis 标准事件。
+
+**验证**: 同一 session 场景用 openclaw-adapter 和 claude-code-adapter 分别运行 → Praxis 产生相同的 ProtoStructure 输出。证明适配器层的隔离是正确的。
+
+### M6.4 `/praxis status` 命令 `[P1]`
+
+实现能力模型 8D 雷达图（文本表示）+ 成长轨迹 + 学习时间线。这是 V1 就定义的命令。
+
+**验证**: 运行 `/praxis status` → 输出包含 8D 能力维度和成长轨迹。
+
+### M6.5 跨 Agent 认知同步（增强）`[P2]`
+
+在 M4 的基础上增强: 子 Agent session_end → 写入 ProtoStructure 更新（乐观锁 + version）→ 父 Agent session_start 读取最新版。M4 已实现冲突策略（pending_merge + LLM 辅助合并）。本里程碑增强: 跨运行时同步——OpenClaw Agent 和 Claude Code Agent 共享同一个 ProtoStructure 池，乐观锁跨运行时生效。
+
+**验证**: OpenClaw Agent 和 Claude Code Agent 同时更新同一 ProtoStructure → 先提交者成功 → 后提交者进入 pending_merge。
+
+### M6 完成标准
+
+- [ ] Meta Layer 至少检测到 1 个经过验证的 category_blind_spot
+- [ ] 至少 2 个适配器可互换运行，同一场景产生相同输出
+- [ ] `/praxis ontology`, `/praxis audit`, `/praxis status` 三个命令全部可运行
+- [ ] 跨运行时乐观锁冲突正确进入 pending_merge
+
+---
+
+## 依赖关系与并行化
 
 ```
-M1 (ProtoStructure数据模型)    ← 无前置, 立即启动
-  ├─→ M2 (上下文编排)          ← 依赖 M1
-  │     ├─→ M3 (约束系统)      ← 依赖 M1, M2.1 可并行于 M2.2-2.4
-  │     │     ├─→ M4 (置信度)  ← 依赖 M1+M2+M3
-  │     │     │     ├─→ M5 (自主学习) ← 依赖 M1-M4
-  │     │     │     │     └─→ M6 (元认知+适配器) ← 依赖 M1-M5
-  │     │     │     │
-  │     │     │     └─ M6 适配器部分可在 M3 后启动 (不依赖 M4-M5)
-  │     │     │
-  │     │     └─ M4.4 Curiosity 可在 M2.3 遥测完成后提前启动
-  │     │
-  │     └─ M3.2 约束验证 + M4.1 statistical-verifier 可在 M2.3 遥测完成后提前启动
+M0 (核心运行时)           ← 必须先做, 所有后续里程碑的基础
   │
-  └─ M6 适配器接口可独立于 M2-M5 启动 (适配器不依赖认知能力)
+  ├─→ M1 (认知数据结构)   ← 必须先做, M2-M6 都依赖 ProtoStructure
+  │     │
+  │     ├─→ M2 (上下文编排) ← 依赖 M1
+  │     │     │
+  │     │     ├─→ M3 (约束系统) ← 依赖 M1+M2.1+M2.2
+  │     │     │     │
+  │     │     │     ├─→ M4 (置信度系统) ← 依赖 M1+M2+M3
+  │     │     │     │     │
+  │     │     │     │     ├─→ M5 (自主学习) ← 依赖 M1-M4
+  │     │     │     │     │     │
+  │     │     │     │     │     └─→ M6 (元认知+适配器) ← 依赖 M1-M5
+  │     │     │     │     │
+  │     │     │     │     └─ M6 适配器部分可在 M3 后并行启动
+  │     │     │     │
+  │     │     │     └─ M4.5 Curiosity 可在 M2.3 遥测后提前启动
+  │     │     │
+  │     │     └─ M3.4 约束自动提取需 M4.3 statistical-verifier
+  │     │
+  │     └─ M2.3 注意力遥测 → M4.4 奎因式门控的关键数据源
+  │
+  └─ M6 适配器接口设计可与 M2-M5 完全并行
 ```
 
-**关键并行路径**:
-- **路径 A (认知主线)**: M1 → M2 → M3 → M4 → M5 → M6
-- **路径 B (适配器)**: 与 M2-M5 完全并行，在 M1 完成后即可启动
-- **路径 C (快速价值)**: M2.3(遥测) + M3.1(约束注入) 可在 M2.1 完成后提前交付
+**三条并行轨道**:
+1. **认知主线** (关键路径): M0→M1→M2→M3→M4→M5→M6，约 20-28 周
+2. **适配器线** (可并行): M6.1-M6.3 在 M0 完成后即可启动，与 M2-M5 并行
+3. **快速价值线**: M3.1 (约束注入) + M3.5 (`/praxis ontology`) 可在 M2.1 完成后提前交付
 
 ---
 
-## 九、每个里程碑的新增/修改文件
+## 不在此路线图中的事项
 
-| 里程碑 | 新增文件 | 修改文件 |
-|--------|---------|---------|
-| **M1** | `structure-graph.ts`, `extract-structures.md` | `types.ts`, `agentmemory-client.ts`, `session-start.ts`, `transcript-analyzer.ts`, `memory-context.md` |
-| **M2** | `context-organizer.ts`, `context-pressure-monitor.ts`, `recall-structure.ts`, `attention-telemetry.ts` | `session-start.ts`, `session-end.ts` |
-| **M3** | `constraint-validator.ts`, `constraint-extractor.ts`, `constraint-injection.md` | `session-start.ts`, `before-tool-call.ts`, `statistical-verifier.ts` |
-| **M4** | `confidence-fuser.ts`, `statistical-verifier.ts`, `role-verifier.ts`, `concept-verifier.ts`, `counterfactual.ts`, `structure-lifecycle.ts`, `curiosity-engine.ts` | `types.ts`, `session-end.ts`, `agent-end.ts` |
-| **M5** | `mid-session-learner.ts`, `pattern-miner.ts`, `semantic-disambiguator.ts` | `message-received.ts`, `before-tool-call.ts`, `cron-tick.ts`, `types.ts`, `structure-lifecycle.ts` |
-| **M6** | `adapters/` (5 files), `category-auditor.ts`, `architecture-auditor.ts` | `hooks/` (重构为运行时无关) |
+- **多模态记忆**: 架构 §9 定义了 AgentMemory imageRef + vision_search 映射。不在此路线图中——当前无实际需求驱动。
+- **GUI 查看器**: `/praxis status` 文本报告优先于图形界面。
+- **跨团队联邦学习**: M6 完成前不考虑。
+- **Process Engine 完整实现**: V4 的过程网络模型已被 TaskOrchestrator (状态机) 和 HeartbeatMonitor (推动) 覆盖。不再独立实现 ProcessTemplate/ProcessInstance/ProcessStep。
+- **10→15 种学习事件全部激活**: 实现 15 种类型的框架（类型定义），活跃使用已有信号自然触发的类型。不强制触发没有数据支撑的事件类型。
 
 ---
 
-## 十、可验证预测
-
-每条路线图决策附带可证伪的预测:
-
-1. **如果 M1（ProtoStructure 数据模型）的方向正确**: M2-M6 的每个里程碑都能在已有数据模型上增量构建，不需要再次修改核心类型定义。如果 M3 实现时需要回头大改 ProtoStructure 接口 → 说明 M1 设计不充分。
-
-2. **如果 M2（上下文编排）有效**: Tier A/B/C 注入后，LLM 输出中 `[STRUCTURE_USED]` 标记的 Tier A 采纳率 ≥ 60%。如果 < 30% → Tier 排序算法无效。
-
-3. **如果 M3（约束注入）有效**: 约束注入后，违反已结晶约束的 LLM 行为减少 ≥ 70%。如果 < 30% → hard constraint 格式无效。
-
-4. **如果 M5（自主学习）的 MidSessionLearner 有价值**: 实时纠正导致的置信度下调与 session_end 批量分析的结果一致性 ≥ 80%。如果 < 50% → 实时学习噪声过大。
-
-5. **如果 M6（范畴演化）必要**: 在 M1-M5 完成后，≥ 1 种模式在被纠正 5+ 次后仍无法被现有 5 种 ProtoStructure 类型捕获。如果不存在 → 范畴演化可无限期推迟。
-
----
-
-## 十一、不在此路线图中的事项
-
-- **多模态记忆（图像/音频/视频）**: 架构文档 §9 定义了 AgentMemory 存储映射。当前 LLM 视觉能力受限于模型本身，Praxis 侧不需要额外工程。
-- **GUI 能力模型查看器**: `/praxis status` 文本报告的信息密度优于图形界面。在文本报告不满足需求前不投资。
-- **跨团队联邦学习**: 隐私和治理问题未解决。M6 完成后重新评估。
-- **端到端自主任务分解**: 当前 plan-generator + ProtoTask 驱动。完全自主需要 M5 的模式挖掘成熟。
-- **7 源置信度全量实现**: statistical + role + concept 三个验证器在数据不足时不强制激活。M4 目标 ≥ 3 源活跃即可。
-
----
-
-> **立即启动**: M1 (ProtoStructure 数据模型 + 关系图 + 存储检索 + 基本注入)  
-> **预计工期**: 4-6 周  
-> **架构参考**: [§3 认知结构系统](../architech/praxis-architecture.md), [§9 数据模型](../architech/praxis-architecture.md)
+> **立即启动**: M0 (核心运行时)。3-4 周。目标: session_start→session_end 的完整数据通道可运行。  
+> **架构参考**: [§1-§2 (定位+六层)](../architech/praxis-architecture.md), [§10 (生命周期事件)](../architech/praxis-architecture.md), [§9 (AgentMemory 映射)](../architech/praxis-architecture.md)
