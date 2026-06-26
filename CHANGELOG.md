@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.3.0] - 2026-06-26
+
+### Added
+- **M1 storage + injection:** ProtoStructure save/search in agentmemory-client + session_start injection
+
+
 ## [0.8.2.0] - 2026-06-25
 
 ### Added
