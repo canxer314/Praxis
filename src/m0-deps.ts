@@ -7,7 +7,9 @@
  */
 
 import type { Result } from "./platform-adapter";
-import type { AutonomyPolicy, PendingSignal } from "./cognitive/types";
+import type { AutonomyPolicy, PendingSignal, ProtoStructure } from "./cognitive/types";
+import type { ConfidenceFuser } from "./orchestration/confidence-fuser";
+import type { AttentionRecord } from "./attention-telemetry";
 
 // ══════════════════════════════════════════════════════════════════
 // 记忆子系统
@@ -24,6 +26,10 @@ export interface MemorySubsystem {
   saveLesson(lesson: Record<string, unknown>): Promise<Result<void>>;
   /** AgentMemory 是否可用 */
   isAvailable(): Promise<boolean>;
+  /** Phase 0: 持久化 ProtoStructure (upsert by id) */
+  saveProtoStructure?(structure: ProtoStructure): Promise<Result<void>>;
+  /** Phase 0: 按查询检索 ProtoStructures */
+  searchProtoStructures?(query: string, scenarioId?: string, limit?: number): Promise<Result<Record<string, unknown>[]>>;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -46,6 +52,8 @@ export interface LLMSubsystem {
   analyzeTranscript(transcript: string): Promise<{ id: string; type: string; content: string; confidence: number }[]>;
   /** M1: 分析 transcript → 提取 ProtoStructure 候选 */
   extractProtoStructures(transcript: string): Promise<ProtoStructureCandidate[]>;
+  /** Phase 0: 通用 LLM 分析 (cron_tick / deepCheck 使用) */
+  analyze?(prompt: string): Promise<Result<string>>;
 }
 
 /** M1: LLM 提取的 ProtoStructure 候选 */
@@ -81,6 +89,17 @@ export interface M0Deps {
     warn(msg: string, data?: Record<string, unknown>): void;
     error(msg: string, data?: Record<string, unknown>): void;
   };
+  // ════════════════════════════════════════════════════════════════
+  // Phase 0: M4 运行时接线 — 可选依赖（渐进接线，向后兼容）
+  // ════════════════════════════════════════════════════════════════
+  /** Phase 0: 7 源置信度融合器 */
+  fuser?: ConfidenceFuser;
+  /** Phase 0: 注意力遥测记录（跨 session 持久化） */
+  attentionRecords?: Map<string, AttentionRecord>;
+  /** Phase 0: 当前任务类型（lesson schema 用） */
+  currentTaskType?: string;
+  /** Phase 0: 当前领域（lesson schema 用） */
+  currentDomain?: string;
 }
 
 // ══════════════════════════════════════════════════════════════════

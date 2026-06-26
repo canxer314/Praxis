@@ -35,9 +35,11 @@ export class BeforeToolCallHandler {
    * 处理 before_tool_call 事件。返回自主性决策 + M3 约束验证的合并结果。
    * 合并优先级: constraint block ≥ autonomy block > constraint confirm
    *   ≥ autonomy confirm > autonomy inform > autonomy proceed > constraint warn
+   *
+   * Phase 0: 接受 sessionId 参数（供 M5.1 MidSessionLearner 违规计数用）
    */
-  async handle(toolName: string): Promise<
-    Result<{ action: "proceed" | "inform" | "confirm" | "block"; reason: string }>
+  async handle(sessionId: string, toolName: string): Promise<
+    Result<{ action: "proceed" | "inform" | "confirm" | "block"; reason: string; constraintId?: string }>
   > {
     // 1. M0 自主性决策
     const autonomyResult = this.getAutonomyDecision(toolName);
@@ -90,7 +92,7 @@ export class BeforeToolCallHandler {
   private mergeResults(
     autonomy: { action: "proceed" | "inform" | "confirm" | "block"; reason: string },
     constraint: { violated: boolean; constraintId?: string; severity?: string },
-  ): Result<{ action: "proceed" | "inform" | "confirm" | "block"; reason: string }> {
+  ): Result<{ action: "proceed" | "inform" | "confirm" | "block"; reason: string; constraintId?: string }> {
     if (!constraint.violated || !constraint.severity) {
       return { ok: true, value: autonomy };
     }
@@ -105,9 +107,9 @@ export class BeforeToolCallHandler {
 
     const autonomyRank = ACTION_RANK[autonomy.action] ?? 0;
 
-    // Warn 不改变 autonomy 决策
+    // Warn 不改变 autonomy 决策，但仍返回 constraintId 供 M5.1 计数
     if (constraint.severity === "warn") {
-      return { ok: true, value: autonomy };
+      return { ok: true, value: { ...autonomy, constraintId: constraint.constraintId } };
     }
 
     // block/confirm: severity 必须在有效范围内
@@ -120,14 +122,15 @@ export class BeforeToolCallHandler {
       return {
         ok: true,
         value: {
-          action: constraint.severity, // validated to be "block" | "confirm" above
+          action: constraint.severity,
           reason: `约束 "${constraint.constraintId}" 拦截: ${autonomy.reason}`,
+          constraintId: constraint.constraintId,
         },
       };
     }
 
-    // constraint severity ≤ autonomy → autonomy wins
-    return { ok: true, value: autonomy };
+    // constraint severity ≤ autonomy → autonomy wins, but still return constraintId
+    return { ok: true, value: { ...autonomy, constraintId: constraint.constraintId } };
   }
 
   /** 重新加载 autonomy_policy（AgentMemory 恢复时调用） */
