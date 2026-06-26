@@ -52,9 +52,15 @@ export class SessionStartHandler {
       ? await this.loadMentalState()
       : null;
 
+    // 加载 ProtoStructures (M1)
+    const protoStructures = amAvailable
+      ? await this.loadProtoStructures()
+      : [];
+
     return {
       ok: true,
       value: {
+        protoStructures,
         competency,
         knowledge,
         mentalState,
@@ -119,6 +125,38 @@ export class SessionStartHandler {
       }));
     } catch {
       return [];
+    }
+  }
+
+  private async loadProtoStructures(): Promise<SessionContextInjection["protoStructures"]> {
+    try {
+      const result = await this.deps.memory.smartSearch("*", "proto_structure");
+      if (!result.ok || !Array.isArray(result.value)) return [];
+
+      return (result.value as Record<string, unknown>[]).slice(0, 20).map((item) => ({
+        id: String(item.id ?? ""),
+        tentativeName: String(item.tentativeName ?? item.tentative_name ?? ""),
+        protoType: String(item.protoType ?? item.proto_type ?? ""),
+        confidence: Number(item.confidence ?? 0),
+        summary: this.formatProtoStructureSummary(item),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private formatProtoStructureSummary(item: Record<string, unknown>): string {
+    const protoType = String(item.protoType ?? item.proto_type ?? "");
+    switch (protoType) {
+      case "sequence": {
+        const steps = item.structure as { steps?: { action: string }[] } | undefined;
+        if (steps?.steps?.length) return steps.steps.map((s) => s.action).join(" → ");
+        return String(item.tentativeName ?? "");
+      }
+      case "constraint":
+        return `[${String(item.severity ?? "warn")}] ${String(item.tentativeName ?? "")}`;
+      default:
+        return String(item.tentativeName ?? "");
     }
   }
 

@@ -745,6 +745,14 @@ export interface SessionContextInjection {
   }[];
   /** 上次会话的思维状态 */
   mentalState: string | null;
+  /** M1: 从 AgentMemory 检索的 ProtoStructures */
+  protoStructures: {
+    id: string;
+    tentativeName: string;
+    protoType: string;
+    confidence: number;
+    summary: string;
+  }[];
 }
 
 // ══════════════════════════════════════════════════════════════════

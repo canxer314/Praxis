@@ -204,4 +204,48 @@ export const agentmemory = {
     _lastCheck = now;
     return _available;
   },
+
+  /** 保存 ProtoStructure (architecture §9: memory_save type="proto_structure") */
+  async saveProtoStructure(structure: Record<string, unknown>): Promise<Result<void>> {
+    try {
+      const data = await restPost("/agentmemory/memory", {
+        type: "proto_structure",
+        content: JSON.stringify(structure),
+        tags: ["praxis", "proto_structure", String(structure.protoType || "")],
+      });
+      if (!data.success) {
+        return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(data.error || "unknown") } };
+      }
+      return { ok: true, value: undefined };
+    } catch (err) {
+      return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(err) } };
+    }
+  },
+
+  /** 搜索 ProtoStructures (architecture §9: memory_smart_search) */
+  async searchProtoStructures(query: string, scenarioId?: string, limit = 20): Promise<Result<Record<string, unknown>[]>> {
+    try {
+      const body: Record<string, unknown> = {
+        query: query || "*",
+        types: ["proto_structure"],
+        limit,
+      };
+      if (scenarioId) body.scenarioId = scenarioId;
+
+      const data = await restPost("/agentmemory/smart-search", body);
+      if (!data.success) {
+        return { ok: false, error: { code: "SEARCH_ERROR", message: String(data.error || "unknown") } };
+      }
+      const results = (data.results as Array<Record<string, unknown>>) || [];
+      return {
+        ok: true,
+        value: results.map((r) => {
+          try { return typeof r.content === "string" ? JSON.parse(r.content) : r; }
+          catch { return r; }
+        }),
+      };
+    } catch (err) {
+      return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(err) } };
+    }
+  },
 };
