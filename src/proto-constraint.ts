@@ -1,7 +1,7 @@
 /**
  * ProtoConstraint 管理模块 — M3 Step 1
  *
- * 纯函数模块。操作已结晶 ProtoConstraint：过滤、排序、废弃、token 估算。
+ * 纯函数模块（除 deprecateConstraint 外——该函数原地修改约束以支持链式调用）。
  * 不调用外部服务，不做 I/O。
  *
  * 架构参考: architech/praxis-architecture.md §3 (ProtoConstraint 类型), §7 (约束注入), §10 (before_tool_call)
