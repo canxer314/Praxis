@@ -31,10 +31,10 @@ export class SessionEndHandler {
     sessionId: string,
     transcript: string | null,
     pendingSignals: PendingSignal[],
-  ): Promise<Result<{ lessonsWritten: number; lessonsFromSignals: number; lessonsFromTranscript: number }>> {
+  ): Promise<Result<{ lessonsWritten: number; lessonsFromSignals: number; lessonsFromTranscript: number; structuresExtracted: number }>> {
     // 幂等去重
     if (this.processed.has(sessionId)) {
-      return { ok: true, value: { lessonsWritten: 0, lessonsFromSignals: 0, lessonsFromTranscript: 0 } };
+      return { ok: true, value: { lessonsWritten: 0, lessonsFromSignals: 0, lessonsFromTranscript: 0, structuresExtracted: 0 } };
     }
     this.processed.add(sessionId);
 
@@ -64,17 +64,65 @@ export class SessionEndHandler {
       }
     }
 
+    // 3. ProtoStructure 提取 (M1 Step 4)
+    let extractedStructures = 0;
+    if (transcript && this.deps.llm?.extractProtoStructures) {
+      try {
+        const candidates = await this.deps.llm.extractProtoStructures(transcript);
+        for (const c of candidates) {
+          await this.saveProtoStructureCandidate(sessionId, c);
+          extractedStructures++;
+        }
+      } catch {
+        this.deps.logger?.warn("ProtoStructure extraction failed", { sessionId });
+      }
+    }
+
     return {
       ok: true,
       value: {
         lessonsWritten: lessonsFromSignals + lessonsFromTranscript,
         lessonsFromSignals,
         lessonsFromTranscript,
+        structuresExtracted: extractedStructures,
       },
     };
   }
 
   // ---- 内部 ----
+
+  private async saveProtoStructureCandidate(
+    sessionId: string,
+    candidate: { protoType: string; tentativeName: string; scenarioId: string; confidence: number; steps?: { position: number; action: string; agent?: string }[]; purpose?: string; severity?: string; definition?: string; behaviors?: string[] },
+  ): Promise<void> {
+    const amAvailable = await this.deps.memory.isAvailable();
+    const structure: Record<string, unknown> = {
+      id: `proto-${sessionId}-${Date.now()}`,
+      protoType: candidate.protoType,
+      tentativeName: candidate.tentativeName,
+      scenarioId: candidate.scenarioId,
+      confidence: candidate.confidence,
+      observationsCount: 1,
+      adoptionRate: 0,
+      lifecycle: "hypothesized",
+      relations: [],
+      versionChain: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    if (candidate.protoType === "sequence" && candidate.steps) {
+      structure.structure = { steps: candidate.steps };
+      structure.function = { purpose: candidate.purpose ?? "", precondition: [], postcondition: [], failureModes: [] };
+      structure.teleologicalMapping = [];
+    }
+
+    if (amAvailable) {
+      await this.deps.memory.setSlot("proto_structure", structure);
+    } else {
+      this.deps.cache.set(`proto_structure_${structure.id}`, structure);
+    }
+  }
 
   private async persistSignals(sessionId: string, signals: PendingSignal[]): Promise<number> {
     const amAvailable = await this.deps.memory.isAvailable();

@@ -44,6 +44,25 @@ export interface CacheSubsystem {
 export interface LLMSubsystem {
   /** 分析 transcript → 提取学习事件 (session_end 使用) */
   analyzeTranscript(transcript: string): Promise<{ id: string; type: string; content: string; confidence: number }[]>;
+  /** M1: 分析 transcript → 提取 ProtoStructure 候选 */
+  extractProtoStructures(transcript: string): Promise<ProtoStructureCandidate[]>;
+}
+
+/** M1: LLM 提取的 ProtoStructure 候选 */
+export interface ProtoStructureCandidate {
+  protoType: "sequence" | "role" | "concept" | "purpose" | "constraint";
+  tentativeName: string;
+  scenarioId: string;
+  confidence: number;
+  // ProtoSequence specific
+  steps?: { position: number; action: string; agent?: string }[];
+  purpose?: string;
+  // ProtoConstraint specific
+  severity?: string;
+  // ProtoConcept specific
+  definition?: string;
+  // ProtoRole specific
+  behaviors?: string[];
 }
 
 // ══════════════════════════════════════════════════════════════════
