@@ -596,6 +596,8 @@ export interface VerificationContext {
   sessionId: string;
   toolCallTrace: ToolCallRecord[];
   transcript: string;
+  /** M4.3.2 role-verifier: role map for multi-role DAG cycle detection */
+  roleMap?: Map<string, ProtoRole>;
 }
 
 /** M4: 退役结构元数据 */

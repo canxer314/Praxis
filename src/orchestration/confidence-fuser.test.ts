@@ -39,7 +39,7 @@ describe("ConfidenceFuser.fuse", () => {
     expect(result).toBeNull();
   });
 
-  it("4 个源 → 权重重分配正确", () => {
+  it("4 个源 → 权重按比例重分配", () => {
     const fuser = new ConfidenceFuser();
     const sources: SignalSourceInput[] = [
       makeSource("statistical", 0.8),
@@ -48,10 +48,12 @@ describe("ConfidenceFuser.fuse", () => {
       makeSource("concept_verifier", 0.75),
     ];
 
-    // 缺失: llm_marker(0.25), outcome_feedback(0.10), mid_session(0.08) = 0.43
-    // 分配给 4 个可用源: 0.43/4 = 0.1075 each
+    // Available: statistical(0.28) + user_correction(0.12) + role_verifier(0.12) + concept_verifier(0.05) = 0.57
+    // Missing: llm_marker(0.25) + outcome_feedback(0.10) + mid_session(0.08) = 0.43
+    // Proportional: statistical = 0.28 + 0.43 * (0.28/0.57) ≈ 0.491
     const redist = fuser.redistributeWeights(new Set(["statistical", "user_correction", "role_verifier", "concept_verifier"]));
-    expect(redist.statistical).toBeCloseTo(0.28 + 0.1075, 3);
+    expect(redist.statistical).toBeCloseTo(0.28 + 0.43 * (0.28 / 0.57), 2);
+    expect(redist.user_correction).toBeCloseTo(0.12 + 0.43 * (0.12 / 0.57), 2);
     expect(redist.llm_marker).toBe(0);
     expect(redist.outcome_feedback).toBe(0);
     expect(redist.mid_session).toBe(0);

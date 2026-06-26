@@ -61,7 +61,10 @@ export class ConceptVerifier implements Verifier {
         };
       }
 
-      const parsed = JSON.parse(result.value.trim());
+      // Strip markdown fences
+      let text = result.value.trim();
+      text = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
+      const parsed = JSON.parse(text);
       const counterExampleCount = parsed.counterExamples?.length ?? 0;
 
       // 反例越多 → 概念越不可靠 → value 越低

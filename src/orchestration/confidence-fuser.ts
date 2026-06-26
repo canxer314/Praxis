@@ -105,9 +105,11 @@ export class ConfidenceFuser {
         ([, w]) => w > 0,
       );
       if (availableEntries.length > 0) {
-        const bonusPerSource = missingWeight / availableEntries.length;
-        for (const [key] of availableEntries) {
-          result[key as keyof FusionWeights] += bonusPerSource;
+        const availableWeightSum = availableEntries.reduce((sum, [, w]) => sum + w, 0);
+        for (const [key, weight] of availableEntries) {
+          // Proportional: each remaining source gets a share proportional to its existing weight
+          const bonus = missingWeight * (weight / availableWeightSum);
+          result[key as keyof FusionWeights] += bonus;
         }
       }
     }

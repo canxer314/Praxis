@@ -49,18 +49,21 @@ describe("markersToSignalSource", () => {
     const predictions = [{ marker: "PREDICTION_CONFIRMED" as const, structureId: "s1", context: "" }];
     const result = markersToSignalSource(predictions, "s1");
     expect(result!.value).toBe(1.0);
+    expect(result!.sourceName).toBe("llm_marker");
   });
 
   it("FAILED → value 0.0", () => {
     const predictions = [{ marker: "PREDICTION_FAILED" as const, structureId: "s1", context: "" }];
     const result = markersToSignalSource(predictions, "s1");
     expect(result!.value).toBe(0.0);
+    expect(result!.sourceName).toBe("llm_marker");
   });
 
   it("UNCERTAIN → value 0.5", () => {
     const predictions = [{ marker: "PREDICTION_UNCERTAIN" as const, structureId: "s1", context: "" }];
     const result = markersToSignalSource(predictions, "s1");
     expect(result!.value).toBe(0.5);
+    expect(result!.confidence).toBe(0.3);
   });
 
   it("不匹配的 structureId → null", () => {

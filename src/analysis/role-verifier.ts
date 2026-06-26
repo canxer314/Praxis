@@ -38,21 +38,34 @@ export class RoleVerifier implements Verifier {
     const checks: number[] = [];
     const reasons: string[] = [];
 
-    // Check 1: DAG 循环检测
+    // Check 1: Self-dependency detection
     if (role.dependsOn.includes(role.id)) {
-      reasons.push(`Self-dependency detected: ${role.id} depends on itself`);
+      reasons.push(`Self-dependency: ${role.id} depends on itself`);
       checks.push(0);
     } else {
       checks.push(1);
     }
 
-    // Check 2: Behaviors vs toolCallTrace tool names 模糊匹配
+    // Check 2: Multi-role DAG cycle detection (via context.roleMap)
+    if (context.roleMap && role.dependsOn.length > 0) {
+      const cyclePath = detectDagCycles(context.roleMap);
+      if (cyclePath) {
+        reasons.push(`DAG cycle detected: ${cyclePath.join(" → ")}`);
+        checks.push(0);
+      } else {
+        checks.push(1);
+      }
+    }
+
+    // Check 3: Behaviors vs toolCallTrace tool names
+    // Use word-boundary matching to avoid substring false positives
     if (role.behaviors.length > 0 && context.toolCallTrace.length > 0) {
       const toolNames = context.toolCallTrace.map((t) => t.toolName.toLowerCase());
       let matched = 0;
       for (const behavior of role.behaviors) {
         const bl = behavior.toLowerCase();
-        if (toolNames.some((t) => t.includes(bl) || bl.includes(t))) {
+        const blWords = bl.split(/\s+/).filter((w) => w.length > 2);
+        if (blWords.some((word) => toolNames.some((t) => t.includes(word)))) {
           matched++;
         }
       }
@@ -63,10 +76,11 @@ export class RoleVerifier implements Verifier {
       reasons.push(`Behavior match: ${matched}/${role.behaviors.length} behaviors matched tool calls`);
     }
 
-    if (checks.length === 0) {
+    // No behavioral checks → neutral score, not perfect
+    if (checks.length <= 1) {
       return {
         value: 0.5, confidence: 0.1,
-        evidence: "No behavioral data to verify against",
+        evidence: checks.length === 0 ? "No behavioral data" : "Only self-dependency check — insufficient",
         timestamp: Date.now(),
       };
     }

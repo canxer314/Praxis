@@ -52,7 +52,7 @@ export function parsePredictionMarkers(transcript: string): ParsedPrediction[] {
 export function markersToSignalSource(
   predictions: ParsedPrediction[],
   structureId: string,
-): { value: number; evidence: string } | null {
+): { structureId: string; sourceName: string; value: number; confidence: number; evidence: string } | null {
   const relevant = predictions.filter((p) => p.structureId === structureId);
   if (relevant.length === 0) return null;
 
@@ -60,15 +60,19 @@ export function markersToSignalSource(
   const latest = relevant[relevant.length - 1];
 
   let value: number;
+  let confidence: number;
   switch (latest.marker) {
-    case "PREDICTION_CONFIRMED": value = 1.0; break;
-    case "PREDICTION_FAILED":   value = 0.0; break;
-    case "PREDICTION_UNCERTAIN": value = 0.5; break;
+    case "PREDICTION_CONFIRMED": value = 1.0; confidence = 0.8; break;
+    case "PREDICTION_FAILED":   value = 0.0; confidence = 0.8; break;
+    case "PREDICTION_UNCERTAIN": value = 0.5; confidence = 0.3; break;
   }
 
   return {
+    structureId,
+    sourceName: "llm_marker",
     value,
-    evidence: `LLM marker: ${latest.marker} for ${structureId} — "${latest.context.slice(0, 80)}"`,
+    confidence,
+    evidence: `LLM marker: ${latest.marker} for ${structureId}`,
   };
 }
 

@@ -82,12 +82,17 @@ export class StatisticalVerifier implements Verifier {
     const matchDetails: StepMatch[] = [];
     let totalScore = 0;
 
-    for (const step of steps) {
-      // 在 ±1 位置容忍窗口中寻找最佳匹配
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      // Positional window: only match against tool calls near the expected position
+      const startIdx = Math.max(0, i - 1);
+      const endIdx = Math.min(toolCalls.length, i + 2); // ±1 window
+
       let bestScore = 0;
       let bestToolName: string | null = null;
 
-      for (const call of toolCalls) {
+      for (let j = startIdx; j < endIdx; j++) {
+        const call = toolCalls[j];
         const score = toolSemanticScore(step.action, call.toolName);
         if (score > bestScore) {
           bestScore = score;
