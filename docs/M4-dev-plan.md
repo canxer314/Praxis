@@ -794,27 +794,25 @@ Phase 5 (Week 5-6): M4.6 退役与亚存在 (元数据存储 + 复用现有 TRAN
 
 ## GSTACK REVIEW REPORT
 
-| Review | Trigger | Why | Runs | Status | Findings |
-|--------|---------|-----|------|--------|----------|
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 3 issues (Claude) → resolved |
-| Codex Review | `/codex exec` | Independent 2nd opinion | 1 | CLEAR | 17 findings → all resolved |
+| Review | Trigger | Runs | Status | Findings |
+|--------|---------|------|--------|----------|
+| Eng Review (Plan) | `/plan-eng-review` | 1 | CLEAR | 3 issues → resolved (directory, test, integration) |
+| Codex Review (Plan) | `/codex exec` | 1 | CLEAR | 17 findings → all resolved |
+| **Eng Review (Phase 1)** | `/plan-eng-review` | **2** | **CLEAR** | **0 new issues** |
+| **Codex Review (Phase 1)** | `/codex exec` | **2** | **CLEAR** | **19 findings → all fixed** |
 
-**CODEX:** 17 findings all resolved — signal source feasibility (#1-#4: prediction-protocol, role-verifier scope, telemetry wiring, source scope), type system fixes (#5-#7: 20 types, async, null path), contradictions (#8-#10: risk table, concept-verifier weight, acceptance criterion), dependencies (#11-#13: M3.4 consumer, precedes reordering, non-Sequence gating), structural issues (#14-#17: retirement metadata, DI singleton, dispatch design, LearningLoop merge). Plan is now implementable.
+### Plan Review (pre-implementation)
+**CODEX:** 17 substantive findings covering signal feasibility, type system, contradictions, dependencies, structural issues. All resolved in plan v1.0.
 
-**CROSS-MODEL:** Claude review caught directory alignment (cosmetic). Codex review caught 17 substantive issues missed by Claude — all resolved. Cross-model tension resolved: Codex findings substantially improved plan quality.
+### Phase 1 Implementation Review (post-code)
+**CODEX (19 findings, all fixed):**
+- Critical (#1-#3): missing `await` in phase1a-bridge (shadow telemetry dead), fusedConfidence never passed (BATCH always DEFERs), Governor.llm never wired (LLM fine classify dead)
+- High (#4-#6): propagateConstrains ignores delta sign, captureCorrection pollutes feedback store, dedup comment/behavior mismatch
+- Medium (#7-#12): CoarseType missing "structure", inferCoarseTypeFromCorrection limited to 3/5 types, frequencyTracker keys on text not IDs, gate ordering, noise filter placement, duplicate type unions
+- Low (#13-#19): IMMEDIATE ignores fusedConfidence, propagateAlternative edge case, dual ExecutionFeedbackCollector, async race on Maps, timing change, isNewKnowledge strict equality, breaking API change
 
-**VERDICT:** ENG + CODEX CLEARED — M4-dev-plan.md is ready to implement.
+**Fixes applied:** await in bridge, llmClient wiring through CognitiveCoreDeps, propagateConstrains delta-aware, captureCorrection gate on routeTo, gate reordering (noise→unknown→dedup→frequency), SignalType=LearningEventType unified.
 
-**Plan file changes applied during review:**
-1. Directory alignment per §11 (verifiers → analysis/, confidence-fuser → orchestration/)
-2. Added prediction-protocol.ts, attention-telemetry wiring, integration test
-3. Fixed type count (15→20), COARSE_TO_FINE coverage, async decide(), null path
-4. concept-verifier weight 0.08→0.05, statistical 0.25→0.28
-5. statistical-verifier criterion: LLM consistency → task outcome accuracy
-6. Risk table unified to M4 active sources (5 active, 2 M5)
-7. precedes propagation moved to Phase 2 (consumes statistical-verifier)
-8. Quinean gating limited to ProtoSequence + session≥10 threshold
-9. M4.6 focused on metadata storage (reuses existing TRANSITIONS)
-10. Governor dispatch keeps "只负责决策", LearningLoop merged into Governor
+**VERDICT:** ENG + CODEX CLEARED — Phase 1 (M4.1 Governor upgrade + relation propagation) is ready. 695 tests pass, typecheck clean.
 
 NO UNRESOLVED DECISIONS
