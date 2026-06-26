@@ -813,6 +813,12 @@ Phase 5 (Week 5-6): M4.6 退役与亚存在 (元数据存储 + 复用现有 TRAN
 
 **Fixes applied:** await in bridge, llmClient wiring through CognitiveCoreDeps, propagateConstrains delta-aware, captureCorrection gate on routeTo, gate reordering (noise→unknown→dedup→frequency), SignalType=LearningEventType unified.
 
-**VERDICT:** ENG + CODEX CLEARED — Phase 1 (M4.1 Governor upgrade + relation propagation) is ready. 695 tests pass, typecheck clean.
+**VERDICT:** ENG + CODEX CLEARED — Phase 1 (M4.1 Governor) + Phase 2 (M4.2 Fusion + M4.3 Verifiers) ready. 719 tests pass, typecheck clean.
+
+### Phase 2 Implementation Review (post-code)
+**CODEX (14 findings, all fixed):**
+- High: fusion redistribution math (equal→proportional), statistical-verifier missing positional constraint, role-verifier wrong default score, DAG cycle detection wiring
+- Medium: markersToSignalSource incomplete, JSON parse fence stripping, dedup policy documentation
+- All resolved. 719 tests, 0 failures.
 
 NO UNRESOLVED DECISIONS
