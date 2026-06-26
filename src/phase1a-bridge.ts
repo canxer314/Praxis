@@ -28,6 +28,7 @@ import { readCache, writeCache, checkCache } from "./cognitive/scenario-cache";
 import { embed } from "./cognitive/embedding";
 import { SEED_SCENARIOS } from "./cognitive/scenario-registry";
 import type { ScenarioCacheEntry } from "./cognitive/scenario-cache";
+import type { M0Deps } from "./m0-deps";
 
 // ---- CognitiveCore 工厂 (T8) ----
 
@@ -361,47 +362,141 @@ function appendShadowDecision(record: ShadowDecisionRecord): void {
   fs.appendFileSync(SHADOW_DECISIONS_FILE, line, "utf-8");
 }
 
-// ---- AgentMemory 数据读取（注入到 SessionStartHandler） ----
+// ---- M0Deps 适配器 — 将 agentmemory 包装为 M0 标准接口 ----
 
-const DEFAULT_SKILLS = [
-  { id: "typescript", name: "TypeScript", proficiency: 0.65, level: "competent" },
-  { id: "architecture", name: "系统架构设计", proficiency: 0.80, level: "proficient" },
-  { id: "ai-agent", name: "AI Agent 系统", proficiency: 0.70, level: "competent" },
-  { id: "obsidian", name: "Obsidian 笔记管理", proficiency: 0.75, level: "competent" },
-];
+function buildM0Deps(): M0Deps {
+  const cacheDir = MEMORY_DIR;
 
-async function getSlotForInjection(_name: string): Promise<Result<unknown>> {
-  const amAvailable = await agentmemory.isAvailable();
-
-  if (amAvailable) {
-    try {
-      const r = await agentmemory.getSlot("praxis_learnings");
-      if (r.ok && r.value) {
-        const parsed = typeof r.value === "string" ? JSON.parse(r.value) : r.value;
-        if (Array.isArray(parsed)) {
-          const bestPractices = [...new Set(parsed.filter((s: StoredLearning) => s.type === "pattern" || s.type === "insight").map((s: StoredLearning) => s.content))];
-          const antiPatterns = [...new Set(parsed.filter((s: StoredLearning) => s.type === "pitfall" || s.type === "correction").map((s: StoredLearning) => s.content))];
-          return { ok: true, value: { skills: DEFAULT_SKILLS, best_practices: bestPractices.slice(-20), anti_patterns: antiPatterns.slice(-20) } };
+  return {
+    memory: {
+      isAvailable: () => agentmemory.isAvailable(),
+      getSlot: (name: string) => agentmemory.getSlot(name),
+      setSlot: (name: string, value: unknown) => agentmemory.setSlot(name, value),
+      smartSearch: async (query: string, type?: string) => {
+        if (type === "proto_structure") {
+          return agentmemory.searchProtoStructures(query);
         }
+        try {
+          const results = await agentmemory.smartSearch(query, 20);
+          return { ok: true as const, value: results as unknown[] };
+        } catch (e) {
+          return { ok: false, error: { code: "SEARCH_ERROR", message: String(e) } };
+        }
+      },
+      saveLesson: async (lesson: Record<string, unknown>) => {
+        const content = String(lesson.content || "");
+        const tags = Array.isArray(lesson.tags) ? lesson.tags.map(String) : [];
+        const confidence = Number(lesson.confidence ?? 0.8);
+        return agentmemory.saveLesson(content, tags, confidence);
+      },
+    },
+    cache: {
+      get: (key: string) => {
+        try {
+          const filePath = path.join(cacheDir, `cache-${key}.json`);
+          if (!fs.existsSync(filePath)) return null;
+          return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+        } catch { return null; }
+      },
+      set: (key: string, value: unknown) => {
+        try {
+          ensureDir();
+          fs.writeFileSync(path.join(cacheDir, `cache-${key}.json`), JSON.stringify(value), "utf-8");
+        } catch { /* 缓存写入失败不影响主流程 */ }
+      },
+      list: () => {
+        try {
+          if (!fs.existsSync(cacheDir)) return [];
+          return fs.readdirSync(cacheDir)
+            .filter((f) => f.startsWith("cache-") && f.endsWith(".json"))
+            .map((f) => {
+              const key = f.slice(6, -5);
+              const raw = fs.readFileSync(path.join(cacheDir, f), "utf-8");
+              return { key, value: JSON.parse(raw), writtenAt: fs.statSync(path.join(cacheDir, f)).mtimeMs };
+            });
+        } catch { return []; }
+      },
+      delete: (key: string) => {
+        try {
+          const filePath = path.join(cacheDir, `cache-${key}.json`);
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        } catch { /* 忽略 */ }
+      },
+    },
+  };
+}
+
+/**
+ * 将 M0 SessionContextInjection 格式化为 System Prompt 注入文本。
+ * 顺序: Critical Constraints → 能力 → Tier A/B/C → 知识 → 思维状态
+ */
+function formatSessionContextInjection(
+  ctx: import("./cognitive/types").SessionContextInjection,
+  cronWarning: string,
+): string {
+  const sections: string[] = [];
+  sections.push("## Praxis Context");
+
+  // M3: Critical Constraints (最高优先级，不可压缩)
+  if (ctx.tieredContext?.criticalConstraints?.injectionText) {
+    sections.push("");
+    sections.push(ctx.tieredContext.criticalConstraints.injectionText);
+  }
+
+  // 能力概况 (compact)
+  const c = ctx.competency;
+  sections.push("");
+  sections.push("### Capability");
+  sections.push(`- Overall: ${c.overallProficiency.toFixed(2)} | Strongest: ${c.strongestDomains.join(", ") || "—"} | Weakest: ${c.weakestDomains.join(", ") || "—"}`);
+  if (c.currentLearningFocus) {
+    sections.push(`- Learning Focus: ${c.currentLearningFocus}`);
+  }
+
+  // M2: 分层上下文 (Tier A/B)
+  const tc = ctx.tieredContext;
+  if (tc && (tc.tierA.items.length > 0 || tc.tierB.items.length > 0)) {
+    const pressureTag = tc.meta.pressure !== "normal" ? ` [压力: ${tc.meta.pressure}]` : "";
+    sections.push("");
+    sections.push(`### Active Context (${tc.meta.totalStructures} structures, maturity: ${tc.meta.maturity}${pressureTag})`);
+
+    if (tc.tierA.items.length > 0) {
+      sections.push(`**Tier A** (${tc.tierA.items.length} items, ~${tc.tierA.totalTokens} tokens):`);
+      for (const item of tc.tierA.items) {
+        sections.push(`- [${item.protoType}] ${item.tentativeName}: ${item.description.slice(0, 120)}`);
       }
-    } catch {
-      // AgentMemory 读取失败 → 降级
+    }
+    if (tc.tierB.items.length > 0) {
+      sections.push(`**Tier B** (${tc.tierB.items.length} items, ~${tc.tierB.totalTokens} tokens):`);
+      for (const item of tc.tierB.items) {
+        sections.push(`- [${item.protoType}] ${item.tentativeName}`);
+      }
     }
   }
 
-  // 本地 JSON 兜底
-  const stored = loadLearnings();
-  const bestPractices = stored.filter((s) => s.type === "pattern" || s.type === "insight").map((s) => s.content);
-  const antiPatterns = stored.filter((s) => s.type === "pitfall" || s.type === "correction").map((s) => s.content);
+  // 相关经验 (最多 5 条)
+  if (ctx.knowledge.length > 0) {
+    sections.push("");
+    sections.push("### Related Experience");
+    for (const k of ctx.knowledge.slice(0, 5)) {
+      const title = k.title || k.content.slice(0, 60);
+      sections.push(`- [${k.source}] ${title} (${k.confidence.toFixed(2)})`);
+    }
+  }
 
-  return {
-    ok: true,
-    value: {
-      skills: DEFAULT_SKILLS,
-      best_practices: [...new Set(bestPractices)].slice(-20),
-      anti_patterns: [...new Set(antiPatterns)].slice(-20),
-    },
-  };
+  // 思维状态
+  if (ctx.mentalState) {
+    sections.push("");
+    sections.push(`### Previous State\n${ctx.mentalState.slice(0, 200)}`);
+  }
+
+  // Cron 警告
+  if (cronWarning) {
+    sections.push("");
+    sections.push(cronWarning.trim());
+  }
+
+  sections.push(""); // trailing newline
+  return sections.join("\n");
 }
 
 async function setSlotForSessionEnd(name: string, data: unknown): Promise<Result<void>> {
@@ -478,13 +573,10 @@ if (cmd === "inject") {
 
     writeSessionState(sessionState);
 
-    const handler = new SessionStartHandler({
-      getSlot: getSlotForInjection,
-      cognitiveCore: core,
-    });
+    const handler = new SessionStartHandler(buildM0Deps());
     const result = await handler.handle(`session-${getSessionCount()}`);
     if (result.ok) {
-      const injection = result.value.systemPromptAddition + cronWarning;
+      const injection = formatSessionContextInjection(result.value, cronWarning);
       console.log(injection);
       console.log("\n[Praxis Phase1A] 注入验证码: PRAXIS-1A-OK-8f3a");
       logSession(getSessionCount(), "context_injected");

@@ -309,35 +309,27 @@ export class SessionCognitiveCore {
     return this.loop.taskReceive(taskType, domain, opts);
   }
 
-  /** Phase 2: 捕获用户修正 */
-  captureCorrection(
+  /** Phase 2: 捕获用户修正 — M4: Governor is the sole correction pipeline */
+  async captureCorrection(
     correction: Correction,
     sessionContext: SessionContext,
-  ): Result<Correction | null> {
-    return this.loop.captureCorrection(correction, sessionContext);
+  ): Promise<Result<LearningDecision>> {
+    const result = await this.governor.decide(correction, sessionContext);
+    // Write to feedback collector for backward-compatible querying
+    if (result.ok && result.value.action !== "SKIP") {
+      this.loop.captureCorrection(correction, sessionContext);
+    }
+    return result;
   }
 
   /**
-   * Governor 驱动的学习决策 (Phase 1)。
-   *
-   * 接收原始修正信号 → 4 阶段管道 (classify→gate→decide→dispatch)
-   * → 返回结构化 LearningDecision。
-   *
-   * 这是 Governor 替代 LearningLoop 编排职责的入口。
-   * 调用方根据返回的 LearningDecision.routeTo 决定下一步:
-   *   - execution_feedback → 即时反馈收集
-   *   - learning_update → session_end 批处理
-   *   - deferred_queue → 延迟评估队列
-   *
-   * @param correction 用户修正
-   * @param sessionContext 会话上下文
-   * @param signalTypeHint 外部信号类型提示 (可选)
+   * Governor 驱动的学习决策 (M4 升级: async)。
    */
-  governorDecide(
+  async governorDecide(
     correction: Correction,
     sessionContext: SessionContext,
     signalTypeHint?: string,
-  ): Result<LearningDecision> {
+  ): Promise<Result<LearningDecision>> {
     return this.governor.decide(correction, sessionContext, signalTypeHint);
   }
 

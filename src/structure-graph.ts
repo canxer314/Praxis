@@ -146,7 +146,56 @@ export function propagateSpecialization(
 }
 
 /**
- * 完整传播: 考虑所有关系类型，合并所有受影响结构的最终 delta。
+ * 处理约束关系: B 违反 A 的约束 → B 降级 (M4 Phase 1)
+ */
+export function propagateConstrains(
+  changedId: string,
+  allStructures: Map<string, ProtoStructure>,
+): Map<string, number> {
+  const affected = new Map<string, number>();
+  const structure = allStructures.get(changedId);
+  if (!structure) return affected;
+
+  // 找出所有被当前结构约束的目标，检查是否有违反
+  for (const rel of structure.relations) {
+    if (rel.type !== "constrains") continue;
+    const target = allStructures.get(rel.targetId);
+    if (!target) continue;
+    // 约束关系: 如果约束方置信度下降，被约束方也降级
+    // 强度 = 约束边的 strength
+    const penalty = -0.05 * rel.strength;
+    affected.set(rel.targetId, penalty);
+  }
+
+  return affected;
+}
+
+/**
+ * 处理替代关系: B 置信度上升 → 替代结构 A 可降级 (M4 Phase 1)
+ */
+export function propagateAlternative(
+  changedId: string,
+  delta: number,
+  allStructures: Map<string, ProtoStructure>,
+): Map<string, number> {
+  const affected = new Map<string, number>();
+
+  for (const [id, s] of allStructures) {
+    for (const rel of s.relations) {
+      if (rel.type !== "alternative_to") continue;
+      if (rel.targetId !== changedId) continue;
+      // A 是 B 的替代: A 上升 → B 可降
+      const penalty = -(delta * rel.strength);
+      affected.set(id, penalty);
+    }
+  }
+
+  return affected;
+}
+
+/**
+ * 完整传播: 5 种关系类型 (Phase 1)。
+ * Phase 2 加入 precedes (依赖 statistical-verifier.matchDetails)。
  */
 export function fullPropagation(
   changedId: string,
@@ -161,9 +210,11 @@ export function fullPropagation(
     }
   };
 
-  addTo(propagateConfidence(changedId, delta, allStructures));
-  addTo(propagateContradiction(changedId, delta, allStructures));
-  addTo(propagateSpecialization(changedId, delta, allStructures));
+  addTo(propagateConfidence(changedId, delta, allStructures));      // depends_on
+  addTo(propagateContradiction(changedId, delta, allStructures));   // contradicts
+  addTo(propagateSpecialization(changedId, delta, allStructures));  // specializes
+  addTo(propagateConstrains(changedId, allStructures));             // constrains (NEW M4)
+  addTo(propagateAlternative(changedId, delta, allStructures));     // alternative_to (NEW M4)
 
   return merged;
 }
