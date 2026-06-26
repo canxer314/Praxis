@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.4.0] - 2026-06-26
+
+### Added
+- **M1 ProtoStructure extraction:** session_end LLM analysis for ProtoStructure candidates
+
+
 ## [0.8.3.0] - 2026-06-26
 
 ### Added
