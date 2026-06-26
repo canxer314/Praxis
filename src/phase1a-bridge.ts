@@ -793,7 +793,7 @@ if (cmd === "inject") {
       try {
         const core = createCognitiveCore();
         const sessionCore = core.createSession(sessionId);
-        const result = sessionCore.governorDecide(correction, {
+        const result = await sessionCore.governorDecide(correction, {
           sessionId,
           hasExplicitRejection: true,
           taskType: "unknown",

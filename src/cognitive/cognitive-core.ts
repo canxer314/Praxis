@@ -39,7 +39,7 @@
  * ```
  */
 
-import type { Result } from "../platform-adapter";
+import type { Result, LlmClient } from "../platform-adapter";
 import { PraxisErrorThrowable, ErrorCode } from "../platform-adapter";
 import type {
   TaskAssessment,
@@ -79,6 +79,8 @@ export interface CognitiveCoreDeps {
   memoryClient: CognitiveCoreMemoryClient;
   /** E10: 可选 WAL 文件路径 — 进程重启后从磁盘恢复未写入的记忆 */
   walFilePath?: string;
+  /** M4: 可选 LLM 客户端 — 用于 Governor fine 分类 */
+  llmClient?: LlmClient;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -92,6 +94,7 @@ export class CognitiveCore {
   readonly crossDomainAnalyzer: CrossDomainAnalyzer;
   private readonly memoryClient: CognitiveCoreMemoryClient;
   private readonly walFilePath?: string;
+  private readonly llmClient?: LlmClient;
 
   constructor(deps: CognitiveCoreDeps) {
     if (!deps || !deps.memoryClient) {
@@ -99,6 +102,7 @@ export class CognitiveCore {
     }
     this.memoryClient = deps.memoryClient;
     this.walFilePath = deps.walFilePath;
+    this.llmClient = deps.llmClient;
 
     this.metacognitive = new MetacognitiveEngine(deps.memoryClient);
     this.strategyRegistry = new StrategyRegistry(deps.memoryClient);
@@ -126,6 +130,7 @@ export class CognitiveCore {
       this.gapDetector,
       this.strategyRegistry,
       this.crossDomainAnalyzer,
+      this.llmClient,
     );
   }
 
@@ -278,13 +283,14 @@ export class SessionCognitiveCore {
     gapDetector?: GapDetector,
     strategyRegistry?: StrategyRegistry,
     crossDomainAnalyzer?: CrossDomainAnalyzer,
+    llmClient?: LlmClient,
   ) {
     if (!sessionId || typeof sessionId !== "string" || sessionId.length > 128) {
       throw new PraxisErrorThrowable(ErrorCode.MISSING_DEP, "sessionId must be a non-empty string ≤ 128 chars");
     }
     this.sessionId = sessionId;
     this.metacognitive = metacognitive;
-    this.governor = new Governor(sessionId, metacognitive);
+    this.governor = new Governor(sessionId, metacognitive, llmClient);
     this.gapDetector = gapDetector ?? new GapDetector(metacognitive);
     this.strategyRegistry = strategyRegistry ?? new StrategyRegistry(memoryClient);
     this.crossDomainAnalyzer = crossDomainAnalyzer ?? new CrossDomainAnalyzer(memoryClient);
@@ -315,8 +321,8 @@ export class SessionCognitiveCore {
     sessionContext: SessionContext,
   ): Promise<Result<LearningDecision>> {
     const result = await this.governor.decide(correction, sessionContext);
-    // Write to feedback collector for backward-compatible querying
-    if (result.ok && result.value.action !== "SKIP") {
+    // Write to feedback collector only for execution_feedback route
+    if (result.ok && result.value.routeTo === "execution_feedback") {
       this.loop.captureCorrection(correction, sessionContext);
     }
     return result;

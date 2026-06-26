@@ -18,34 +18,10 @@
 /** 时序决策 */
 export type TimingDecision = "IMMEDIATE" | "BATCH" | "DEFERRED";
 
-/** 20 种信号类型 (架构 §4 LearningEvent 分类, M4) */
-export type SignalType =
-  // correction
-  | "mistake_correction"
-  | "action_decision_error"
-  | "action_decision_oversight"
-  | "role_routing_mismatch"
-  | "role_routing_ambiguity"
-  // insight
-  | "domain_insight"
-  | "task_pattern_recognition"
-  | "procedural_optimization"
-  // preference
-  | "preference_discovery"
-  | "communication_style"
-  | "communication_detail_level"
-  | "timing_preference"
-  | "timing_pacing"
-  // pattern
-  | "process_efficiency_bottleneck"
-  | "process_efficiency_redundancy"
-  | "structural_inadequacy_detected"
-  // structure (M5/M6 activated)
-  | "structure_constructed"
-  | "structure_validated"
-  | "structure_regression"
-  // governance
-  | "governance_override";
+import type { LearningEventType } from "../cognitive/types";
+
+/** SignalType = LearningEventType — 统一类型，避免重复定义 (Codex #12) */
+export type SignalType = LearningEventType;
 
 /** 分类结果 */
 export interface TimingResult {

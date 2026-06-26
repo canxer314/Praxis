@@ -323,20 +323,32 @@ export class Governor {
   // ════════════════════════════════════════════════════════════════
 
   private stage2Gate(signal: ClassifiedSignal): GatedSignal {
-    // Gate 1: isRealExperience (保留)
+    // Gate 1: isRealExperience
     if (!isRealExperience(signal.correction, signal.sessionContext)) {
       return { signal, passed: false, gateReason: "Not a real experience" };
     }
 
-    // Gate 2: 去重 — 同一 (what, correctedTo) 重复 → 取最新
+    // Gate 2: 噪声过滤 (先运行 — 不消耗去重/频次预算)
+    if (signal.correction.isNewKnowledge === false &&
+        !signal.sessionContext.hasExplicitRejection &&
+        signal.coarseType !== "correction") {
+      return { signal, passed: false, gateReason: "Noise filter — low confidence non-correction signal" };
+    }
+
+    // Gate 3: 未知信号类型 → 放行但标记 (噪声过滤之后)
+    if (signal.signalType === "unknown") {
+      return { signal, passed: true, gateReason: "Unknown signal type — passed with low confidence" };
+    }
+
+    // Gate 4: 去重 — 同一 (what, correctedTo) 首次保留，后续丢弃
     const dedupKey = `${signal.correction.what}::${signal.correction.correctedTo}`;
     const dedupCount = (this.dedupTracker.get(dedupKey) ?? 0) + 1;
     this.dedupTracker.set(dedupKey, dedupCount);
     if (dedupCount > 1) {
-      return { signal, passed: false, gateReason: `Duplicate signal (${dedupCount}x in this session) — using latest` };
+      return { signal, passed: false, gateReason: `Duplicate signal (${dedupCount}x in this session)` };
     }
 
-    // Gate 3: 频次限制 — 同一结构单 session 最多 MAX_UPDATES 次
+    // Gate 5: 频次限制 — 同一结构单 session 最多 MAX_UPDATES 次
     const affectedIds = this.extractAffectedIds(signal);
     for (const id of affectedIds) {
       const count = (this.frequencyTracker.get(id) ?? 0) + 1;
@@ -344,18 +356,6 @@ export class Governor {
       if (count > Governor.MAX_UPDATES_PER_STRUCTURE) {
         return { signal, passed: false, gateReason: `Frequency limit exceeded for structure ${id} (${count} > ${Governor.MAX_UPDATES_PER_STRUCTURE})` };
       }
-    }
-
-    // Gate 4: 噪声过滤 — 无 rejection + 非新知识 + 非 correction 粗类 → 丢弃
-    if (signal.correction.isNewKnowledge === false &&
-        !signal.sessionContext.hasExplicitRejection &&
-        signal.coarseType !== "correction") {
-      return { signal, passed: false, gateReason: "Noise filter — low confidence non-correction signal" };
-    }
-
-    // 信号类型未知 → 放行但标记
-    if (signal.signalType === "unknown") {
-      return { signal, passed: true, gateReason: "Unknown signal type — passed with low confidence" };
     }
 
     return { signal, passed: true, gateReason: "All gates passed" };

@@ -150,20 +150,22 @@ export function propagateSpecialization(
  */
 export function propagateConstrains(
   changedId: string,
+  delta: number,
   allStructures: Map<string, ProtoStructure>,
 ): Map<string, number> {
   const affected = new Map<string, number>();
   const structure = allStructures.get(changedId);
   if (!structure) return affected;
 
-  // 找出所有被当前结构约束的目标，检查是否有违反
+  // 仅当约束方置信度下降时才传播惩罚
+  if (delta >= 0) return affected;
+
   for (const rel of structure.relations) {
     if (rel.type !== "constrains") continue;
     const target = allStructures.get(rel.targetId);
     if (!target) continue;
-    // 约束关系: 如果约束方置信度下降，被约束方也降级
-    // 强度 = 约束边的 strength
-    const penalty = -0.05 * rel.strength;
+    // 约束方置信度下降 → 被约束方同向降级
+    const penalty = delta * rel.strength;
     affected.set(rel.targetId, penalty);
   }
 
@@ -213,7 +215,7 @@ export function fullPropagation(
   addTo(propagateConfidence(changedId, delta, allStructures));      // depends_on
   addTo(propagateContradiction(changedId, delta, allStructures));   // contradicts
   addTo(propagateSpecialization(changedId, delta, allStructures));  // specializes
-  addTo(propagateConstrains(changedId, allStructures));             // constrains (NEW M4)
+  addTo(propagateConstrains(changedId, delta, allStructures));        // constrains (NEW M4)
   addTo(propagateAlternative(changedId, delta, allStructures));     // alternative_to (NEW M4)
 
   return merged;
