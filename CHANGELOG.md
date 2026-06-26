@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.10.0.0] - 2026-06-26
+
+### Added
+- **M3 Constraint System:** ProtoConstraint upgraded from passive storage to active interception — stop LLM before it makes mistakes
+- **M3 ProtoConstraint Management:** getActiveConstraints filtering by crystallized lifecycle, sortBySeverity (block > confirm > warn), deprecateConstraint with gated side effects
+- **M3 CRITICAL CONSTRAINTS Injection:** formatted constraint section injected before Tier A/B/C in session_start, survives Critical pressure (~100 tokens)
+- **M3 Constraint Validation in before_tool_call:** collect-all + max-severity matching, mergeResults with constraint ≥ autonomy priority, orchestrator wiring for session-scoped constraint loading
+- **M3 Severity Normalization:** defensive severity validation in AgentMemory field extraction (normalizeSeverity helper)
+- **before-tool-call.test.ts:** M0 test debt resolved — autonomy decision tests + constraint validation integration tests
+
+### Changed
+- **before-tool-call.ts:** added loadConstraints() + constraint-aware handle() + mergeResults for combined autonomy/constraint decisions
+- **session-start.ts:** rawStructures caching for constraint extraction, buildCriticalConstraints() for injection text generation
+- **orchestrator.ts:** handleSessionStart now loads crystallized constraints into BeforeToolCallHandler, clears stale constraints on new session
+- **cognitive/types.ts:** SessionContextInjection.tieredContext extended with criticalConstraints field (injectionText + constraints array)
+
 ## [0.9.0.0] - 2026-06-26
 
 ### Added

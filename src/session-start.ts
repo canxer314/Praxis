@@ -11,10 +11,12 @@
 
 import type { Result } from "./platform-adapter";
 import type { M0Deps } from "./m0-deps";
-import type { SessionContextInjection, ScenarioMatch } from "./cognitive/types";
+import type { SessionContextInjection, ScenarioMatch, ProtoConstraint } from "./cognitive/types";
 import { organizeContext } from "./context-organizer";
 import { measurePressure } from "./context-pressure-monitor";
 import type { PressureLevel, MaturityLevel } from "./context-pressure-monitor";
+import { getActiveConstraints } from "./proto-constraint";
+import { injectConstraints } from "./constraint-injector";
 
 // ---- 默认值（降级用） ----
 
@@ -52,9 +54,18 @@ export interface SessionStartOptions {
   contextWindowSize?: number;
 }
 
+/** 规范化 severity 值 — 防御从 AgentMemory 读取的无效数据 */
+function normalizeSeverity(raw: string): ProtoConstraint["severity"] {
+  const valid = ["block", "confirm", "warn"];
+  return valid.includes(raw) ? (raw as ProtoConstraint["severity"]) : "warn";
+}
+
 // ---- SessionStartHandler ----
 
 export class SessionStartHandler {
+  /** M3: 从 AgentMemory 加载的原始 ProtoStructure 数据（供约束提取复用，避免二次 API 调用） */
+  private rawStructures: Record<string, unknown>[] = [];
+
   constructor(private readonly deps: M0Deps) {}
 
   /**
@@ -113,6 +124,11 @@ export class SessionStartHandler {
         })
       : undefined;
 
+    // M3: 从原始 ProtoStructure 数据中提取已结晶约束 → 生成注入段
+    const criticalConstraints = amAvailable
+      ? this.buildCriticalConstraints()
+      : undefined;
+
     return {
       ok: true,
       value: {
@@ -125,9 +141,57 @@ export class SessionStartHandler {
           tierB: tieredContext.tierB,
           tierC: tieredContext.tierC,
           meta: tieredContext.meta,
+          criticalConstraints,
         } : undefined,
       },
     };
+  }
+
+  /**
+   * M3: 从原始 ProtoStructure 数据中提取已结晶约束并格式化为注入段。
+   * 复用 loadProtoStructures 中已缓存的 rawStructures，避免额外 API 调用。
+   */
+  private buildCriticalConstraints(): { injectionText: string; tokenCount: number; constraintIds: string[] } | undefined {
+    const constraints = this.loadConstraints();
+    if (constraints.length === 0) return undefined;
+
+    const active = getActiveConstraints(constraints);
+    if (active.length === 0) return undefined;
+
+    const result = injectConstraints({ constraints: active });
+    if (result.injectionText === "") return undefined;
+
+    return {
+      injectionText: result.injectionText,
+      tokenCount: result.tokenCount,
+      constraintIds: result.constraintIds,
+      constraints: active,
+    };
+  }
+
+  /** M3: 从缓存的原始 AgentMemory 数据中提取 ProtoConstraint 字段 */
+  private loadConstraints(): ProtoConstraint[] {
+    return this.rawStructures
+      .filter((item) => String(item.protoType ?? item.proto_type ?? "") === "constraint")
+      .map((item) => ({
+        id: String(item.id ?? ""),
+        protoType: "constraint" as const,
+        tentativeName: String(item.tentativeName ?? item.tentative_name ?? ""),
+        scenarioId: String(item.scenarioId ?? item.scenario_id ?? ""),
+        confidence: Number(item.confidence ?? 0),
+        observationsCount: Number(item.observationsCount ?? item.observations_count ?? 0),
+        adoptionRate: Number(item.adoptionRate ?? item.adoption_rate ?? 0),
+        lifecycle: String(item.lifecycle ?? "hypothesized") as ProtoConstraint["lifecycle"],
+        relations: (item.relations as ProtoConstraint["relations"]) ?? [],
+        versionChain: (item.versionChain as ProtoConstraint["versionChain"]) ?? [],
+        createdAt: Number(item.createdAt ?? item.created_at ?? 0),
+        updatedAt: Number(item.updatedAt ?? item.updated_at ?? 0),
+        severity: normalizeSeverity(String(item.severity ?? "warn")),
+        source: (String(item.source ?? "user_taught")) as ProtoConstraint["source"],
+        rulePatterns: (Array.isArray(item.rulePatterns ?? item.rule_patterns)
+          ? (item.rulePatterns ?? item.rule_patterns) as string[]
+          : []),
+      }));
   }
 
   // ---- 内部 ----
@@ -193,9 +257,15 @@ export class SessionStartHandler {
   private async loadProtoStructures(): Promise<SessionContextInjection["protoStructures"]> {
     try {
       const result = await this.deps.memory.smartSearch("*", "proto_structure");
-      if (!result.ok || !Array.isArray(result.value)) return [];
+      if (!result.ok || !Array.isArray(result.value)) {
+        this.rawStructures = [];
+        return [];
+      }
 
-      return (result.value as Record<string, unknown>[]).slice(0, 20).map((item) => ({
+      // 保存原始数据供 M3 约束提取复用
+      this.rawStructures = result.value as Record<string, unknown>[];
+
+      return this.rawStructures.slice(0, 20).map((item) => ({
         id: String(item.id ?? ""),
         tentativeName: String(item.tentativeName ?? item.tentative_name ?? ""),
         protoType: String(item.protoType ?? item.proto_type ?? ""),

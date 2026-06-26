@@ -234,5 +234,25 @@ export type {
   DisambiguationResult,
 } from "../semantic-disambiguator";
 
+// M3: 约束系统 (v0.9.1.0+)
+export {
+  getActiveConstraints,
+  sortBySeverity,
+  deprecateConstraint,
+  estimateConstraintTokens,
+  SEVERITY_RANK,
+} from "../proto-constraint";
+
+// M3 Step 2: 约束注入
+export { injectConstraints } from "../constraint-injector";
+export type {
+  InjectConstraintsInput,
+  InjectConstraintsOutput,
+} from "../constraint-injector";
+
+// M3 Step 3: 约束验证
+export { checkConstraints } from "../constraint-validator";
+export type { ConstraintCheckResult } from "../constraint-validator";
+
 // 全部类型
 export type * from "./types";
