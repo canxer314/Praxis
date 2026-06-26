@@ -7,7 +7,7 @@
  * 架构参考: architech/praxis-architecture.md §3 (ProtoConstraint 类型), §7 (约束注入), §10 (before_tool_call)
  */
 
-import type { ProtoConstraint, ProtoStructure } from "./cognitive/types";
+import type { ProtoConstraint, ProtoStructure, ConstraintSeverity } from "./cognitive/types";
 import { transition } from "./structure-lifecycle";
 
 // ══════════════════════════════════════════════════════════════════
@@ -15,7 +15,7 @@ import { transition } from "./structure-lifecycle";
 // ══════════════════════════════════════════════════════════════════
 
 /** Severity 排序权重 — 用于 sortBySeverity 和 checkConstraints 的 max-severity 比较 */
-const SEVERITY_RANK: Record<string, number> = {
+const SEVERITY_RANK: Record<ConstraintSeverity, number> = {
   block: 3,
   confirm: 2,
   warn: 1,
@@ -65,8 +65,9 @@ export function deprecateConstraint(
   const newLifecycle = transition(constraint, "deprecate");
   constraint.lifecycle = newLifecycle;
   constraint.updatedAt = Date.now();
-  // 废弃理由写入 tentativeName 后缀供日志追踪
-  // (完整审计记录在 versionChain 中——M1 structure-version)
+  // 废弃理由写入 tentativeName 后缀供日志追踪和 /praxis ontology 展示
+  // (M4+ 升级时改为写入 versionChain 作为结构化审计记录)
+  constraint.tentativeName = `${constraint.tentativeName} [废弃: ${reason}]`;
   return constraint;
 }
 

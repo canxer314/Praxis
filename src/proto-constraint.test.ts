@@ -184,9 +184,10 @@ describe("sortBySeverity", () => {
 
 describe("deprecateConstraint", () => {
   it("已结晶约束 → lifecycle 推进到 deprecated", () => {
-    const c = makeConstraint({ lifecycle: "crystallized" });
+    const c = makeConstraint({ lifecycle: "crystallized", tentativeName: "我的约束" });
     const result = deprecateConstraint(c, "不再适用");
     expect(result.lifecycle).toBe("deprecated");
+    expect(result.tentativeName).toBe("我的约束 [废弃: 不再适用]");
   });
 
   it("返回同一个对象引用", () => {
