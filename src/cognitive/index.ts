@@ -234,5 +234,14 @@ export type {
   DisambiguationResult,
 } from "../semantic-disambiguator";
 
+// M3: 约束系统 (v0.9.1.0+)
+export {
+  getActiveConstraints,
+  sortBySeverity,
+  deprecateConstraint,
+  estimateConstraintTokens,
+  SEVERITY_RANK,
+} from "../proto-constraint";
+
 // 全部类型
 export type * from "./types";
