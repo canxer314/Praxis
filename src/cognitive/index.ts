@@ -168,5 +168,28 @@ export type {
   OrganizeContextOutput,
 } from "../context-organizer";
 
+// M2 Step 2: 压力自适应
+export {
+  measurePressure,
+  getInjectionStrategy,
+  assessPressure,
+} from "../context-pressure-monitor";
+export type {
+  PressureReading,
+  InjectionStrategy,
+} from "../context-pressure-monitor";
+
+// M2 Step 2.2: Lazy Loading
+export {
+  recallStructure,
+  buildStructureIndex,
+  formatStructureIndex,
+  formatRecalledStructure,
+} from "../memory/recall-structure";
+export type {
+  RecalledStructure,
+  StructureIndexEntry,
+} from "../memory/recall-structure";
+
 // 全部类型
 export type * from "./types";

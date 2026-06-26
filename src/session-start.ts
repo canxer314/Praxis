@@ -14,6 +14,7 @@ import type { M0Deps } from "./m0-deps";
 import type { SessionContextInjection, ScenarioMatch } from "./cognitive/types";
 import { organizeContext } from "./context-organizer";
 import type { PressureLevel, MaturityLevel } from "./context-organizer";
+import { measurePressure } from "./context-pressure-monitor";
 
 // ---- 默认值（降级用） ----
 
@@ -45,6 +46,10 @@ export interface SessionStartOptions {
   pressure?: PressureLevel;
   /** 认知成熟度 */
   maturity?: MaturityLevel;
+  /** M2 Step 2: 估计已使用的上下文 token 数（用于自动测量压力级别） */
+  estimatedUsedTokens?: number;
+  /** M2 Step 2: 上下文窗口总大小（默认 1M） */
+  contextWindowSize?: number;
 }
 
 // ---- SessionStartHandler ----
@@ -84,6 +89,12 @@ export class SessionStartHandler {
       ? await this.loadProtoStructures()
       : [];
 
+    // M2 Step 2: 自动测量压力级别（如果提供了 token 使用量）
+    const pressure = opts.pressure
+      ?? (opts.estimatedUsedTokens !== undefined
+        ? measurePressure(opts.estimatedUsedTokens, opts.contextWindowSize).level
+        : "normal");
+
     // M2: 通过 context-organizer 分层编排
     const tieredContext = amAvailable && protoStructures.length > 0
       ? organizeContext({
@@ -97,7 +108,7 @@ export class SessionStartHandler {
           })),
           scenarios: opts.scenarios ?? [],
           taskContext: opts.taskContext ?? null,
-          pressure: opts.pressure ?? "normal",
+          pressure,
           maturity: opts.maturity ?? "competent",
         })
       : undefined;
