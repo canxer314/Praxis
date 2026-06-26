@@ -1,16 +1,20 @@
 /**
- * SessionStartHandler — M0 重构
+ * SessionStartHandler — M0 重构 + M2 分层注入
  *
  * 职责:
  *   - 从 AgentMemory 加载 competency_model + 相关知识
- *   - 构建 SessionContextInjection（结构化上下文，对齐架构文档 M0.3）
+ *   - 从 AgentMemory 加载 ProtoStructures → 通过 context-organizer 分层编排
+ *   - 构建 SessionContextInjection（结构化上下文，对齐架构文档 M0.3 + M2 §7）
  *   - AgentMemory 不可用时降级（空上下文，不崩溃）
  *   - 已移除 CognitiveCore 依赖 — 直连 AgentMemory
  */
 
 import type { Result } from "./platform-adapter";
 import type { M0Deps } from "./m0-deps";
-import type { SessionContextInjection } from "./cognitive/types";
+import type { SessionContextInjection, ScenarioMatch } from "./cognitive/types";
+import { organizeContext } from "./context-organizer";
+import { measurePressure } from "./context-pressure-monitor";
+import type { PressureLevel, MaturityLevel } from "./context-pressure-monitor";
 
 // ---- 默认值（降级用） ----
 
@@ -26,6 +30,28 @@ const DEFAULT_COMPETENCY: SessionContextInjection["competency"] = {
   currentLearningFocus: null,
 };
 
+// ---- 类型 ----
+
+export interface SessionStartOptions {
+  /** 当前活跃场景（scene-recognizer 输出） */
+  scenarios?: ScenarioMatch[];
+  /** 当前任务上下文（M2 Step 4 将完善） */
+  taskContext?: {
+    taskId?: string;
+    name?: string;
+    currentPhase?: string;
+    relevantScenarios?: string[];
+  } | null;
+  /** 上下文压力级别（M2 Step 2 将独立测量） */
+  pressure?: PressureLevel;
+  /** 认知成熟度 */
+  maturity?: MaturityLevel;
+  /** M2 Step 2: 估计已使用的上下文 token 数（用于自动测量压力级别） */
+  estimatedUsedTokens?: number;
+  /** M2 Step 2: 上下文窗口总大小（默认 1M） */
+  contextWindowSize?: number;
+}
+
 // ---- SessionStartHandler ----
 
 export class SessionStartHandler {
@@ -33,8 +59,14 @@ export class SessionStartHandler {
 
   /**
    * 处理 session_start 事件。返回要注入 system prompt 的上下文。
+   *
+   * @param sessionId 会话 ID
+   * @param opts      可选 — 场景、TaskContext、压力级别、成熟度
    */
-  async handle(sessionId: string): Promise<Result<SessionContextInjection>> {
+  async handle(
+    sessionId: string,
+    opts: SessionStartOptions = {},
+  ): Promise<Result<SessionContextInjection>> {
     const amAvailable = await this.deps.memory.isAvailable();
 
     // 加载能力模型
@@ -52,10 +84,34 @@ export class SessionStartHandler {
       ? await this.loadMentalState()
       : null;
 
-    // 加载 ProtoStructures (M1)
+    // 加载 ProtoStructures (M1) → 分层编排 (M2)
     const protoStructures = amAvailable
       ? await this.loadProtoStructures()
       : [];
+
+    // M2 Step 2: 自动测量压力级别（如果提供了 token 使用量）
+    const pressure = opts.pressure
+      ?? (opts.estimatedUsedTokens !== undefined
+        ? measurePressure(opts.estimatedUsedTokens, opts.contextWindowSize).level
+        : "normal");
+
+    // M2: 通过 context-organizer 分层编排
+    const tieredContext = amAvailable && protoStructures.length > 0
+      ? organizeContext({
+          structures: protoStructures.map((s) => ({
+            id: s.id,
+            tentativeName: s.tentativeName,
+            protoType: s.protoType,
+            confidence: s.confidence,
+            scenarioId: s.scenarioId,
+            summary: s.summary,
+          })),
+          scenarios: opts.scenarios ?? [],
+          taskContext: opts.taskContext ?? null,
+          pressure,
+          maturity: opts.maturity ?? "competent",
+        })
+      : undefined;
 
     return {
       ok: true,
@@ -64,6 +120,12 @@ export class SessionStartHandler {
         competency,
         knowledge,
         mentalState,
+        tieredContext: tieredContext ? {
+          tierA: tieredContext.tierA,
+          tierB: tieredContext.tierB,
+          tierC: tieredContext.tierC,
+          meta: tieredContext.meta,
+        } : undefined,
       },
     };
   }
@@ -138,6 +200,7 @@ export class SessionStartHandler {
         tentativeName: String(item.tentativeName ?? item.tentative_name ?? ""),
         protoType: String(item.protoType ?? item.proto_type ?? ""),
         confidence: Number(item.confidence ?? 0),
+        scenarioId: String(item.scenarioId ?? item.scenario_id ?? ""),
         summary: this.formatProtoStructureSummary(item),
       }));
     } catch {

@@ -143,6 +143,7 @@ export { InMemoryMemoryClient } from "./inmemory-client";
 export { EventOrchestrator } from "../orchestrator";
 export type { PraxisLifecycleEvent } from "../orchestrator";
 export { SessionStartHandler } from "../session-start";
+export type { SessionStartOptions } from "../session-start";
 export { SessionEndHandler } from "../session-end";
 export { MessageReceivedHandler } from "../message-received";
 export { BeforeToolCallHandler } from "../before-tool-call";
@@ -154,6 +155,84 @@ export type { M0Deps, MemorySubsystem, CacheSubsystem, LLMSubsystem } from "../m
 export { DEFAULT_AUTONOMY_POLICY, assessRiskLevel } from "../m0-deps";
 export { localCache } from "../memory/local-cache";
 export type { CacheEntry, CacheStats } from "../memory/local-cache";
+
+// M2: 上下文编排 (v0.9.0.0+)
+export { organizeContext } from "../context-organizer";
+export type {
+  PressureLevel,
+  MaturityLevel,
+  ContextStructure,
+  TierEntry,
+  ContextTier,
+  OrganizeContextInput,
+  OrganizeContextOutput,
+} from "../context-organizer";
+
+// M2 Step 2: 压力自适应
+export {
+  measurePressure,
+  getInjectionStrategy,
+  assessPressure,
+} from "../context-pressure-monitor";
+export type {
+  PressureReading,
+  InjectionStrategy,
+} from "../context-pressure-monitor";
+
+// M2 Step 2.2: Lazy Loading
+export {
+  recallStructure,
+  buildStructureIndex,
+  formatStructureIndex,
+  formatRecalledStructure,
+} from "../memory/recall-structure";
+export type {
+  RecalledStructure,
+  StructureIndexEntry,
+} from "../memory/recall-structure";
+
+// M2 Step 3: 注意力遥测
+export {
+  extractUsageMarkers,
+  updateAttention,
+  detectZombies,
+  detectUnderestimated,
+  generateTelemetryReport,
+  formatTelemetryReport,
+} from "../attention-telemetry";
+export type {
+  AttentionRecord,
+  ZombieDetection,
+  UnderestimatedDetection,
+  TelemetryReport,
+} from "../attention-telemetry";
+
+// M2 Step 4: TaskContext
+export {
+  createTaskContext,
+  applyProgress,
+  updateTaskContext,
+  isStale,
+  formatTaskContext,
+} from "../task-context";
+export type {
+  TaskContext,
+  TaskType,
+  InferredProgress,
+  CreateTaskContextInput,
+} from "../task-context";
+
+// M2 Step 5: 语义消歧
+export {
+  disambiguate,
+  disambiguateText,
+  registerHomographs,
+  formatDisambiguationHint,
+} from "../semantic-disambiguator";
+export type {
+  HomographEntry,
+  DisambiguationResult,
+} from "../semantic-disambiguator";
 
 // 全部类型
 export type * from "./types";

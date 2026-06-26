@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.0.0] - 2026-06-26
+
+### Added
+- **M2 Context Orchestration:** Tier A/B/C layered ProtoStructure injection with scoring (scene × 0.55 + task × 0.35 + signal × 0.10)
+- **M2 Pressure Adaptation:** 4-level context pressure monitor (Normal/Elevated/High/Critical) with automatic tier compression
+- **M2 Lazy Loading:** recall-structure module for Critical-mode on-demand structure detail retrieval
+- **M2 Attention Telemetry:** [STRUCTURE_USED] marker parsing, cross-session adoption tracking, zombie detection, underestimated detection
+- **M2 TaskContext:** 8-field task context structure with confidence-gated auto-progress inference
+- **M2 Semantic Disambiguation:** homograph registry with scenario-context-driven sense selection
+- **M2 session-start integration:** automatic pressure measurement from estimated token usage, scenarioId propagation from AgentMemory
+
+### Changed
+- **session-start.ts:** ProtoStructure injection refactored from flat list to tiered context via context-organizer
+- **session-end.ts:** added attention telemetry [STRUCTURE_USED] extraction
+
 ## [0.8.4.0] - 2026-06-26
 
 ### Added
