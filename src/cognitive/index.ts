@@ -250,5 +250,9 @@ export type {
   InjectConstraintsOutput,
 } from "../constraint-injector";
 
+// M3 Step 3: 约束验证
+export { checkConstraints } from "../constraint-validator";
+export type { ConstraintCheckResult } from "../constraint-validator";
+
 // 全部类型
 export type * from "./types";

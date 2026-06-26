@@ -276,6 +276,7 @@ describe("SessionStartHandler (M3 — criticalConstraints)", () => {
       expect(result.value.tieredContext!.criticalConstraints!.injectionText).toContain("⛔ CRITICAL CONSTRAINTS");
       expect(result.value.tieredContext!.criticalConstraints!.injectionText).toContain("数据库迁移前必须备份");
       expect(result.value.tieredContext!.criticalConstraints!.constraintIds).toContain("c1");
+      expect(result.value.tieredContext!.criticalConstraints!.constraints).toHaveLength(1);
     }
   });
 

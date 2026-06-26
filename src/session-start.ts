@@ -159,6 +159,7 @@ export class SessionStartHandler {
       injectionText: result.injectionText,
       tokenCount: result.tokenCount,
       constraintIds: result.constraintIds,
+      constraints: active,
     };
   }
 

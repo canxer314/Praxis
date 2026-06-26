@@ -72,7 +72,14 @@ export class EventOrchestrator {
   async handleSessionStart(sessionId: string) {
     // 初始化 session 状态
     this.sessions.set(sessionId, { pendingSignals: [], toolCallTrace: [] });
-    return this.sessionStart.handle(sessionId);
+    const result = await this.sessionStart.handle(sessionId);
+    // M3: 加载已结晶约束到 before_tool_call 处理器
+    if (result.ok && result.value.tieredContext?.criticalConstraints) {
+      this.beforeToolCall.loadConstraints(
+        result.value.tieredContext.criticalConstraints.constraints,
+      );
+    }
+    return result;
   }
 
   async handleMessageReceived(sessionId: string, message: { role: "user" | "assistant"; content: string }) {

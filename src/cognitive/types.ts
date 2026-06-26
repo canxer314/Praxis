@@ -765,6 +765,8 @@ export interface SessionContextInjection {
       injectionText: string;
       tokenCount: number;
       constraintIds: string[];
+      /** M3 Step 3: 实际约束对象列表 — 供 orchestrator 传递给 before_tool_call 处理器 */
+      constraints: ProtoConstraint[];
     };
   };
 }
