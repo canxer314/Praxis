@@ -207,5 +207,32 @@ export type {
   TelemetryReport,
 } from "../attention-telemetry";
 
+// M2 Step 4: TaskContext
+export {
+  createTaskContext,
+  applyProgress,
+  updateTaskContext,
+  isStale,
+  formatTaskContext,
+} from "../task-context";
+export type {
+  TaskContext,
+  TaskType,
+  InferredProgress,
+  CreateTaskContextInput,
+} from "../task-context";
+
+// M2 Step 5: 语义消歧
+export {
+  disambiguate,
+  disambiguateText,
+  registerHomographs,
+  formatDisambiguationHint,
+} from "../semantic-disambiguator";
+export type {
+  HomographEntry,
+  DisambiguationResult,
+} from "../semantic-disambiguator";
+
 // 全部类型
 export type * from "./types";
