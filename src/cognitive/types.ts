@@ -745,7 +745,7 @@ export interface SessionContextInjection {
   }[];
   /** 上次会话的思维状态 */
   mentalState: string | null;
-  /** M1: 从 AgentMemory 检索的 ProtoStructures */
+  /** M1: 从 AgentMemory 检索的 ProtoStructures（扁平列表，向后兼容） */
   protoStructures: {
     id: string;
     tentativeName: string;
@@ -753,6 +753,13 @@ export interface SessionContextInjection {
     confidence: number;
     summary: string;
   }[];
+  /** M2: Tier A/B/C 分层上下文（context-organizer 输出） */
+  tieredContext?: {
+    tierA: { items: { id: string; tentativeName: string; protoType: string; confidence: number; scenarioId: string; description: string }[]; totalTokens: number };
+    tierB: { items: { id: string; tentativeName: string; protoType: string; confidence: number; scenarioId: string; description: string }[]; totalTokens: number };
+    tierC: { items: { id: string; tentativeName: string; protoType: string; confidence: number; scenarioId: string; description: string }[]; totalTokens: number };
+    meta: { pressure: string; maturity: string; totalStructures: number };
+  };
 }
 
 // ══════════════════════════════════════════════════════════════════

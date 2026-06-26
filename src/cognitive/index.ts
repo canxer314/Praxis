@@ -143,6 +143,7 @@ export { InMemoryMemoryClient } from "./inmemory-client";
 export { EventOrchestrator } from "../orchestrator";
 export type { PraxisLifecycleEvent } from "../orchestrator";
 export { SessionStartHandler } from "../session-start";
+export type { SessionStartOptions } from "../session-start";
 export { SessionEndHandler } from "../session-end";
 export { MessageReceivedHandler } from "../message-received";
 export { BeforeToolCallHandler } from "../before-tool-call";
@@ -154,6 +155,18 @@ export type { M0Deps, MemorySubsystem, CacheSubsystem, LLMSubsystem } from "../m
 export { DEFAULT_AUTONOMY_POLICY, assessRiskLevel } from "../m0-deps";
 export { localCache } from "../memory/local-cache";
 export type { CacheEntry, CacheStats } from "../memory/local-cache";
+
+// M2: 上下文编排 (v0.9.0.0+)
+export { organizeContext } from "../context-organizer";
+export type {
+  PressureLevel,
+  MaturityLevel,
+  ContextStructure,
+  TierEntry,
+  ContextTier,
+  OrganizeContextInput,
+  OrganizeContextOutput,
+} from "../context-organizer";
 
 // 全部类型
 export type * from "./types";

@@ -1,16 +1,19 @@
 /**
- * SessionStartHandler — M0 重构
+ * SessionStartHandler — M0 重构 + M2 分层注入
  *
  * 职责:
  *   - 从 AgentMemory 加载 competency_model + 相关知识
- *   - 构建 SessionContextInjection（结构化上下文，对齐架构文档 M0.3）
+ *   - 从 AgentMemory 加载 ProtoStructures → 通过 context-organizer 分层编排
+ *   - 构建 SessionContextInjection（结构化上下文，对齐架构文档 M0.3 + M2 §7）
  *   - AgentMemory 不可用时降级（空上下文，不崩溃）
  *   - 已移除 CognitiveCore 依赖 — 直连 AgentMemory
  */
 
 import type { Result } from "./platform-adapter";
 import type { M0Deps } from "./m0-deps";
-import type { SessionContextInjection } from "./cognitive/types";
+import type { SessionContextInjection, ScenarioMatch } from "./cognitive/types";
+import { organizeContext } from "./context-organizer";
+import type { PressureLevel, MaturityLevel } from "./context-organizer";
 
 // ---- 默认值（降级用） ----
 
@@ -26,6 +29,24 @@ const DEFAULT_COMPETENCY: SessionContextInjection["competency"] = {
   currentLearningFocus: null,
 };
 
+// ---- 类型 ----
+
+export interface SessionStartOptions {
+  /** 当前活跃场景（scene-recognizer 输出） */
+  scenarios?: ScenarioMatch[];
+  /** 当前任务上下文（M2 Step 4 将完善） */
+  taskContext?: {
+    taskId?: string;
+    name?: string;
+    currentPhase?: string;
+    relevantScenarios?: string[];
+  } | null;
+  /** 上下文压力级别（M2 Step 2 将独立测量） */
+  pressure?: PressureLevel;
+  /** 认知成熟度 */
+  maturity?: MaturityLevel;
+}
+
 // ---- SessionStartHandler ----
 
 export class SessionStartHandler {
@@ -33,8 +54,14 @@ export class SessionStartHandler {
 
   /**
    * 处理 session_start 事件。返回要注入 system prompt 的上下文。
+   *
+   * @param sessionId 会话 ID
+   * @param opts      可选 — 场景、TaskContext、压力级别、成熟度
    */
-  async handle(sessionId: string): Promise<Result<SessionContextInjection>> {
+  async handle(
+    sessionId: string,
+    opts: SessionStartOptions = {},
+  ): Promise<Result<SessionContextInjection>> {
     const amAvailable = await this.deps.memory.isAvailable();
 
     // 加载能力模型
@@ -52,10 +79,28 @@ export class SessionStartHandler {
       ? await this.loadMentalState()
       : null;
 
-    // 加载 ProtoStructures (M1)
+    // 加载 ProtoStructures (M1) → 分层编排 (M2)
     const protoStructures = amAvailable
       ? await this.loadProtoStructures()
       : [];
+
+    // M2: 通过 context-organizer 分层编排
+    const tieredContext = amAvailable && protoStructures.length > 0
+      ? organizeContext({
+          structures: protoStructures.map((s) => ({
+            id: s.id,
+            tentativeName: s.tentativeName,
+            protoType: s.protoType,
+            confidence: s.confidence,
+            scenarioId: "", // AgentMemory 加载的结构不含 scenarioId，由 context-organizer 中性处理
+            summary: s.summary,
+          })),
+          scenarios: opts.scenarios ?? [],
+          taskContext: opts.taskContext ?? null,
+          pressure: opts.pressure ?? "normal",
+          maturity: opts.maturity ?? "competent",
+        })
+      : undefined;
 
     return {
       ok: true,
@@ -64,6 +109,12 @@ export class SessionStartHandler {
         competency,
         knowledge,
         mentalState,
+        tieredContext: tieredContext ? {
+          tierA: tieredContext.tierA,
+          tierB: tieredContext.tierB,
+          tierC: tieredContext.tierC,
+          meta: tieredContext.meta,
+        } : undefined,
       },
     };
   }
