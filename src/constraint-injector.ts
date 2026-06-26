@@ -9,7 +9,6 @@
  */
 
 import type { ProtoConstraint } from "./cognitive/types";
-import type { PressureLevel } from "./context-pressure-monitor";
 import { sortBySeverity, estimateConstraintTokens } from "./proto-constraint";
 
 // ══════════════════════════════════════════════════════════════════
@@ -18,8 +17,6 @@ import { sortBySeverity, estimateConstraintTokens } from "./proto-constraint";
 
 export interface InjectConstraintsInput {
   constraints: ProtoConstraint[];
-  /** 上下文压力级别 — 不影响是否注入（始终注入），仅影响 token 预算告警 */
-  pressure: PressureLevel;
   /** 注入段最大 token 数（默认 150）。超出时按 severity 优先级截断 */
   maxTokens?: number;
 }

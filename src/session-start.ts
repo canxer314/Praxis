@@ -120,7 +120,7 @@ export class SessionStartHandler {
 
     // M3: 从原始 ProtoStructure 数据中提取已结晶约束 → 生成注入段
     const criticalConstraints = amAvailable
-      ? this.buildCriticalConstraints(pressure)
+      ? this.buildCriticalConstraints()
       : undefined;
 
     return {
@@ -145,16 +145,14 @@ export class SessionStartHandler {
    * M3: 从原始 ProtoStructure 数据中提取已结晶约束并格式化为注入段。
    * 复用 loadProtoStructures 中已缓存的 rawStructures，避免额外 API 调用。
    */
-  private buildCriticalConstraints(
-    pressure: PressureLevel,
-  ): { injectionText: string; tokenCount: number; constraintIds: string[] } | undefined {
+  private buildCriticalConstraints(): { injectionText: string; tokenCount: number; constraintIds: string[] } | undefined {
     const constraints = this.loadConstraints();
     if (constraints.length === 0) return undefined;
 
     const active = getActiveConstraints(constraints);
     if (active.length === 0) return undefined;
 
-    const result = injectConstraints({ constraints: active, pressure });
+    const result = injectConstraints({ constraints: active });
     if (result.injectionText === "") return undefined;
 
     return {

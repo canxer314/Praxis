@@ -46,7 +46,7 @@ function makeConstraint(overrides: Partial<ProtoConstraint> = {}): ProtoConstrai
 
 describe("injectConstraints", () => {
   it("空约束列表 → 空输出", () => {
-    const result = injectConstraints({ constraints: [], pressure: "normal" });
+    const result = injectConstraints({ constraints: [] });
     expect(result.injectionText).toBe("");
     expect(result.tokenCount).toBe(0);
     expect(result.constraintIds).toEqual([]);
@@ -54,7 +54,7 @@ describe("injectConstraints", () => {
 
   it("单个 block 约束 → 格式化包含 ⛔ 标记", () => {
     const c = makeConstraint({ tentativeName: "数据库迁移前必须备份" });
-    const result = injectConstraints({ constraints: [c], pressure: "normal" });
+    const result = injectConstraints({ constraints: [c] });
     expect(result.injectionText).toContain("⛔ CRITICAL CONSTRAINTS");
     expect(result.injectionText).toContain("1. 数据库迁移前必须备份");
     expect(result.injectionText).toContain("[用户明确教导]");
@@ -68,7 +68,7 @@ describe("injectConstraints", () => {
       makeConstraint({ id: "b", tentativeName: "Block约束", severity: "block" }),
       makeConstraint({ id: "c", tentativeName: "Confirm约束", severity: "confirm" }),
     ];
-    const result = injectConstraints({ constraints, pressure: "normal" });
+    const result = injectConstraints({ constraints });
     // Block should appear first
     const blockIdx = result.injectionText.indexOf("Block约束");
     const confirmIdx = result.injectionText.indexOf("Confirm约束");
@@ -79,7 +79,7 @@ describe("injectConstraints", () => {
 
   it("user_taught 来源 → 显示 [用户明确教导]", () => {
     const c = makeConstraint({ source: "user_taught", tentativeName: "用户教约束" });
-    const result = injectConstraints({ constraints: [c], pressure: "normal" });
+    const result = injectConstraints({ constraints: [c] });
     expect(result.injectionText).toContain("[用户明确教导]");
   });
 
@@ -90,13 +90,13 @@ describe("injectConstraints", () => {
       observationsCount: 15,
       tentativeName: "自动推约束",
     });
-    const result = injectConstraints({ constraints: [c], pressure: "normal" });
+    const result = injectConstraints({ constraints: [c] });
     expect(result.injectionText).toContain("[置信度 0.72, 15次观察]");
   });
 
   it("Critical 压力下仍注入约束段", () => {
     const c = makeConstraint({ tentativeName: "关键约束" });
-    const result = injectConstraints({ constraints: [c], pressure: "critical" });
+    const result = injectConstraints({ constraints: [c] });
     expect(result.injectionText).toContain("⛔ CRITICAL CONSTRAINTS");
     expect(result.injectionText).toContain("关键约束");
   });
@@ -107,7 +107,7 @@ describe("injectConstraints", () => {
       makeConstraint({ id: "b", tentativeName: "第二" }),
       makeConstraint({ id: "c", tentativeName: "第三" }),
     ];
-    const result = injectConstraints({ constraints, pressure: "normal" });
+    const result = injectConstraints({ constraints });
     expect(result.injectionText).toContain("1. 第一");
     expect(result.injectionText).toContain("2. 第二");
     expect(result.injectionText).toContain("3. 第三");
@@ -118,7 +118,7 @@ describe("injectConstraints", () => {
       makeConstraint({ id: "a" }),
       makeConstraint({ id: "b" }),
     ];
-    const result = injectConstraints({ constraints, pressure: "normal" });
+    const result = injectConstraints({ constraints });
     // 2 constraints * 40 = 80 tokens
     expect(result.tokenCount).toBe(80);
   });
@@ -132,7 +132,7 @@ describe("injectConstraints", () => {
       makeConstraint({ id: "b2", tentativeName: "B2", severity: "block" }),
     ];
     // 5 * 40 = 200 > maxTokens=80 → only keep 2 (80/40=2)
-    const result = injectConstraints({ constraints, pressure: "normal", maxTokens: 80 });
+    const result = injectConstraints({ constraints, maxTokens: 80 });
     expect(result.injectionText).toContain("B1");
     expect(result.injectionText).toContain("B2");
     expect(result.injectionText).not.toContain("W1");
@@ -141,7 +141,7 @@ describe("injectConstraints", () => {
 
   it("maxTokens=0 时至少保留 1 个约束", () => {
     const constraints = [makeConstraint({ id: "only", severity: "block" })];
-    const result = injectConstraints({ constraints, pressure: "normal", maxTokens: 0 });
+    const result = injectConstraints({ constraints, maxTokens: 0 });
     expect(result.constraintIds).toHaveLength(1);
     expect(result.injectionText).toContain("1.");
   });
