@@ -13,8 +13,8 @@ import type { Result } from "./platform-adapter";
 import type { M0Deps } from "./m0-deps";
 import type { SessionContextInjection, ScenarioMatch } from "./cognitive/types";
 import { organizeContext } from "./context-organizer";
-import type { PressureLevel, MaturityLevel } from "./context-organizer";
 import { measurePressure } from "./context-pressure-monitor";
+import type { PressureLevel, MaturityLevel } from "./context-pressure-monitor";
 
 // ---- 默认值（降级用） ----
 

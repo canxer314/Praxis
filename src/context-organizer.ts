@@ -11,16 +11,11 @@
 
 import type { ScenarioMatch } from "./cognitive/types";
 import { estimateTokens } from "./cognitive/context";
+import { getInjectionStrategy } from "./context-pressure-monitor";
+import type { PressureLevel, MaturityLevel } from "./context-pressure-monitor";
 
-// ══════════════════════════════════════════════════════════════════
-// 类型定义
-// ══════════════════════════════════════════════════════════════════
-
-/** 上下文压力级别 — M2 Step 2 将独立测量，此处预留接口 */
-export type PressureLevel = "normal" | "elevated" | "high" | "critical";
-
-/** 认知成熟度 — 基于 session 计数 */
-export type MaturityLevel = "novice" | "competent" | "expert";
+// Re-export for backward compatibility
+export type { PressureLevel, MaturityLevel };
 
 /** 单个待编排的结构条目（从 AgentMemory 加载后的简化形式） */
 export interface ContextStructure {
@@ -99,21 +94,8 @@ const MATURITY_DETAIL_MULTIPLIER: Record<MaturityLevel, number> = {
   expert: 1.4,
 };
 
-/** 压力级别 → Tier B 压缩率（保留的 token 比例） */
-const PRESSURE_TIER_B_RETENTION: Record<PressureLevel, number> = {
-  normal: 1.0,
-  elevated: 0.6,
-  high: 0.3,
-  critical: 0.0, // Critical 下 Tier B 完全移除
-};
-
-/** 压力级别 → Tier C 保留率 */
-const PRESSURE_TIER_C_RETENTION: Record<PressureLevel, number> = {
-  normal: 1.0,
-  elevated: 0.0,
-  high: 0.0,
-  critical: 0.0,
-};
+// 压力压缩率由 context-pressure-monitor.ts 的 getInjectionStrategy() 统一管理
+// — 此处不再重复定义，避免双源头分歧
 
 // ══════════════════════════════════════════════════════════════════
 // 公开 API
@@ -156,9 +138,10 @@ export function organizeContext(input: OrganizeContextInput): OrganizeContextOut
     }
   }
 
-  // 4. 按压力级别压缩 Tier B 和 Tier C
-  const tierBRetention = PRESSURE_TIER_B_RETENTION[pressure];
-  const tierCRetention = PRESSURE_TIER_C_RETENTION[pressure];
+  // 4. 按压力级别压缩 Tier B 和 Tier C（策略由 context-pressure-monitor 统一管理）
+  const strategy = getInjectionStrategy(pressure);
+  const tierBRetention = strategy.tierBRetention;
+  const tierCRetention = strategy.tierCRetention;
 
   const retainedTierB = tierBRetention < 1
     ? tierBItems.slice(0, Math.max(1, Math.ceil(tierBItems.length * tierBRetention)))

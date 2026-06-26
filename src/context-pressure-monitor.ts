@@ -7,7 +7,15 @@
  * 架构参考: architech/praxis-architecture.md §7.2 (四级压力自适应)
  */
 
-import type { PressureLevel } from "./context-organizer";
+// ══════════════════════════════════════════════════════════════════
+// 基础类型 (M2 压力系统权威定义)
+// ══════════════════════════════════════════════════════════════════
+
+/** 上下文压力级别 */
+export type PressureLevel = "normal" | "elevated" | "high" | "critical";
+
+/** 认知成熟度 — 基于 session 计数 */
+export type MaturityLevel = "novice" | "competent" | "expert";
 
 // ══════════════════════════════════════════════════════════════════
 // 阈值常量
