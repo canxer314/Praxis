@@ -10,6 +10,7 @@
  */
 
 import type { ScenarioMatch } from "./cognitive/types";
+import { estimateTokens } from "./cognitive/context";
 
 // ══════════════════════════════════════════════════════════════════
 // 类型定义
@@ -383,37 +384,14 @@ function protoTypeLabel(protoType: string): string {
 
 /**
  * 估算一个 Tier 的总 token 数。
- *
- * 简化估算: CJK 字符 ≈1 token，ASCII ≈0.25 token。
- * 与 context.ts 的 estimateTokens 保持一致。
+ * 使用 context.ts 的 estimateTokens（CJK 感知）。
  */
 function estimateTierTokens(items: TierEntry[]): number {
   let total = 0;
   for (const item of items) {
-    total += estimateTextTokens(item.description);
+    total += estimateTokens(item.description);
     // 每个条目额外 ~5 token 的结构开销
     total += 5;
   }
   return Math.ceil(total);
-}
-
-function estimateTextTokens(text: string): number {
-  let tokens = 0;
-  for (const ch of text) {
-    const cp = ch.codePointAt(0)!;
-    if (
-      (cp >= 0x4E00 && cp <= 0x9FFF) ||
-      (cp >= 0x3400 && cp <= 0x4DBF) ||
-      (cp >= 0x20000 && cp <= 0x2A6DF) ||
-      (cp >= 0xF900 && cp <= 0xFAFF) ||
-      (cp >= 0x3040 && cp <= 0x309F) ||
-      (cp >= 0x30A0 && cp <= 0x30FF) ||
-      (cp >= 0xAC00 && cp <= 0xD7AF)
-    ) {
-      tokens += 1;
-    } else {
-      tokens += 0.25;
-    }
-  }
-  return Math.ceil(tokens);
 }

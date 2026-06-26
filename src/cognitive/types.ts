@@ -751,6 +751,7 @@ export interface SessionContextInjection {
     tentativeName: string;
     protoType: string;
     confidence: number;
+    scenarioId: string;
     summary: string;
   }[];
   /** M2: Tier A/B/C 分层上下文（context-organizer 输出） */

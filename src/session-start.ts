@@ -92,7 +92,7 @@ export class SessionStartHandler {
             tentativeName: s.tentativeName,
             protoType: s.protoType,
             confidence: s.confidence,
-            scenarioId: "", // AgentMemory 加载的结构不含 scenarioId，由 context-organizer 中性处理
+            scenarioId: s.scenarioId,
             summary: s.summary,
           })),
           scenarios: opts.scenarios ?? [],
@@ -189,6 +189,7 @@ export class SessionStartHandler {
         tentativeName: String(item.tentativeName ?? item.tentative_name ?? ""),
         protoType: String(item.protoType ?? item.proto_type ?? ""),
         confidence: Number(item.confidence ?? 0),
+        scenarioId: String(item.scenarioId ?? item.scenario_id ?? ""),
         summary: this.formatProtoStructureSummary(item),
       }));
     } catch {
