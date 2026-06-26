@@ -1,16 +1,18 @@
 /**
- * MessageReceivedHandler — M0
+ * MessageReceivedHandler — M0 + M5.5 /praxis command routing
  *
  * 职责:
  *   - 检测用户纠正信号（"不对，应该是..."）
  *   - 将检测到的信号暂存到 session-scoped 数组
  *   - 纯规则匹配，< 10ms，不调 LLM
+ *   - M5.5: /praxis 命令路由
  *
  * M4 将升级为 Governor 管道的完整语义意图分析。
  */
 
 import type { M0Deps } from "./m0-deps";
 import type { PendingSignal } from "./cognitive/types";
+import { parsePraxisCommand, handlePraxisCommand } from "./commands/praxis-cli";
 
 // ---- 纠正检测模式 ----
 
@@ -51,9 +53,15 @@ export class MessageReceivedHandler {
   async handle(
     sessionId: string,
     message: { role: "user" | "assistant"; content: string },
-  ): Promise<void> {
+  ): Promise<string | void> {
     // 只分析用户消息
     if (message.role !== "user") return;
+
+    // M5.5: /praxis 命令路由
+    const cmd = parsePraxisCommand(message.content);
+    if (cmd) {
+      return handlePraxisCommand(cmd, this.deps);
+    }
 
     // 检测纠正信号
     if (detectCorrection(message.content)) {

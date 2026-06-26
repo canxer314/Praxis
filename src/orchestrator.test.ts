@@ -52,7 +52,7 @@ describe("EventOrchestrator", () => {
     });
 
     // before_tool_call
-    const btResult = await orchestrator.handleBeforeToolCall("file_read");
+    const btResult = await orchestrator.handleBeforeToolCall("test-session", "file_read");
     expect(btResult).toBeDefined();
 
     // after_tool_call
@@ -119,7 +119,7 @@ describe("EventOrchestrator", () => {
   });
 
   it("before_tool_call — 高风险操作返回 confirm", async () => {
-    const result = await orchestrator.handleBeforeToolCall("database_changes");
+    const result = await orchestrator.handleBeforeToolCall("test-session", "database_changes");
     expect(result).toBeDefined();
     if (typeof result === "object" && result !== null && "ok" in result && (result as { ok: boolean }).ok) {
       expect((result as { ok: true; value: { action: string } }).value.action).toBe("confirm");
@@ -127,7 +127,7 @@ describe("EventOrchestrator", () => {
   });
 
   it("before_tool_call — 低风险操作返回 inform", async () => {
-    const result = await orchestrator.handleBeforeToolCall("searching_files");
+    const result = await orchestrator.handleBeforeToolCall("test-session", "searching_files");
     expect(result).toBeDefined();
     if (typeof result === "object" && result !== null && "ok" in result && (result as { ok: boolean }).ok) {
       const action = (result as { ok: true; value: { action: string } }).value.action;

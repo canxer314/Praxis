@@ -59,7 +59,7 @@ function makeConstraint(overrides: Partial<ProtoConstraint> = {}): ProtoConstrai
 describe("BeforeToolCallHandler (M0 — autonomy)", () => {
   it("低风险操作 → proceed 或 inform", async () => {
     const handler = new BeforeToolCallHandler(makeDeps());
-    const result = await handler.handle("git_status");
+    const result = await handler.handle("test-session", "git_status");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(["proceed", "inform"]).toContain(result.value.action);
@@ -68,7 +68,7 @@ describe("BeforeToolCallHandler (M0 — autonomy)", () => {
 
   it("中风险操作 → inform", async () => {
     const handler = new BeforeToolCallHandler(makeDeps());
-    const result = await handler.handle("npm_install");
+    const result = await handler.handle("test-session", "npm_install");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.action).toBe("inform");
@@ -77,7 +77,7 @@ describe("BeforeToolCallHandler (M0 — autonomy)", () => {
 
   it("高风险操作 → confirm (keyword: database_changes)", async () => {
     const handler = new BeforeToolCallHandler(makeDeps());
-    const result = await handler.handle("apply_database_changes");
+    const result = await handler.handle("test-session", "apply_database_changes");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.action).toBe("confirm");
@@ -86,7 +86,7 @@ describe("BeforeToolCallHandler (M0 — autonomy)", () => {
 
   it("关键风险操作 → block (keyword: production_deploy)", async () => {
     const handler = new BeforeToolCallHandler(makeDeps());
-    const result = await handler.handle("production_deploy");
+    const result = await handler.handle("test-session", "production_deploy");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.action).toBe("block");
@@ -113,7 +113,7 @@ describe("BeforeToolCallHandler (M3 — constraints)", () => {
     handler.loadConstraints([makeConstraint()]);
     handler.loadConstraints([]);
     // After clearing, constraint should NOT block
-    const result = await handler.handle("git_status"); // low risk → proceed/inform
+    const result = await handler.handle("test-session", "git_status"); // low risk → proceed/inform
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(["proceed", "inform"]).toContain(result.value.action);
@@ -125,7 +125,7 @@ describe("BeforeToolCallHandler (M3 — constraints)", () => {
     handler.loadConstraints([
       makeConstraint({ id: "backup-block", rulePatterns: ["status"], severity: "block" }),
     ]);
-    const result = await handler.handle("git_status"); // low risk → proceed
+    const result = await handler.handle("test-session", "git_status"); // low risk → proceed
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.action).toBe("block");
@@ -138,7 +138,7 @@ describe("BeforeToolCallHandler (M3 — constraints)", () => {
     handler.loadConstraints([
       makeConstraint({ id: "install-confirm", rulePatterns: ["install"], severity: "confirm" }),
     ]);
-    const result = await handler.handle("npm_install"); // medium risk → inform
+    const result = await handler.handle("test-session", "npm_install"); // medium risk → inform
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.action).toBe("confirm");
@@ -150,7 +150,7 @@ describe("BeforeToolCallHandler (M3 — constraints)", () => {
     handler.loadConstraints([
       makeConstraint({ id: "warn-only", rulePatterns: ["status"], severity: "warn" }),
     ]);
-    const result = await handler.handle("git_status"); // low risk → proceed/inform
+    const result = await handler.handle("test-session", "git_status"); // low risk → proceed/inform
     expect(result.ok).toBe(true);
     if (result.ok) {
       // warn should not escalate — autonomy decision stands
@@ -163,7 +163,7 @@ describe("BeforeToolCallHandler (M3 — constraints)", () => {
     handler.loadConstraints([
       makeConstraint({ id: "rm-block", rulePatterns: ["rm_rf"], severity: "block" }),
     ]);
-    const result = await handler.handle("rm_rf_root"); // critical risk → block
+    const result = await handler.handle("test-session", "rm_rf_root"); // critical risk → block
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.action).toBe("block");
@@ -173,7 +173,7 @@ describe("BeforeToolCallHandler (M3 — constraints)", () => {
   it("无约束加载时行为与 M0 完全一致（回归）", async () => {
     const handler = new BeforeToolCallHandler(makeDeps());
     // No loadConstraints call → empty array
-    const result = await handler.handle("apply_database_changes"); // high risk → confirm
+    const result = await handler.handle("test-session", "apply_database_changes"); // high risk → confirm
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.action).toBe("confirm");
@@ -185,7 +185,7 @@ describe("BeforeToolCallHandler (M3 — constraints)", () => {
     handler.loadConstraints([
       makeConstraint({ rulePatterns: ["nonexistent_tool"] }),
     ]);
-    const result = await handler.handle("git_status");
+    const result = await handler.handle("test-session", "git_status");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(["proceed", "inform"]).toContain(result.value.action);
