@@ -13,6 +13,7 @@
 import type { Result } from "./platform-adapter";
 import type { M0Deps } from "./m0-deps";
 import type { PendingSignal } from "./cognitive/types";
+import { extractUsageMarkers } from "./attention-telemetry";
 
 // ---- SessionEndHandler ----
 
@@ -31,10 +32,10 @@ export class SessionEndHandler {
     sessionId: string,
     transcript: string | null,
     pendingSignals: PendingSignal[],
-  ): Promise<Result<{ lessonsWritten: number; lessonsFromSignals: number; lessonsFromTranscript: number; structuresExtracted: number }>> {
+  ): Promise<Result<{ lessonsWritten: number; lessonsFromSignals: number; lessonsFromTranscript: number; structuresExtracted: number; structureUsageCount: number }>> {
     // 幂等去重
     if (this.processed.has(sessionId)) {
-      return { ok: true, value: { lessonsWritten: 0, lessonsFromSignals: 0, lessonsFromTranscript: 0, structuresExtracted: 0 } };
+      return { ok: true, value: { lessonsWritten: 0, lessonsFromSignals: 0, lessonsFromTranscript: 0, structuresExtracted: 0, structureUsageCount: 0 } };
     }
     this.processed.add(sessionId);
 
@@ -64,7 +65,26 @@ export class SessionEndHandler {
       }
     }
 
-    // 3. ProtoStructure 提取 (M1 Step 4)
+    // 3. 注意力遥测 (M2 Step 3)
+    let structureUsageCount = 0;
+    if (transcript) {
+      const usedIds = extractUsageMarkers(transcript);
+      structureUsageCount = usedIds.length;
+      if (usedIds.length > 0) {
+        // 将使用标记写入 AgentMemory 供跨 session 追踪
+        for (const id of usedIds) {
+          await this.writeLesson(sessionId, {
+            type: "structure_used",
+            structureId: id,
+            content: `[STRUCTURE_USED: ${id}]`,
+            confidence: 1.0,
+            source: "attention_telemetry",
+          });
+        }
+      }
+    }
+
+    // 4. ProtoStructure 提取 (M1 Step 4)
     let extractedStructures = 0;
     if (transcript && this.deps.llm?.extractProtoStructures) {
       try {
@@ -85,6 +105,7 @@ export class SessionEndHandler {
         lessonsFromSignals,
         lessonsFromTranscript,
         structuresExtracted: extractedStructures,
+        structureUsageCount,
       },
     };
   }

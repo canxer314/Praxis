@@ -191,5 +191,21 @@ export type {
   StructureIndexEntry,
 } from "../memory/recall-structure";
 
+// M2 Step 3: 注意力遥测
+export {
+  extractUsageMarkers,
+  updateAttention,
+  detectZombies,
+  detectUnderestimated,
+  generateTelemetryReport,
+  formatTelemetryReport,
+} from "../attention-telemetry";
+export type {
+  AttentionRecord,
+  ZombieDetection,
+  UnderestimatedDetection,
+  TelemetryReport,
+} from "../attention-telemetry";
+
 // 全部类型
 export type * from "./types";
