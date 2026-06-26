@@ -760,6 +760,12 @@ export interface SessionContextInjection {
     tierB: { items: { id: string; tentativeName: string; protoType: string; confidence: number; scenarioId: string; description: string }[]; totalTokens: number };
     tierC: { items: { id: string; tentativeName: string; protoType: string; confidence: number; scenarioId: string; description: string }[]; totalTokens: number };
     meta: { pressure: string; maturity: string; totalStructures: number };
+    /** M3: 已结晶 ProtoConstraint 注入段（注入在 Tier A/B/C 之前） */
+    criticalConstraints?: {
+      injectionText: string;
+      tokenCount: number;
+      constraintIds: string[];
+    };
   };
 }
 

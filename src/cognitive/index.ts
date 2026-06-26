@@ -243,5 +243,12 @@ export {
   SEVERITY_RANK,
 } from "../proto-constraint";
 
+// M3 Step 2: 约束注入
+export { injectConstraints } from "../constraint-injector";
+export type {
+  InjectConstraintsInput,
+  InjectConstraintsOutput,
+} from "../constraint-injector";
+
 // 全部类型
 export type * from "./types";

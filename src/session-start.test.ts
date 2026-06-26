@@ -247,3 +247,101 @@ describe("SessionStartHandler (M2 — tieredContext)", () => {
     }
   });
 });
+
+describe("SessionStartHandler (M3 — criticalConstraints)", () => {
+  it("已结晶 constraint → criticalConstraints 注入段出现在 tieredContext 中", async () => {
+    const deps = makeDeps();
+    deps.memory.getSlot = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { domainProficiencies: { typescript: { selfRating: 0.8, taskCount: 12 } } },
+    } as Result<unknown>);
+    deps.memory.smartSearch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>) // knowledge
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>) // mental_state
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          { id: "c1", tentativeName: "数据库迁移前必须备份", protoType: "constraint", confidence: 0.9, scenarioId: "general", lifecycle: "crystallized", severity: "block", source: "user_taught", rulePatterns: ["migrate"], observationsCount: 23 },
+          { id: "ps1", tentativeName: "通用流程", protoType: "sequence", confidence: 0.8, scenarioId: "general", lifecycle: "crystallized" },
+        ],
+      } as Result<unknown[]>);
+
+    const handler = new SessionStartHandler(deps);
+    const result = await handler.handle("m3-test");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.tieredContext).toBeDefined();
+      expect(result.value.tieredContext!.criticalConstraints).toBeDefined();
+      expect(result.value.tieredContext!.criticalConstraints!.injectionText).toContain("⛔ CRITICAL CONSTRAINTS");
+      expect(result.value.tieredContext!.criticalConstraints!.injectionText).toContain("数据库迁移前必须备份");
+      expect(result.value.tieredContext!.criticalConstraints!.constraintIds).toContain("c1");
+    }
+  });
+
+  it("constraint 但 lifecycle 非 crystallized → 不生成 criticalConstraints", async () => {
+    const deps = makeDeps();
+    deps.memory.getSlot = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { domainProficiencies: { typescript: { selfRating: 0.8, taskCount: 12 } } },
+    } as Result<unknown>);
+    deps.memory.smartSearch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          { id: "c1", tentativeName: "实验性约束", protoType: "constraint", lifecycle: "experimental", severity: "warn", source: "auto_derived", rulePatterns: ["test"], observationsCount: 3, confidence: 0.5 },
+          { id: "ps1", tentativeName: "通用流程", protoType: "sequence", confidence: 0.8 },
+        ],
+      } as Result<unknown[]>);
+
+    const handler = new SessionStartHandler(deps);
+    const result = await handler.handle("m3-no-crystallized");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // tieredContext may exist (from non-constraint structures) but criticalConstraints should be absent
+      expect(result.value.tieredContext?.criticalConstraints).toBeUndefined();
+    }
+  });
+
+  it("无 constraint 类型 ProtoStructure → criticalConstraints 为 undefined", async () => {
+    const deps = makeDeps();
+    deps.memory.getSlot = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { domainProficiencies: { typescript: { selfRating: 0.8, taskCount: 12 } } },
+    } as Result<unknown>);
+    deps.memory.smartSearch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          { id: "ps1", tentativeName: "只有序列结构", protoType: "sequence", confidence: 0.8 },
+        ],
+      } as Result<unknown[]>);
+
+    const handler = new SessionStartHandler(deps);
+    const result = await handler.handle("m3-no-constraints");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.tieredContext).toBeDefined();
+      expect(result.value.tieredContext!.criticalConstraints).toBeUndefined();
+    }
+  });
+
+  it("AgentMemory 不可用 → criticalConstraints 为 undefined", async () => {
+    const deps = makeDeps();
+    deps.memory.isAvailable = vi.fn().mockResolvedValue(false);
+
+    const handler = new SessionStartHandler(deps);
+    const result = await handler.handle("m3-no-am");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.tieredContext).toBeUndefined();
+    }
+  });
+});
