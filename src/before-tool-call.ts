@@ -33,8 +33,8 @@ export class BeforeToolCallHandler {
 
   /**
    * 处理 before_tool_call 事件。返回自主性决策 + M3 约束验证的合并结果。
-   * 合并优先级: constraint block > autonomy block > constraint confirm
-   *   > autonomy confirm > autonomy inform > autonomy proceed > constraint warn
+   * 合并优先级: constraint block ≥ autonomy block > constraint confirm
+   *   ≥ autonomy confirm > autonomy inform > autonomy proceed > constraint warn
    */
   async handle(toolName: string): Promise<
     Result<{ action: "proceed" | "inform" | "confirm" | "block"; reason: string }>
@@ -110,15 +110,17 @@ export class BeforeToolCallHandler {
       return { ok: true, value: autonomy };
     }
 
-    // block/confirm: 取更严格的结果
-    const constraintAction = constraint.severity as "block" | "confirm";
-    const constraintRank = ACTION_RANK[constraintAction] ?? 0;
+    // block/confirm: severity 必须在有效范围内
+    if (constraint.severity !== "block" && constraint.severity !== "confirm") {
+      return { ok: true, value: autonomy }; // 未知 severity → 不干预
+    }
+    const constraintRank = ACTION_RANK[constraint.severity] ?? 0;
 
-    if (constraintRank > autonomyRank) {
+    if (constraintRank >= autonomyRank) {
       return {
         ok: true,
         value: {
-          action: constraintAction,
+          action: constraint.severity, // validated to be "block" | "confirm" above
           reason: `约束 "${constraint.constraintId}" 拦截: ${autonomy.reason}`,
         },
       };

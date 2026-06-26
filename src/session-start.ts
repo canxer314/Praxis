@@ -54,6 +54,12 @@ export interface SessionStartOptions {
   contextWindowSize?: number;
 }
 
+/** 规范化 severity 值 — 防御从 AgentMemory 读取的无效数据 */
+function normalizeSeverity(raw: string): ProtoConstraint["severity"] {
+  const valid = ["block", "confirm", "warn"];
+  return valid.includes(raw) ? (raw as ProtoConstraint["severity"]) : "warn";
+}
+
 // ---- SessionStartHandler ----
 
 export class SessionStartHandler {
@@ -180,7 +186,7 @@ export class SessionStartHandler {
         versionChain: (item.versionChain as ProtoConstraint["versionChain"]) ?? [],
         createdAt: Number(item.createdAt ?? item.created_at ?? 0),
         updatedAt: Number(item.updatedAt ?? item.updated_at ?? 0),
-        severity: (String(item.severity ?? "warn")) as ProtoConstraint["severity"],
+        severity: normalizeSeverity(String(item.severity ?? "warn")),
         source: (String(item.source ?? "user_taught")) as ProtoConstraint["source"],
         rulePatterns: (Array.isArray(item.rulePatterns ?? item.rule_patterns)
           ? (item.rulePatterns ?? item.rule_patterns) as string[]
