@@ -78,6 +78,8 @@ export class EventOrchestrator {
       this.beforeToolCall.loadConstraints(
         result.value.tieredContext.criticalConstraints.constraints,
       );
+    } else {
+      this.beforeToolCall.loadConstraints([]); // 清除上一 session 的陈旧约束
     }
     return result;
   }

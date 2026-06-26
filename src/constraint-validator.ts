@@ -50,6 +50,7 @@ export function checkConstraints(
 
   for (const constraint of activeConstraints) {
     for (const pattern of constraint.rulePatterns) {
+      if (!pattern) continue; // 跳过空 pattern（匹配一切，无意义）
       if (lowerName.includes(pattern.toLowerCase())) {
         matches.push({
           constraint,

@@ -104,23 +104,27 @@ export class BeforeToolCallHandler {
     };
 
     const autonomyRank = ACTION_RANK[autonomy.action] ?? 0;
-    const constraintAction =
-      constraint.severity === "warn" ? autonomy.action : constraint.severity;
-    const constraintRank = constraint.severity === "warn"
-      ? autonomyRank
-      : (ACTION_RANK[constraint.severity] ?? 0);
+
+    // Warn 不改变 autonomy 决策
+    if (constraint.severity === "warn") {
+      return { ok: true, value: autonomy };
+    }
+
+    // block/confirm: 取更严格的结果
+    const constraintAction = constraint.severity as "block" | "confirm";
+    const constraintRank = ACTION_RANK[constraintAction] ?? 0;
 
     if (constraintRank > autonomyRank) {
       return {
         ok: true,
         value: {
-          action: constraintAction as "block" | "confirm",
+          action: constraintAction,
           reason: `约束 "${constraint.constraintId}" 拦截: ${autonomy.reason}`,
         },
       };
     }
 
-    // constraint severity ≤ autonomy → autonomy wins (warn doesn't change anything)
+    // constraint severity ≤ autonomy → autonomy wins
     return { ok: true, value: autonomy };
   }
 
