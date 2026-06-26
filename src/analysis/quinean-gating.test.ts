@@ -40,11 +40,11 @@ describe("QuineanGating", () => {
     expect(result.blockedBy[0]).toContain("Insufficient sessions");
   });
 
-  it("僵尸结构 → sufficiency 失败", () => {
+  it("低准确率结构 → sufficiency 失败", () => {
     const gating = new QuineanGating();
     const result = gating.check(makeSequence(), {
       sessionsWithStructure: 8, sessionsWithoutStructure: 4,
-      accuracyWithStructure: 0.72, accuracyWithoutStructure: 0.70,
+      accuracyWithStructure: 0.55, accuracyWithoutStructure: 0.30, // below 65% absolute
       alternativeStructureIds: [], alternativeAccuracies: new Map(),
     });
     expect(result.sufficiency).toBe(false);

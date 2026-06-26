@@ -76,7 +76,7 @@ export class CuriosityEngine {
 
   /** 未知术语检测 */
   detectUnknownTerms(transcript: string, knownConcepts: ProtoConcept[]): KnowledgeGap[] {
-    if (!transcript || knownConcepts.length === 0) return [];
+    if (!transcript) return [];
     const gaps: KnowledgeGap[] = [];
     const knownNames = new Set(knownConcepts.map((c) => c.tentativeName.toLowerCase()));
 
@@ -169,12 +169,14 @@ export class CuriosityEngine {
   // ════════════════════════════════════════════════════════════════
 
   act(rankedGaps: RankedGap[]): CuriosityAction[] {
-    return rankedGaps
-      .filter((r) => r.action !== "SILENT_MARK")
-      .map((r) => {
-        if (!this.canAskNow()) return "SILENT_MARK" as CuriosityAction;
-        return r.action;
-      });
+    const actions: CuriosityAction[] = [];
+    for (const r of rankedGaps) {
+      if (r.action === "SILENT_MARK") { actions.push("SILENT_MARK"); continue; }
+      if (!this.canAskNow()) { actions.push("SILENT_MARK"); continue; }
+      this.recordQuestion(); // advance counter within batch
+      actions.push(r.action);
+    }
+    return actions;
   }
 
   // ════════════════════════════════════════════════════════════════

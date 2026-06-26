@@ -101,28 +101,26 @@ export class QuineanGating {
       blockedBy.push(`Necessity failed: accuracy drop ${(necessityDrop * 100).toFixed(1)}% < ${(NECESSITY_THRESHOLD * 100).toFixed(0)}%`);
     }
 
-    // Gate 4: Sufficiency
-    const sufficiencyGap = context.accuracyWithStructure - context.accuracyWithoutStructure;
-    const sufficiency = sufficiencyGap > SUFFICIENCY_THRESHOLD;
-    details.sufficiency = `Accuracy gap with vs without: ${(sufficiencyGap * 100).toFixed(1)}% (threshold: >${(SUFFICIENCY_THRESHOLD * 100).toFixed(0)}%)`;
+    // Gate 4: Sufficiency — structure must achieve meaningful absolute accuracy
+    const sufficiency = context.accuracyWithStructure >= 0.65;
+    details.sufficiency = `Absolute accuracy with structure: ${(context.accuracyWithStructure * 100).toFixed(1)}% (threshold: ≥65%)`;
     if (!sufficiency) {
-      blockedBy.push(`Sufficiency failed: accuracy gap ${(sufficiencyGap * 100).toFixed(1)}% ≤ ${(SUFFICIENCY_THRESHOLD * 100).toFixed(0)}%`);
+      blockedBy.push(`Sufficiency failed: accuracy ${(context.accuracyWithStructure * 100).toFixed(1)}% < 65%`);
     }
 
-    // Gate 5: Parsimony
+    // Gate 5: Parsimony — check if simpler alternatives achieve comparable accuracy
     let parsimony = true;
     for (const altId of context.alternativeStructureIds) {
       const altAcc = context.alternativeAccuracies.get(altId);
       if (altAcc !== undefined && altAcc >= context.accuracyWithStructure - PARSIMONY_ACCURACY_TOLERANCE) {
-        // 更简单的替代结构准确率相当
-        details.parsimony = `Alternative ${altId} accuracy (${(altAcc * 100).toFixed(1)}%) ≥ current (${(context.accuracyWithStructure * 100).toFixed(1)}%) — simpler alternative exists`;
+        details.parsimony = `Alternative ${altId} accuracy (${(altAcc * 100).toFixed(1)}%) ≥ current (${(context.accuracyWithStructure * 100).toFixed(1)}%) — potentially simpler`;
         parsimony = false;
-        blockedBy.push(`Parsimony failed: ${altId} provides equal accuracy with simpler structure`);
+        blockedBy.push(`Parsimony: ${altId} achieves comparable accuracy with potentially simpler structure`);
         break;
       }
     }
     if (parsimony) {
-      details.parsimony = "No simpler alternative with comparable accuracy found";
+      details.parsimony = "No alternative with comparable accuracy found";
     }
 
     const passed = necessity && sufficiency && parsimony;

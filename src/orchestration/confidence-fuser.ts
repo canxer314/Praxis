@@ -138,7 +138,8 @@ function deduplicateSources(sources: SignalSourceInput[]): SignalSourceInput[] {
   const seen = new Map<string, SignalSourceInput>();
   for (const s of sources) {
     const existing = seen.get(s.sourceName);
-    if (!existing || s.confidence > existing.confidence) {
+    // >= ensures later entries win on tie (recency preference)
+    if (!existing || s.confidence >= existing.confidence) {
       seen.set(s.sourceName, s);
     }
   }
