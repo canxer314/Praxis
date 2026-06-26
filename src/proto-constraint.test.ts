@@ -198,22 +198,46 @@ describe("deprecateConstraint", () => {
 
   it("updatedAt 被更新", () => {
     const oldTime = Date.now() - 10000;
-    const c = makeConstraint({ updatedAt: oldTime });
+    const c = makeConstraint({ updatedAt: oldTime, lifecycle: "crystallized" });
     const result = deprecateConstraint(c, "过时规则");
-    expect(result.updatedAt).toBeGreaterThanOrEqual(oldTime);
+    expect(result.updatedAt).toBeGreaterThan(oldTime);
   });
 
-  it("对已 deprecated 的约束调用 → 保持 deprecated（无效转换）", () => {
-    const c = makeConstraint({ lifecycle: "deprecated" });
+  it("对已 deprecated 的约束调用 → 保持 deprecated 且不修改名称", () => {
+    const c = makeConstraint({ lifecycle: "deprecated", tentativeName: "原名称" });
+    const oldUpdatedAt = c.updatedAt;
     const result = deprecateConstraint(c, "再次废弃");
-    // deprecated → no valid transition from lifecycle state machine → stays
+    // deprecated → no valid transition from lifecycle state machine → stays unchanged
     expect(result.lifecycle).toBe("deprecated");
+    expect(result.tentativeName).toBe("原名称"); // 不被污染
+    expect(result.updatedAt).toBe(oldUpdatedAt); // 不被更新
   });
 
-  it("对 rejected 的约束调用 → 保持 rejected（不可逆终态）", () => {
-    const c = makeConstraint({ lifecycle: "rejected" });
+  it("对 rejected 的约束调用 → 保持 rejected 且不修改名称", () => {
+    const c = makeConstraint({ lifecycle: "rejected", tentativeName: "原名称" });
+    const oldUpdatedAt = c.updatedAt;
     const result = deprecateConstraint(c, "废弃已拒绝的约束");
     expect(result.lifecycle).toBe("rejected");
+    expect(result.tentativeName).toBe("原名称"); // 不被污染
+    expect(result.updatedAt).toBe(oldUpdatedAt); // 不被更新
+  });
+
+  it("对 candidate 约束调用 → 保持 candidate 且不修改名称", () => {
+    const c = makeConstraint({ lifecycle: "candidate", tentativeName: "候选约束" });
+    const oldUpdatedAt = c.updatedAt;
+    const result = deprecateConstraint(c, "不应生效");
+    expect(result.lifecycle).toBe("candidate");
+    expect(result.tentativeName).toBe("候选约束"); // 无效转换，不修改
+    expect(result.updatedAt).toBe(oldUpdatedAt);
+  });
+
+  it("对 experimental 约束调用 → 保持 experimental 且不修改名称", () => {
+    const c = makeConstraint({ lifecycle: "experimental", tentativeName: "实验约束" });
+    const oldUpdatedAt = c.updatedAt;
+    const result = deprecateConstraint(c, "不应生效");
+    expect(result.lifecycle).toBe("experimental");
+    expect(result.tentativeName).toBe("实验约束");
+    expect(result.updatedAt).toBe(oldUpdatedAt);
   });
 });
 

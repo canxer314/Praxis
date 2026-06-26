@@ -15,11 +15,11 @@ import { transition } from "./structure-lifecycle";
 // ══════════════════════════════════════════════════════════════════
 
 /** Severity 排序权重 — 用于 sortBySeverity 和 checkConstraints 的 max-severity 比较 */
-const SEVERITY_RANK: Record<ConstraintSeverity, number> = {
+const SEVERITY_RANK: Readonly<Record<ConstraintSeverity, number>> = Object.freeze({
   block: 3,
   confirm: 2,
   warn: 1,
-};
+});
 
 /**
  * 从 ProtoStructure 列表中提取活跃约束。
@@ -62,7 +62,12 @@ export function deprecateConstraint(
   constraint: ProtoConstraint,
   reason: string,
 ): ProtoConstraint {
+  const originalLifecycle = constraint.lifecycle;
   const newLifecycle = transition(constraint, "deprecate");
+  // 仅当转换有效（lifecycle 确实改变）时才应用副作用
+  if (newLifecycle === originalLifecycle) {
+    return constraint; // 无效转换 — 不修改任何状态
+  }
   constraint.lifecycle = newLifecycle;
   constraint.updatedAt = Date.now();
   // 废弃理由写入 tentativeName 后缀供日志追踪和 /praxis ontology 展示
