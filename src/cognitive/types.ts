@@ -489,6 +489,139 @@ export interface ConfidenceView {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// M4: LearningEvent 类型系统 (架构 §4)
+// ══════════════════════════════════════════════════════════════════
+
+/** 20 种 LearningEvent 细分类 — 架构 §4 classify 映射 */
+export type LearningEventType =
+  // correction 粗类 → 细类 (5)
+  | "mistake_correction"
+  | "action_decision_error"
+  | "action_decision_oversight"
+  | "role_routing_mismatch"
+  | "role_routing_ambiguity"
+  // insight 粗类 → 细类 (3)
+  | "domain_insight"
+  | "task_pattern_recognition"
+  | "procedural_optimization"
+  // preference 粗类 → 细类 (5)
+  | "preference_discovery"
+  | "communication_style"
+  | "communication_detail_level"
+  | "timing_preference"
+  | "timing_pacing"
+  // pattern 粗类 → 细类 (3)
+  | "process_efficiency_bottleneck"
+  | "process_efficiency_redundancy"
+  | "structural_inadequacy_detected"
+  // structure 粗类 → 细类 (3, M5/M6 激活)
+  | "structure_constructed"
+  | "structure_validated"
+  | "structure_regression"
+  // governance (1)
+  | "governance_override";
+
+/** 粗分类 — Governor classify stage 输出 */
+export type CoarseType = "correction" | "insight" | "preference" | "pattern" | "governance";
+
+/** LearningEvent — 从 PendingSignal 升级的结构化学习事件 */
+export interface LearningEvent {
+  id: string;
+  type: LearningEventType;
+  coarseType: CoarseType;
+  sessionId: string;
+  timestamp: number;
+  source: "message_received" | "before_tool_call" | "after_tool_call" | "agent_end" | "session_end";
+  detail: string;
+  affectedStructureIds: string[];
+  confidence: number;
+  metadata?: Record<string, unknown>;
+}
+
+/** M4: 7 源融合权重配置 */
+export interface FusionWeights {
+  statistical: number;
+  llm_marker: number;
+  user_correction: number;
+  role_verifier: number;
+  concept_verifier: number;
+  outcome_feedback: number;
+  mid_session: number;
+}
+
+/** M4: 单个信号源输出 */
+export interface SignalSourceInput {
+  structureId: string;
+  sourceName: string;
+  value: number;        // 0.0-1.0
+  confidence: number;   // 信号源自身对输出的置信度 (0.0-1.0)
+  evidence: string;     // 可读的证据描述
+}
+
+/** M4: 信号源贡献分解 (审计用) */
+export interface SourceContribution {
+  sourceName: string;
+  weight: number;
+  value: number;
+  contribution: number;  // weight × value
+}
+
+/** M4: 融合输出 */
+export interface FusedConfidence {
+  confidence: number;
+  sourceCount: number;
+  contributions: SourceContribution[];
+}
+
+/** M4: StatisticalVerifier 单步匹配详情 */
+export interface StepMatch {
+  stepPosition: number;
+  expectedAction: string;
+  matchedToolName: string | null;
+  matchScore: number;  // 0.0-1.0
+}
+
+/** M4: Verifier 统一接口 */
+export interface VerifierOutput {
+  value: number;
+  confidence: number;
+  evidence: string;
+  timestamp: number;
+  /** statistical-verifier: per-step 匹配详情 (M3.4 也需要) */
+  matchDetails?: StepMatch[];
+}
+
+/** M4: 验证上下文 */
+export interface VerificationContext {
+  sessionId: string;
+  toolCallTrace: ToolCallRecord[];
+  transcript: string;
+  /** M4.3.2 role-verifier: role map for multi-role DAG cycle detection */
+  roleMap?: Map<string, ProtoRole>;
+}
+
+/** M4: 退役结构元数据 */
+export interface RetiredStructure {
+  originalId: string;
+  supersededBy: string[];
+  retiredAt: number;
+  keyLessons: string[];
+  reactivationConditions: {
+    newStructureConfidenceFallsBelow: number;
+    oldScenarioReappears: boolean;
+    manualReactivation: boolean;
+  };
+  originalVersionChain: VersionSnapshot[];
+}
+
+/** M4: 重新激活上下文 */
+export interface ReactivationContext {
+  supersedingConfidence: number;
+  currentScenarioId: string;
+  manualRequest: boolean;
+}
+
+// ══════════════════════════════════════════════════════════════════
 // M1: ProtoStructure 认知结构系统 (架构 §3 + §9)
 // ══════════════════════════════════════════════════════════════════
 

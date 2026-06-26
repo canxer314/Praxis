@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.11.0.0] - 2026-06-27
+
+### Added
+- **M4 Confidence System:** 7-source weighted fusion engine — break the LLM self-assessment loop with independent verification
+- **M4.1 Governor M4 Upgrade:** 4-stage pipeline (classify→gate→decide→dispatch) with 20 LearningEvent types, async LLM fine classification, dedup/frequency/noise gates, null confidence path
+- **M4.2 ConfidenceFuser:** 7-source weighted fusion with proportional weight redistribution, source dedup, per-contribution audit decomposition (`src/orchestration/confidence-fuser.ts`)
+- **M4.2 Prediction Protocol:** [PREDICTION_CONFIRMED/FAILED/UNCERTAIN] marker parsing, llm_marker signal source, system prompt injection (`src/orchestration/prediction-protocol.ts`)
+- **M4.3 StatisticalVerifier:** Tool sequence fuzzy matching with positional window and semantic tool categories — independent of LLM (`src/analysis/statistical-verifier.ts`)
+- **M4.3 RoleVerifier:** DAG cycle detection + behavior matching against ProtoRole definitions (`src/analysis/role-verifier.ts`)
+- **M4.3 ConceptVerifier:** Adversarial prompt counter-example search for ProtoConcept validation (`src/analysis/concept-verifier.ts`)
+- **M4.4 Quinean Gating:** Triple gate (necessity/sufficiency/parsimony) for ProtoSequence crystallization, session≥10 threshold, data-driven no LLM (`src/analysis/quinean-gating.ts`)
+- **M4.5 Curiosity Engine:** 4-stage gap detection (detect→prioritize→act→govern) with unknown terms, repeated corrections, stagnant skills (`src/analysis/curiosity-engine.ts`)
+- **M4.6 Structure Retirement:** RetiredStructure metadata with superseded_by, key_lessons, reactivation_conditions — reuses existing TRANSITIONS (`src/analysis/structure-retirement.ts`)
+- **Relation Graph Propagation:** constrains + alternative_to deterministic confidence propagation (Phase 1)
+- **LearningLoop → Governor Merge:** Governor is the sole correction pipeline; LearningLoop preserved but no longer receives new signals
+- **Phase1A Bridge:** async governorDecide with shadow telemetry wiring (`src/phase1a-bridge.ts`)
+
+### Changed
+- `governor.ts`: decide() → async (LLM fine classify + confidence query), COARSE_TO_FINE 4→20 type mapping, 5-stage gate (isRealExperience→noise→unknown→dedup→frequency)
+- `types.ts`: Added LearningEventType (20), LearningEvent, FusionWeights, SignalSourceInput, FusedConfidence, StepMatch, VerifierOutput, VerificationContext, RetiredStructure
+- `timing-controller.ts`: SignalType = LearningEventType (unified), TIMING_MAP extended to 20 types
+- `cognitive-core.ts`: captureCorrection → async, Governor wired with LlmClient through CognitiveCoreDeps, getFeedback from loop
+- `session-end.ts`: Added prediction marker parsing and persistence
+- `structure-graph.ts`: fullPropagation extended to 5 relation types (adds constrains + alternative_to)
+
 ## [0.10.0.0] - 2026-06-26
 
 ### Added

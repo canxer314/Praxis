@@ -40,7 +40,7 @@ describe("classify — 已知信号类型", () => {
 
   it("procedural_optimization → DEFERRED", () => {
     const r = classify("procedural_optimization");
-    expect(r.decision).toBe("DEFERRED");
+    expect(r.decision).toBe("BATCH"); // M4: procedural_optimization → BATCH
     expect(r.signalType).toBe("procedural_optimization");
   });
 });
@@ -98,11 +98,10 @@ describe("isKnownSignalType", () => {
 describe("listSignalTypes", () => {
   it("返回 5 种信号类型", () => {
     const types = listSignalTypes();
-    expect(types).toHaveLength(5);
+    expect(types).toHaveLength(20); // M4: 20 LearningEvent types
     expect(types).toContain("mistake_correction");
     expect(types).toContain("domain_insight");
     expect(types).toContain("preference_discovery");
-    expect(types).toContain("task_pattern_recognition");
-    expect(types).toContain("procedural_optimization");
+    expect(types).toContain("governance_override");
   });
 });

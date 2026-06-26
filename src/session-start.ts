@@ -151,7 +151,7 @@ export class SessionStartHandler {
    * M3: 从原始 ProtoStructure 数据中提取已结晶约束并格式化为注入段。
    * 复用 loadProtoStructures 中已缓存的 rawStructures，避免额外 API 调用。
    */
-  private buildCriticalConstraints(): { injectionText: string; tokenCount: number; constraintIds: string[] } | undefined {
+  private buildCriticalConstraints(): { injectionText: string; tokenCount: number; constraintIds: string[]; constraints: ProtoConstraint[] } | undefined {
     const constraints = this.loadConstraints();
     if (constraints.length === 0) return undefined;
 

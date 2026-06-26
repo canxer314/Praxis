@@ -100,7 +100,7 @@ describe("E2E Learning Loop", () => {
     }
 
     // 2. captureCorrection
-    const capResult = session.captureCorrection(
+    const capResult = await session.captureCorrection(
       {
         what: "used deprecated API v1",
         correctedTo: "migrated to API v2 with new auth",
@@ -114,16 +114,21 @@ describe("E2E Learning Loop", () => {
         domain: "typescript",
       },
     );
+    // M4: captureCorrection returns Result<LearningDecision>
     expect(capResult.ok).toBe(true);
     expect(capResult.ok && capResult.value).not.toBeNull();
+    if (capResult.ok && capResult.value) {
+      expect(capResult.value.action).toBe("LEARN");
+    }
 
     // 3. advanceStep
     session.advanceStep();
 
-    // 4. getFeedback
+    // 4. getFeedback — M4: from Governor's ExecutionFeedbackCollector
     const fb = session.getFeedback();
     expect(fb.ok).toBe(true);
     if (fb.ok) {
+      // Governor captures correction into ExecutionFeedbackCollector
       expect(fb.value.userCorrections.length).toBeGreaterThan(0);
     }
 
@@ -147,12 +152,12 @@ describe("E2E Learning Loop", () => {
     const s1 = core.createSession("iso_1");
     const s2 = core.createSession("iso_2");
 
-    s1.captureCorrection(
+    await s1.captureCorrection(
       { what: "bug in s1", correctedTo: "fixed s1", likelyRootCause: "", isNewKnowledge: true },
       { sessionId: "iso_1", hasExplicitRejection: true, taskType: "bug_fix", domain: "ts" },
     );
 
-    s2.captureCorrection(
+    await s2.captureCorrection(
       { what: "bug in s2", correctedTo: "fixed s2", likelyRootCause: "", isNewKnowledge: true },
       { sessionId: "iso_2", hasExplicitRejection: true, taskType: "feature", domain: "py" },
     );
@@ -180,7 +185,7 @@ describe("E2E Learning Loop", () => {
     expect(assess.ok).toBe(true);
 
     // Capture and finalize
-    session.captureCorrection(
+    await session.captureCorrection(
       { what: "x", correctedTo: "y", likelyRootCause: "test", isNewKnowledge: true },
       { sessionId: "quick_test", hasExplicitRejection: true, taskType: "write_code", domain: "typescript" },
     );
