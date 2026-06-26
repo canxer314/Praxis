@@ -14,6 +14,7 @@ import type { Result } from "./platform-adapter";
 import type { M0Deps } from "./m0-deps";
 import type { PendingSignal } from "./cognitive/types";
 import { extractUsageMarkers } from "./attention-telemetry";
+import { parsePredictionMarkers } from "./orchestration/prediction-protocol";
 
 // ---- SessionEndHandler ----
 
@@ -65,13 +66,14 @@ export class SessionEndHandler {
       }
     }
 
-    // 3. 注意力遥测 (M2 Step 3)
+    // 3. 注意力遥测 + 预测标记解析 (M4)
     let structureUsageCount = 0;
+    let predictionsParsed = 0;
     if (transcript) {
+      // 3a. STRUCTURE_USED 标记 → 记录 lessons (M4.4 接线时调用 updateAttention)
       const usedIds = extractUsageMarkers(transcript);
       structureUsageCount = usedIds.length;
       if (usedIds.length > 0) {
-        // 将使用标记写入 AgentMemory 供跨 session 追踪
         for (const id of usedIds) {
           await this.writeLesson(sessionId, {
             type: "structure_used",
@@ -81,6 +83,20 @@ export class SessionEndHandler {
             source: "attention_telemetry",
           });
         }
+      }
+
+      // 3b. PREDICTION_* 标记 → M4.2 llm_marker 信号源数据
+      const predictions = parsePredictionMarkers(transcript);
+      predictionsParsed = predictions.length;
+      for (const p of predictions) {
+        await this.writeLesson(sessionId, {
+          type: "prediction_marker",
+          structureId: p.structureId,
+          marker: p.marker,
+          content: p.context,
+          confidence: p.marker === "PREDICTION_UNCERTAIN" ? 0.5 : 0.8,
+          source: "prediction_protocol",
+        });
       }
     }
 
