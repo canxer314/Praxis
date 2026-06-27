@@ -166,4 +166,114 @@ describe("EventOrchestrator", () => {
 
     expect(result).toBeDefined();
   });
+
+  // ── Phase 3 T10: maturity wiring ──
+
+  it("session_start derives maturity from session_count slot", async () => {
+    // Simulate 15 prior sessions → competent
+    deps.memory.getSlot = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: { count: 15 } }) // getSessionCount
+      .mockResolvedValue({ ok: true, value: null }); // other slots
+
+    // smartSearch call order: knowledge → mental_state → proto_structure
+    deps.memory.smartSearch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: [ // 1) knowledge
+        { title: "Test", content: "test", confidence: 0.5, source: "unknown" },
+      ]})
+      .mockResolvedValueOnce({ ok: true, value: [] }) // 2) mental_state
+      .mockResolvedValueOnce({ ok: true, value: [{ // 3) proto_structure
+        id: "struct-1", tentativeName: "Test Flow", protoType: "sequence",
+        confidence: 0.7, scenarioId: "api_design", summary: "A test flow",
+      }]})
+      .mockResolvedValue({ ok: true, value: [] });
+
+    const result = await orchestrator.handleSessionStart("maturity-test");
+    expect(result).toBeDefined();
+    if (result && typeof result === "object" && "ok" in result && (result as { ok: boolean }).ok) {
+      const val = (result as { ok: true; value: { tieredContext?: { meta?: { maturity?: string } } } }).value;
+      // maturity should be "competent" (15 sessions)
+      expect(val.tieredContext?.meta?.maturity).toBe("competent");
+    }
+  });
+
+  it("session_start increments session_count after loading", async () => {
+    deps.memory.getSlot = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: { count: 3 } }) // getSessionCount (only once now)
+      .mockResolvedValue({ ok: true, value: null }); // other slots
+
+    deps.memory.smartSearch = vi.fn()
+      .mockResolvedValue({ ok: true, value: [] });
+
+    await orchestrator.handleSessionStart("increment-test");
+
+    // Should have called setSlot with incremented count (3 → 4)
+    const setSlotCalls = (deps.memory.setSlot as ReturnType<typeof vi.fn>).mock.calls;
+    const sessionCountCall = setSlotCalls.find(
+      (call: unknown[]) => call[0] === "session_count",
+    );
+    expect(sessionCountCall).toBeDefined();
+    expect((sessionCountCall as unknown[])[1]).toEqual({ count: 4 });
+  });
+
+  // ── Phase 3 T10: disambiguate wiring ──
+
+  it("message_received with scenarios → disambiguates homographs", async () => {
+    deps.memory.getSlot = vi.fn()
+      .mockResolvedValue({ ok: true, value: null });
+    deps.memory.smartSearch = vi.fn()
+      .mockResolvedValue({ ok: true, value: [] });
+    const loggerInfo = vi.fn();
+    deps.logger = { info: loggerInfo, warn: vi.fn(), error: vi.fn() };
+
+    await orchestrator.handleSessionStart("disambig-test");
+
+    // Inject scenarios into session state (simulating scene recognition)
+    const state = (orchestrator as unknown as { sessions: Map<string, { scenarios: Array<{ scenarioId: string; confidence: number; source: string }> }> }).sessions.get("disambig-test");
+    if (state) {
+      state.scenarios = [
+        { scenarioId: "api_design", confidence: 0.9, source: "llm_inference" },
+      ];
+    }
+
+    // Send a message containing a homograph "对接"
+    await orchestrator.handleMessageReceived("disambig-test", {
+      role: "user",
+      content: "我们需要对接一下这个接口",
+    });
+
+    // Logger should have been called with disambiguation info
+    const disambigCall = loggerInfo.mock.calls.find(
+      (call: unknown[]) => call[0] === "semantic disambiguation",
+    );
+    expect(disambigCall).toBeDefined();
+    expect((disambigCall as unknown[])[1]).toMatchObject({
+      sessionId: "disambig-test",
+      homographsFound: expect.any(Number),
+    });
+  });
+
+  it("0 sessions → novice maturity", async () => {
+    // getSlot called twice for session_count (both return null → count=0)
+    deps.memory.getSlot = vi.fn()
+      .mockResolvedValue({ ok: true, value: null }); // all slots null
+
+    // smartSearch call order: knowledge → mental_state → proto_structure
+    deps.memory.smartSearch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: [
+        { title: "Test", content: "test", confidence: 0.5, source: "unknown" },
+      ]})
+      .mockResolvedValueOnce({ ok: true, value: [] }) // mental_state
+      .mockResolvedValueOnce({ ok: true, value: [{
+        id: "struct-1", tentativeName: "Test", protoType: "concept",
+        confidence: 0.3, scenarioId: "general", summary: "A concept",
+      }]})
+      .mockResolvedValue({ ok: true, value: [] });
+
+    const result = await orchestrator.handleSessionStart("novice-test");
+    expect(result).toBeDefined();
+    if (result && typeof result === "object" && "ok" in result && (result as { ok: boolean }).ok) {
+      const val = (result as { ok: true; value: { tieredContext?: { meta?: { maturity?: string } } } }).value;
+      expect(val.tieredContext?.meta?.maturity).toBe("novice");
+    }
+  });
 });

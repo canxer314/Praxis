@@ -901,6 +901,8 @@ export interface SessionContextInjection {
       /** M3 Step 3: 实际约束对象列表 — 供 orchestrator 传递给 before_tool_call 处理器 */
       constraints: ProtoConstraint[];
     };
+    /** Phase 3 T10: Critical 压力下的结构索引 (Lazy Loading) */
+    criticalIndex?: string;
   };
 }
 

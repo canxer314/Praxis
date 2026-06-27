@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.14.0.0] - 2026-06-28
+
+### Added
+- **Phase 3 T10 M2 Wiring — 上下文编排落地:**
+  - **deriveMaturity:** 认知成熟度推导 (`src/maturity.ts`) — `deriveMaturity(sessionCount)`: 0-9→novice, 10-49→competent, 50+→expert. `getSessionCount`/`incrementSessionCount` 通过 `session_count` slot 持久化追踪
+  - **Maturity → session_start wiring:** EventOrchestrator 在 `handleSessionStart` 中自动推导成熟度并传入 `organizeContext`, 实现 §7 双轴交互 (压力×成熟度)
+  - **Critical Lazy Loading:** session_start 在 Critical 压力下调用 `buildStructureIndex` + `formatStructureIndex` 生成结构索引注入到 `tieredContext.criticalIndex`, LLM 可通过 `recall_structure` 按需拉取详情 (§7 Push+Pull)
+  - **applyProgress → session_end wiring:** session_end 从 `task_context` slot 加载 TaskContext, LLM 推断进度 (confidence<0.7 不自动更新), `applyProgress` 后持久化
+  - **disambiguate → message_received wiring:** message_received 用 session 状态中的 `scenarios` 调用 `disambiguateText` 进行跨场景语义消歧, 结果记录到日志
+
+### Changed
+- **orchestrator.ts:** SessionState 新增 `scenarios` 字段. `handleSessionStart` 集成 maturity 推导+递增. `handleMessageReceived` 集成 semantic disambiguation
+- **session-start.ts:** Critical 压力下生成 `criticalIndex` 注入段 (Lazy Loading 索引)
+- **session-end.ts:** session_end 集成 applyProgress — LLM 推断任务进度 → 置信度门控 → 持久化 TaskContext
+- **session-state-store.ts:** SessionStateSnapshot 新增 `scenarios` 字段 (跨进程持久化)
+- **types.ts:** SessionContextInjection.tieredContext 新增 `criticalIndex` 字段
+
+### Tests
+- 20 new tests: maturity (11), orchestrator wiring (4), session-start lazy loading (2), session-end applyProgress (3)
+- 833 total tests, 58 files, all green. Typecheck clean.
+
 ## [0.12.0.1] - 2026-06-27
 
 ### Added

@@ -87,7 +87,7 @@ export function propagateConfidence(
         if (rel.type !== "depends_on") continue;
         if (!frontier.has(rel.targetId)) continue;
 
-        const propagatedDelta = delta * rel.strength * (1 / hop); // 逐跳衰减
+        const propagatedDelta = delta * rel.strength; // §3: Δ × strength (无逐跳衰减)
         const currentDelta = affected.get(id) ?? 0;
         affected.set(id, currentDelta + propagatedDelta);
 
@@ -196,8 +196,10 @@ export function propagateAlternative(
 }
 
 /**
- * 完整传播: 5 种关系类型 (Phase 1)。
- * Phase 2 加入 precedes (依赖 statistical-verifier.matchDetails)。
+ * 完整传播: 5 种关系类型 (depends_on/contradicts/specializes/constrains/alternative_to)。
+ * T6: 已接入 session_end 融合运行时 (confidence 变化沿关系图传播, §3)。
+ * precedes 暂缓 — 它是时序违反检测器 (B 在 A 前出现 → 两者降级), 需 toolCallTrace + 不同接线,
+ * 不适配 (changedId, delta) 传播模型; 待后续作为独立违反检测接入。
  */
 export function fullPropagation(
   changedId: string,

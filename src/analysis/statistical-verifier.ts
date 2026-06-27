@@ -50,7 +50,9 @@ function toolSemanticScore(expected: string, actual: string): number {
 
 export class StatisticalVerifier implements Verifier {
   readonly name = "statistical";
-  readonly weight = 0.28;
+  readonly weight = 0.25;
+  /** §4: 一致→1.0, 不一致→0.0 (binary). avgScore at/above this = consistent. */
+  private static readonly CONSISTENCY_THRESHOLD = 0.6;
 
   /**
    * 验证 ProtoSequence 的工具序列是否匹配实际工具调用记录。
@@ -111,11 +113,13 @@ export class StatisticalVerifier implements Verifier {
     }
 
     const avgScore = steps.length > 0 ? totalScore / steps.length : 0.5;
+    // §4 spec: statistical-verifier is binary — 一致→1.0, 不一致→0.0.
+    const binaryValue = avgScore >= StatisticalVerifier.CONSISTENCY_THRESHOLD ? 1.0 : 0.0;
 
     return {
-      value: avgScore,
+      value: binaryValue,
       confidence: Math.min(1, steps.length / 5), // 步骤越多置信度越高
-      evidence: `${steps.length} steps matched against ${toolCalls.length} tool calls — avg score ${avgScore.toFixed(2)}`,
+      evidence: `${steps.length} steps matched against ${toolCalls.length} tool calls — avg score ${avgScore.toFixed(2)} → binary ${binaryValue}`,
       timestamp: Date.now(),
       matchDetails,
     };
