@@ -15,6 +15,7 @@ import { EventOrchestrator } from "./orchestrator";
 import { ConfidenceFuser } from "./orchestration/confidence-fuser";
 import type { M0Deps } from "./m0-deps";
 import type { Result } from "./platform-adapter";
+import type { SignalSourceInput } from "./cognitive/types";
 
 function makeFusedDeps(protoStructures: unknown[]): {
   deps: M0Deps;
@@ -164,5 +165,22 @@ describe("EventOrchestrator cross-process state (Phase 0 SessionStateStore)", ()
     expect(saveProtoStructure).toHaveBeenCalled();
     const saved = saveProtoStructure.mock.calls[0]?.[0] as { id?: string };
     expect(saved?.id).toBe("ps-clinic-flow");
+  });
+
+  it("T1: LLM-independent verifiers (statistical) feed fusion when toolCallTrace present", async () => {
+    const { deps } = makeSlotBackedDeps([CLINIC_FLOW]);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const fuseSpy = vi.spyOn(deps.fuser!, "fuse");
+    const orch = new EventOrchestrator(deps);
+    await orch.handleSessionStart("t1-session");
+    // after_tool_call with tools matching CLINIC_FLOW steps (挂号, 分诊) → StatisticalVerifier match (1.0)
+    await orch.handleAfterToolCall("t1-session", "挂号", {}, { success: true });
+    await orch.handleAfterToolCall("t1-session", "分诊", {}, { success: true });
+    await orch.handleMessageReceived("t1-session", { role: "user", content: "门诊流程，不对，顺序错了" });
+    await orch.handleAgentEnd("t1-session");
+    await orch.handleSessionEnd("t1-session", "用户: 门诊流程\nassistant: [PREDICTION_CONFIRMED: ps-clinic-flow]");
+    // T1: a statistical (LLM-independent) source reached the fuser — LLM self-eval loop broken
+    const allSources = fuseSpy.mock.calls.flatMap((c) => c[0] as SignalSourceInput[]);
+    expect(allSources.some((s) => s.sourceName === "statistical")).toBe(true);
   });
 });

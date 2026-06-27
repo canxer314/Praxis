@@ -11,10 +11,12 @@
 
 import type { Result } from "./platform-adapter";
 import type { M0Deps } from "./m0-deps";
-import type { PendingSignal, ProtoStructure, SignalSourceInput } from "./cognitive/types";
+import type { PendingSignal, ProtoStructure, SignalSourceInput, ToolCallRecord, VerificationContext } from "./cognitive/types";
 import { extractUsageMarkers, updateAttention } from "./attention-telemetry";
 import { parsePredictionMarkers } from "./orchestration/prediction-protocol";
 import { createVersion } from "./structure-version";
+import { StatisticalVerifier } from "./analysis/statistical-verifier";
+import { RoleVerifier } from "./analysis/role-verifier";
 
 // ---- SessionEndHandler ----
 
@@ -39,6 +41,8 @@ export class SessionEndHandler {
     injectedStructureIds?: string[],
     /** M5.1: MidSession 信号源（来自 MidSessionLearner） */
     midSessionSources?: SignalSourceInput[],
+    /** T1: session 工具调用轨迹 (供 LLM-independent 验证器, Phase 2) */
+    toolCallTrace?: ToolCallRecord[],
   ): Promise<Result<{ lessonsWritten: number; lessonsFromSignals: number; lessonsFromTranscript: number; structuresExtracted: number; structureUsageCount: number; fusedCount: number; versionedCount: number }>> {
     // 幂等去重
     if (this.processed.has(sessionId)) {
@@ -162,9 +166,32 @@ export class SessionEndHandler {
     }
 
     // Phase 0.5: 7 源置信度融合 — 对注入的结构进行融合
-    // 合并 llm_marker + mid_session 两类信号源
+    // T1: 加入 LLM-independent 验证器源 (statistical/role_verifier) — 打破 LLM 自评循环 (§4)
     if (this.deps.fuser && injectedStructures && injectedStructures.length > 0) {
-      const allSources = [...llmMarkerSources, ...(midSessionSources ?? [])];
+      const verifierSources: SignalSourceInput[] = [];
+      if (toolCallTrace && toolCallTrace.length > 0) {
+        const vCtx: VerificationContext = { sessionId, toolCallTrace, transcript: transcript ?? "" };
+        const verifiers = [new StatisticalVerifier(), new RoleVerifier()];
+        for (const structure of injectedStructures) {
+          for (const v of verifiers) {
+            try {
+              const out = await v.verify(structure, vCtx);
+              if (out.confidence > 0) { // skip neutral (非适用类型)
+                verifierSources.push({
+                  structureId: structure.id,
+                  sourceName: v.name,
+                  value: out.value,
+                  confidence: out.confidence,
+                  evidence: out.evidence,
+                });
+              }
+            } catch {
+              // 验证器失败隔离 — 不破坏融合
+            }
+          }
+        }
+      }
+      const allSources = [...llmMarkerSources, ...(midSessionSources ?? []), ...verifierSources];
       if (allSources.length === 0) {
         // skip — no signal sources
       } else {

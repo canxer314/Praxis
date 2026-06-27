@@ -278,6 +278,7 @@ export class EventOrchestrator {
       state.structures.length > 0 ? state.structures : undefined,
       state.injectedStructureIds.length > 0 ? state.injectedStructureIds : undefined,
       midSources.length > 0 ? midSources : undefined,
+      state.toolCallTrace.length > 0 ? state.toolCallTrace : undefined,
     );
     // M5.1: 清理 MidSessionLearner
     state.midSessionLearner.reset();
