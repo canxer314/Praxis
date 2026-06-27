@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.12.0.0] - 2026-06-27
+
+### Added
+- **M6 Meta Layer + Adapter Layer:** 元认知自治系统 + 多运行时适配器
+- **M5 Fix-1 deepCheck wiring:** teleological-judge deepCheck 接入 agent_end — orchestrator 收集 (sequence, correction) 对, AgentEndHandler 异步调用 deepCheck, 结果写入 audit_log (`src/orchestrator.ts`, `src/agent-end.ts`)
+- **M5 Fix-2 StructuralGap → cron_tick:** 5 检测器接入 cron_tick 定时扫描, 历史快照累积 (proto_task_history + competency_snapshots, 90天保留), 检测信号写入 audit_log (`src/cron-tick.ts`)
+- **M5 Fix-3 audit_log writer:** before_tool_call 约束违反时写入 audit_log entries, 10K 条上限 + violations 向后兼容字段 (`src/before-tool-call.ts`)
+- **M5 Fix-4 attentionRecords persistence:** session_end 持久化 attentionRecords 到 AgentMemory slot, orchestrator session_start 恢复 (`src/session-end.ts`, `src/orchestrator.ts`)
+- **M6.1 ArchitectureAuditor:** 4 维度对抗性架构审计 — 结构健康度聚合/认知边界/自我一致性/对抗性挑战(LLM), 输出 ArchitectureAuditReport → `architecture_audit` slot (`src/analysis/architecture-auditor.ts`)
+- **M6.1 CategoryAuditor:** 范畴完备性检查(Q1) + 领域同质性检查(Q2) + 康德式诊断分叉(data vs category) + 冷启动 insufficient_data 状态 + 新范畴提案 → `category_proposals` slot (`src/analysis/category-auditor.ts`)
+- **M6.1 Meta Layer cron scheduling:** cron_tick 按间隔调度 (structural_gap 168h, category_audit 720h), audit_log 保留策略 (90天窗口 + 10K 上限, 条件执行每小时一次) (`src/cron-tick.ts`)
+- **M6.2 Adapter Interface:** 标准 AgentRuntimeAdapter 类型 — 纯函数集合, 6 事件映射 + 2 决策映射, 无 PraxisStandardEvent 中间格式 (`src/adapters/adapter-interface.ts`)
+- **M6.2 OpenClaw Adapter:** 参考实现 — OpenClaw Hook → PraxisLifecycleEvent 映射, 纯函数 (`src/adapters/openclaw-adapter.ts`, 16 tests)
+- **M6.3 Claude Code Adapter:** Claude Code Hook → PraxisLifecycleEvent 映射, Notification 过滤 (仅 user_message), PreToolUse/PostToolUse/Stop/SessionEnd/PreCompact 映射 (`src/adapters/claude-code-adapter.ts`, 11 tests)
+- **M6 Platform Adapter Bridge:** platform-adapter.ts 新增 acceptAdapterEvent 入口 + toPlatformEvent 转换, 适配器 → 平台管线桥梁 (`src/platform-adapter.ts`)
+- **M6 /praxis audit enhanced:** 审计报告读取 architecture_audit + category_audit slot, audit_log entries 中解析 constraint_violation + structural_gap_signal (`src/commands/praxis-audit.ts`)
+
+### Changed
+- **cron-tick.ts:** 从 M5.3 两步骤 (ProtoTask + decay) 扩展到 6 步骤 (+历史累积 + StructuralGap 检测 + Meta Layer 调度 + audit_log 清理 + 健康状态), ~500 行
+- **orchestrator.ts:** SessionState 新增 corrections 字段, handleMessageReceived 收集纠正对, handleAgentEnd 传递 deepCheck 数据, loadAttentionRecords 恢复
+- **agent-end.ts:** AgentEndHandler 接受 corrections + ProtoSequences + LLM, handle() 中异步 deepCheck, AgentEndSummary 含 teleologicalChecks 计数
+- **session-end.ts:** Phase 0 attention 更新后调用 persistAttentionRecords, 新增 persistAttentionRecords 和 writeLesson 方法
+- **before-tool-call.ts:** handle() 新增 writeAuditLog 步骤, audit_log entries 格式 + violations 向后兼容
+- **analysis/index.ts:** 导出 ArchitectureAuditor, CategoryAuditor 及关联类型
+- **praxis-audit.ts:** AuditReport 新增 structuralGapSignals/architectureAudit/categoryAudit, ViolationEntry/StructuralGapSignalEntry 类型
+
+### Docs
+- **M6-dev-plan.md:** 923 行开发计划, 14 章节, 7 设计决策, Outside Voice 审查 (16 发现全部解决)
+
 ## [0.11.0.1] - 2026-06-27
 
 ### Added

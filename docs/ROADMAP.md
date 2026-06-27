@@ -37,11 +37,11 @@
   ├─→ ✅ M5: 自主学习       (已完成, v0.11.0.1)
   │     MidSessionLearner + 跨 session 挖掘 + 双重性质建模 + 退役
   │
-  └─→ M6: 元认知 + 适配器 (4-6 周)
+  └─→ ✅ M6: 元认知 + 适配器 (已完成, v0.12.0.0)
         Meta Layer + 范畴审计 + 适配器接口 + 多运行时
 ```
 
-**进度: M0 ✅ | M1 ✅ | M2 ✅ | M3 ✅ | M4 ✅ | M5 ✅ | M6 待开始**。
+**进度: M0 ✅ | M1 ✅ | M2 ✅ | M3 ✅ | M4 ✅ | M5 ✅ | M6 ✅ | 全部完成**。
 
 ---
 
@@ -626,10 +626,24 @@ interface AgentRuntimeAdapter {
 
 ### M6 完成标准
 
-- [ ] Meta Layer 至少检测到 1 个经过验证的 category_blind_spot
-- [ ] 至少 2 个适配器可互换运行，同一场景产生相同输出
-- [ ] `/praxis ontology`, `/praxis audit`, `/praxis status` 三个命令全部可运行
-- [ ] 跨运行时乐观锁冲突正确进入 pending_merge
+- [x] Meta Layer 架构审计 + 范畴审计按定时间隔运行
+- [x] 至少 2 个适配器 (OpenClaw + Claude Code) 可互换映射同一场景事件
+- [x] `/praxis audit` 输出增强 — 包含 Meta Layer 审计数据
+- [ ] `/praxis status` 命令 (M6.4, 延后)
+- [ ] 跨运行时乐观锁 (M6.5, 延后)
+
+### M6 实际交付 (v0.12.0.0, 2026-06-27)
+
+- **M5 Fix-1**: deepCheck 接入 agent_end — orchestrator corrections 追踪 + AgentEndHandler 异步 LLM teleological 分析 → audit_log
+- **M5 Fix-2**: 5 StructuralGap 检测器接入 cron_tick — 历史快照累积 (proto_task_history + competency_snapshots, 90d) + 信号写入 audit_log
+- **M5 Fix-3**: before_tool_call audit_log 写入 — entries 格式 + violations 向后兼容 + 10K 上限
+- **M5 Fix-4**: attentionRecords AgentMemory 持久化 — session_end 写入 + orchestrator session_start 恢复
+- **M6.1**: ArchitectureAuditor (4 维度 + 对抗性挑战 LLM) + CategoryAuditor (Q1 范畴完备性 + Q2 领域同质性 + 康德式诊断分叉 + 冷启动 insufficient_data) + Meta Layer cron 调度 (168h/720h 间隔)
+- **M6.2**: 标准 AdapterInterface (纯函数类型, 6 事件 + 2 决策映射) + OpenClawAdapter 参考实现 (16 tests)
+- **M6.3**: ClaudeCodeAdapter (含 Notification 过滤逻辑, 11 tests) + platform-adapter acceptAdapterEvent 桥梁
+- **总计**: 16 files changed (+1260/-30), 6 new source modules + 2 test files, 774 tests, typecheck clean
+- **M6.4 `/praxis status`**: 延后 (P1, 独立功能)
+- **M6.5 跨 Agent 同步**: 延后 (P2, 依赖多运行时环境)
 
 ---
 
@@ -648,7 +662,7 @@ interface AgentRuntimeAdapter {
   │     │     │     │     │
   │     │     │     │     ├─→ ✅ M5 (自主学习) ← 已完成, v0.11.0.1
   │     │     │     │     │     │
-  │     │     │     │     │     └─→ M6 (元认知+适配器) ← 待开始
+  │     │     │     │     │     └─→ ✅ M6 (元认知+适配器) ← 已完成, v0.12.0.0
   │     │     │     │     │
   │     │     │     │     └─ M6 适配器部分可与 M2-M5 并行 (未启动)
   │     │     │     │

@@ -37,6 +37,7 @@ export class BeforeToolCallHandler {
    *   ≥ autonomy confirm > autonomy inform > autonomy proceed > constraint warn
    *
    * Phase 0: 接受 sessionId 参数（供 M5.1 MidSessionLearner 违规计数用）
+   * M6 Fix-3: 约束违反时写入 audit_log slot
    */
   async handle(sessionId: string, toolName: string): Promise<
     Result<{ action: "proceed" | "inform" | "confirm" | "block"; reason: string; constraintId?: string }>
@@ -48,7 +49,51 @@ export class BeforeToolCallHandler {
     const constraintResult = checkConstraints(toolName, this.activeConstraints);
 
     // 3. 合并: 取最严格结果
-    return this.mergeResults(autonomyResult, constraintResult);
+    const merged = this.mergeResults(autonomyResult, constraintResult);
+
+    // 4. M6 Fix-3: 约束违反时写入 audit_log
+    if (constraintResult.violated && constraintResult.constraintId) {
+      await this.writeAuditLog(sessionId, toolName, constraintResult.constraintId, constraintResult.severity ?? "warn");
+    }
+
+    return merged;
+  }
+
+  /** M6 Fix-3: 写入 audit_log slot (约束违反条目) */
+  private async writeAuditLog(
+    sessionId: string,
+    toolName: string,
+    constraintId: string,
+    severity: string,
+  ): Promise<void> {
+    try {
+      const now = Date.now();
+      const entry: Record<string, unknown> = {
+        timestamp: now,
+        type: "constraint_violation",
+        severity,
+        source: "before_tool_call",
+        detail: { sessionId, toolName, constraintId },
+      };
+
+      // 读取现有 audit_log → 追加条目 → 写回
+      const existing = await this.deps.memory.getSlot("audit_log");
+      const log = (existing.ok && existing.value) ? existing.value as Record<string, unknown> : {};
+      const entries = Array.isArray(log.entries) ? [...log.entries, entry] : [entry];
+
+      // 保留策略: 最多 10,000 条
+      const trimmed = entries.length > 10_000 ? entries.slice(-10_000) : entries;
+
+      await this.deps.memory.setSlot("audit_log", {
+        ...log,
+        entries: trimmed,
+        violations: Array.isArray(trimmed)
+          ? trimmed.filter((e: Record<string, unknown>) => e.type === "constraint_violation")
+          : [],
+      });
+    } catch {
+      // audit_log 写入失败不阻塞 before_tool_call 决策
+    }
   }
 
   /** M0: 自主性决策逻辑 */

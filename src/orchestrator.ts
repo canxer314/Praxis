@@ -22,7 +22,7 @@ import { AfterToolCallHandler } from "./after-tool-call";
 import { AgentEndHandler, type AgentEndSummary } from "./agent-end";
 import { CronTickHandler } from "./cron-tick";
 import { MidSessionLearner } from "./analysis/mid-session-learner";
-import { quickCheck, isProtoSequence } from "./analysis/teleological-judge";
+import { quickCheck, deepCheck, isProtoSequence } from "./analysis/teleological-judge";
 import type { ProtoSequence } from "./cognitive/types";
 
 // ══════════════════════════════════════════════════════════════════
@@ -57,6 +57,8 @@ interface SessionState {
   currentDomain: string;
   /** M5.1: 会话中实时学习器 */
   midSessionLearner: MidSessionLearner;
+  /** M6 Fix-1: session 中收集的 (ProtoSequence, correctionText) 对, agent_end 时消费 */
+  corrections: Array<{ sequenceId: string; correctionText: string; timestamp: number }>;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -96,6 +98,7 @@ export class EventOrchestrator {
       currentTaskType: this.deps.currentTaskType ?? "unknown",
       currentDomain: this.deps.currentDomain ?? "unknown",
       midSessionLearner: new MidSessionLearner(),
+      corrections: [],
     });
     const result = await this.sessionStart.handle(sessionId);
     // M3: 加载已结晶约束到 before_tool_call 处理器
@@ -114,6 +117,10 @@ export class EventOrchestrator {
         state.injectedStructureIds = result.value.protoStructures.map(s => s.id);
       }
     }
+
+    // M6 Fix-4: 从 AgentMemory 加载 attentionRecords（重启恢复）
+    await this.loadAttentionRecords();
+
     return result;
   }
 
@@ -136,6 +143,18 @@ export class EventOrchestrator {
         return !qc.isAltImpl;
       });
       if (filtered.length > 0) {
+        // M6 Fix-1: 收集非替代实现的纠正对 → agent_end 时 deepCheck 使用
+        const allSequences = state.structures.filter(s => s.protoType === "sequence");
+        for (const s of filtered) {
+          if (s.protoType === "sequence" && allSequences.includes(s)) {
+            state.corrections.push({
+              sequenceId: s.id,
+              correctionText: message.content,
+              timestamp: Date.now(),
+            });
+          }
+        }
+
         const sources = state.midSessionLearner.handleCorrection(
           message.content, filtered, this.deps.logger);
         if (sources.length > 0) {
@@ -181,7 +200,40 @@ export class EventOrchestrator {
       handler.addMidSessionSources([...state.midSessionSources]);
       state.midSessionSources = []; // 消费后清空
     }
+
+    // M6 Fix-1: 传递 corrections 给 handler → 异步 deepCheck
+    if (state.corrections.length > 0 && this.deps.llm) {
+      const protoSequences = state.structures.filter(
+        s => s.protoType === "sequence",
+      ) as ProtoSequence[];
+      if (protoSequences.length > 0) {
+        handler.setCorrections([...state.corrections], protoSequences, this.deps.llm);
+        state.corrections = []; // 消费后清空
+      }
+    }
+
     return handler.handle(sessionId);
+  }
+
+  /** M6 Fix-4: 从 AgentMemory 加载 attentionRecords（重启恢复） */
+  private async loadAttentionRecords(): Promise<void> {
+    if (!this.deps.attentionRecords) return;
+    try {
+      const result = await this.deps.memory.getSlot("attention_records");
+      if (result.ok && result.value) {
+        const data = result.value as { records?: Array<{ structureId: string;[key: string]: unknown }> };
+        if (data.records) {
+          for (const r of data.records) {
+            if (r.structureId) {
+              const { structureId, ...rest } = r;
+              this.deps.attentionRecords!.set(structureId, rest as unknown as import("./attention-telemetry").AttentionRecord);
+            }
+          }
+        }
+      }
+    } catch {
+      // 加载失败降级: 从空 Map 开始
+    }
   }
 
   /** Phase 0: 追加 MidSession 信号源（供 M5.1 MidSessionLearner 调用） */
@@ -255,6 +307,7 @@ export class EventOrchestrator {
         currentTaskType: this.deps.currentTaskType ?? "unknown",
         currentDomain: this.deps.currentDomain ?? "unknown",
         midSessionLearner: new MidSessionLearner(),
+        corrections: [],
       };
       this.sessions.set(sessionId, state);
     }

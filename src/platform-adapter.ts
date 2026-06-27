@@ -10,6 +10,7 @@
  */
 
 import { log, logDegraded } from "./logger";
+import type { PraxisLifecycleEvent } from "./orchestrator";
 
 // ---- 类型 ----
 
@@ -204,6 +205,65 @@ export class PlatformAdapter {
     });
 
     return result;
+  }
+
+  /**
+   * M6: 接收适配器产出的 PraxisLifecycleEvent 并路由到内部处理管线。
+   * 适配器层 (AgentRuntimeAdapter) 产出标准事件 → 此方法做最后的平台适配 → onEvent 处理。
+   */
+  async acceptAdapterEvent(event: PraxisLifecycleEvent): Promise<Result<EventResult>> {
+    // 将标准生命周期事件映射为平台事件格式
+    const platformEvent = this.toPlatformEvent(event);
+    if (!platformEvent) {
+      return { ok: false, error: { code: "UNMAPPABLE_EVENT", message: `Cannot map event type: ${event.type}` } };
+    }
+    return this.onEvent(platformEvent);
+  }
+
+  /** 将 PraxisLifecycleEvent 转换为内部 PraxisEvent */
+  private toPlatformEvent(event: PraxisLifecycleEvent): PraxisEvent | null {
+    switch (event.type) {
+      case "session_start":
+        return {
+          type: "session_start",
+          sessionId: event.sessionId,
+          timestamp: String(event.timestamp),
+        };
+      case "message_received":
+        return {
+          type: "message_received",
+          sessionId: event.sessionId,
+          message: event.message,
+          timestamp: String(event.timestamp),
+        };
+      case "before_tool_call":
+        return {
+          type: "before_tool_call",
+          sessionId: event.sessionId,
+          toolName: event.toolName,
+          toolArgs: event.toolParams,
+        };
+      case "after_tool_call":
+        return {
+          type: "after_tool_call",
+          sessionId: event.sessionId,
+          toolName: event.toolName,
+          toolResult: event.result,
+        };
+      case "agent_end":
+        return { type: "agent_end", sessionId: event.sessionId };
+      case "session_end":
+        return {
+          type: "session_end",
+          sessionId: event.sessionId,
+          timestamp: String(event.timestamp),
+        };
+      case "cron_tick":
+        // cron_tick 由 Praxis 内部定时器触发，不由适配器路由
+        return null;
+      default:
+        return null;
+    }
   }
 
   // ---- Handler ----

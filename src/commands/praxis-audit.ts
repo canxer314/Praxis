@@ -26,6 +26,17 @@ export interface AuditReport {
   violations: ViolationEntry[];
   decayWarnings: DecayWarning[];
   confidenceDistribution: ConfidenceBucket[];
+  /** M6: StructuralGap 信号 (从 audit_log entries 读取) */
+  structuralGapSignals: StructuralGapSignalEntry[];
+  /** M6: Meta Layer 审计数据 */
+  architectureAudit: Record<string, unknown> | null;
+  categoryAudit: Record<string, unknown> | null;
+}
+
+export interface StructuralGapSignalEntry {
+  signalType: number;
+  detectedAt: number;
+  evidence: Record<string, unknown>;
 }
 
 export interface ZombieEntry {
@@ -92,15 +103,46 @@ export async function generateAuditReport(deps: M0Deps): Promise<AuditReport> {
     }
   }
 
-  // 约束违反统计 (从 audit_log slot 读取)
+  // 约束违反统计 + StructuralGap 信号 (从 audit_log slot entries 读取)
   const violations: ViolationEntry[] = [];
+  const structuralGapSignals: StructuralGapSignalEntry[] = [];
   try {
     const result = await deps.memory.getSlot("audit_log");
     if (result.ok && result.value) {
-      const log = result.value as { violations?: ViolationEntry[] };
-      if (log.violations) violations.push(...log.violations);
+      const log = result.value as Record<string, unknown>;
+      const entries = Array.isArray(log.entries) ? log.entries as Array<Record<string, unknown>> : [];
+      for (const e of entries) {
+        if (e.type === "constraint_violation") {
+          const detail = (e.detail ?? {}) as Record<string, unknown>;
+          violations.push({
+            constraintId: String(detail.constraintId ?? e.source ?? "unknown"),
+            violationCount: 1,
+            lastViolatedAt: typeof e.timestamp === "number" ? e.timestamp : null,
+          });
+        } else if (e.type === "structural_gap_signal") {
+          structuralGapSignals.push({
+            signalType: typeof (e.detail as Record<string, unknown>)?.signalType === "number"
+              ? (e.detail as Record<string, unknown>).signalType as number
+              : 0,
+            detectedAt: typeof e.timestamp === "number" ? e.timestamp : now,
+            evidence: (e.detail ?? {}) as Record<string, unknown>,
+          });
+        }
+      }
     }
   } catch { /* audit_log 不可用 */ }
+
+  // M6: 读取 Meta Layer 审计数据
+  let architectureAudit: Record<string, unknown> | null = null;
+  let categoryAudit: Record<string, unknown> | null = null;
+  try {
+    const archResult = await deps.memory.getSlot("architecture_audit");
+    if (archResult.ok && archResult.value) architectureAudit = archResult.value as Record<string, unknown>;
+  } catch { /* 降级 */ }
+  try {
+    const catResult = await deps.memory.getSlot("category_audit");
+    if (catResult.ok && catResult.value) categoryAudit = catResult.value as Record<string, unknown>;
+  } catch { /* 降级 */ }
 
   return {
     generatedAt: now,
@@ -110,6 +152,9 @@ export async function generateAuditReport(deps: M0Deps): Promise<AuditReport> {
     violations,
     decayWarnings,
     confidenceDistribution: distribution,
+    structuralGapSignals,
+    architectureAudit,
+    categoryAudit,
   };
 }
 
