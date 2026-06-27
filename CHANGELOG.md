@@ -1,6 +1,28 @@
 # Changelog
 
-## [0.11.0.0] - 2026-06-27
+## [0.11.0.1] - 2026-06-27
+
+### Added
+- **M5 Autonomous Learning System:** 5 sub-milestones delivering real-time correction, dual-nature judgment, cross-session mining, structural gap detection, and cognitive health auditing
+- **M5.1 MidSessionLearner:** session-scoped real-time learning — user corrections and constraint violations produce `mid_session` SignalSourceInput consumed at agent_end/session_end fusion. Chinese + English keyword extraction, relevance-weighted penalty (BASE 0.05 × confidence × relevance), 0.2 per-session hard cap (`src/analysis/mid-session-learner.ts`, 16 tests)
+- **M5.2 TeleologicalJudge:** dual-nature ProtoSequence judgment — `quickCheck()` (postcondition keyword coverage ≥ 70% → alternative implementation, zero-penalty) and `deepCheck()` (LLM async teleological analysis). Correction that preserves function ≠ error (`src/analysis/teleological-judge.ts`, 8 tests)
+- **M5.3 ProtoTask accumulation:** log2 confidence growth formula (`0.2 + 0.15 × log2(N+1)`, clamped to [0.2, 0.95]), <3 observations → stats-only, confidence delta >0.15 → human review flag (`src/analysis/proto-task-learner.ts`)
+- **M5.3 Decay detection:** reuses existing `shouldMarkInactive(structure, daysSinceLastUsed, 60)` + `transition()` with return-value assignment — structures inactive ≥60 days auto-degrade unless confidence >0.85. CronTick fully implemented with 30-min guard (`src/cron-tick.ts`)
+- **M5.4 StructuralGap detection:** 5 pure-function detectors — ProtoTask decline (≥3 consecutive confidence drops), cross-scenario failure (same toolName failing across ≥2 scenarios with >50% failure rate), correction cluster (≥5 corrections per cluster in 30d), skill stagnation (≥30d with <0.05 proficiency change, ≥5 sessions), escalation anomaly (recent count > mean + 2σ) (`src/analysis/structural-gap-detector.ts`)
+- **M5.5 `/praxis audit` command:** zombie detection (adoptionRate <20% + confidence >0.7), underestimated (adoptionRate >60% + confidence <0.4), decay warnings, constraint violations, confidence distribution histogram (`src/commands/praxis-audit.ts`, `src/commands/praxis-cli.ts`)
+- **Phase 0: M4 runtime wiring** — ConfidenceFuser, updateAttention, and createVersion wired to live EventOrchestrator pipeline. 7-source fusion executes at session_end; attention records capture real injectedStructureIds; version snapshots persist through AgentMemory
+
+### Changed
+- **orchestrator.ts:** SessionState expanded (structures, injectedStructureIds, midSessionSources, currentTaskType, currentDomain, midSessionLearner). handleMessageReceived integrates teleological quickCheck filtering + MidSessionLearner correction + `/praxis` command routing. handleSessionEnd passes injected structures + midSessionSources to session-end fusion. handleAgentEnd creates AgentEndHandler with accumulated toolCallTrace + midSessionSources. handleBeforeToolCall accepts (sessionId, toolName) with constraint violation → MidSessionLearner counting
+- **session-end.ts:** Phase 0 fusion — merges llmMarkerSources + midSessionSources, fuses per-structure, creates version snapshots, persists via saveProtoStructure. updateAttention() return captured and reassigned. persistSignals/writeLesson enriched with taskType/domain fields
+- **agent-end.ts:** midSessionSources array with addMidSessionSources()/drainMidSessionSources(). AgentEndSummary includes fusedCount
+- **before-tool-call.ts:** handle(sessionId, toolName) — signature changed adding sessionId. Return type includes optional constraintId. mergeResults passes constraintId to MidSessionLearner
+- **cron-tick.ts:** rewritten from skeleton to full implementation — ProtoTask accumulation, decay detection, cron_tick_health slot, 30-min guard
+- **message-received.ts:** `/praxis` command detection and routing via parsePraxisCommand()/handlePraxisCommand()
+- **m0-deps.ts:** MemorySubsystem extended (saveProtoStructure, searchProtoStructures). M0Deps extended (fuser, attentionRecords, currentTaskType, currentDomain, LLMSubsystem.analyze)
+
+### Docs
+- **M5-dev-plan.md:** 781-line development plan covering Phase 0 + 5 sub-milestones with dependency graph, implementation phases, and test requirements
 
 ### Added
 - **M4 Confidence System:** 7-source weighted fusion engine — break the LLM self-assessment loop with independent verification
