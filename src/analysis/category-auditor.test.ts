@@ -41,9 +41,13 @@ describe("CategoryAuditor", () => {
   });
 
   it("reports category_insufficient for high-count clusters without LLM", async () => {
+    // 需要 ≥5 个结构才能通过数据充分性检查 (Kantian fork 条件)
+    const structures = Array.from({ length: 5 }, (_, i) =>
+      makeStructure({ id: `s${i}`, observationsCount: 10 }),
+    );
     const report = await auditor.run(
       [{ pattern: "complex correction pattern", count: 5, last30Days: 5 }],
-      [makeStructure({ observationsCount: 10 })],
+      structures,
     );
     expect(report.status).toBe("ok");
     const categoryBlind = report.blindSpots.find(b => b.diagnosis === "category_insufficient");
@@ -81,7 +85,7 @@ describe("CategoryAuditor", () => {
       [{ pattern: "test", count: 5, last30Days: 5 }],
       structures,
     );
-    const seqHealth = report.existingTypesHealth.find(t => t.protoType === "ProtoSequence");
+    const seqHealth = report.existingTypesHealth.find(t => t.protoType === "sequence");
     expect(seqHealth?.health).toBeGreaterThan(0);
   });
 });

@@ -215,15 +215,77 @@ export function formatAuditReport(report: AuditReport): string {
     lines.push("");
   }
 
-  // 约束违反
-  if (report.violations.length > 0) {
-    lines.push(`### 约束违反统计`);
-    for (const v of report.violations) {
-      lines.push(`  - ${v.constraintId}: ${v.violationCount} 次违反`);
+  // 约束违反 (按 constraintId 聚合)
+  const aggViolations = aggregateViolations(report.violations);
+  if (aggViolations.length > 0) {
+    lines.push(`### 约束违反统计 (${aggViolations.length} 类)`);
+    // 按违反次数降序排序
+    const sorted = [...aggViolations].sort((a, b) => b.count - a.count);
+    for (const v of sorted.slice(0, 10)) {
+      lines.push(`  - ${v.constraintId}: ${v.count} 次违反`);
     }
+    if (sorted.length > 10) lines.push(`  ... 共 ${sorted.length} 类`);
     lines.push("");
   } else {
     lines.push("### 约束违反: 无");
+    lines.push("");
+  }
+
+  // M6: StructuralGap 信号
+  if (report.structuralGapSignals && report.structuralGapSignals.length > 0) {
+    const signalNames: Record<number, string> = { 1: "ProtoTask decline", 2: "Cross-scenario failure", 3: "Correction cluster", 4: "Skill stagnation", 5: "Escalation anomaly" };
+    lines.push(`### StructuralGap 信号 (${report.structuralGapSignals.length})`);
+    for (const s of report.structuralGapSignals) {
+      const name = signalNames[s.signalType] ?? `信号 #${s.signalType}`;
+      lines.push(`  - ${name} — ${new Date(s.detectedAt).toLocaleDateString()}`);
+    }
+    lines.push("");
+  }
+
+  // M6: Meta Layer 审计
+  if (report.architectureAudit) {
+    const a = report.architectureAudit;
+    lines.push("### Meta Layer — 架构审计");
+    lines.push(`  综合健康度: ${typeof a.overallHealth === "number" ? (a.overallHealth * 100).toFixed(0) + "%" : "N/A"}`);
+    lines.push(`  僵尸结构率: ${typeof a.zombieRate === "number" ? (a.zombieRate * 100).toFixed(0) + "%" : "N/A"}`);
+    lines.push(`  最弱维度: ${String(a.weakestDimension ?? "N/A")}`);
+    const recs = a.recommendations as Array<Record<string, unknown>> | undefined;
+    if (recs && recs.length > 0) {
+      for (const r of recs.slice(0, 5)) {
+        lines.push(`  - [${r.severity}] ${r.description}`);
+      }
+    }
+    lines.push("");
+  }
+
+  if (report.categoryAudit) {
+    const c = report.categoryAudit;
+    const status = String(c.status ?? "ok");
+    lines.push("### Meta Layer — 范畴审计");
+    if (status === "insufficient_data") {
+      lines.push(`  状态: 数据不足 — ${String(c.message ?? "等待积累")}`);
+    } else {
+      const spots = c.blindSpots as Array<Record<string, unknown>> | undefined;
+      const forks = c.domainForks as Array<Record<string, unknown>> | undefined;
+      if (spots && spots.length > 0) {
+        lines.push(`  范畴盲区: ${spots.length} 个`);
+        for (const s of spots) {
+          lines.push(`    - ${s.pattern} (诊断: ${s.diagnosis})`);
+        }
+      } else {
+        lines.push("  范畴盲区: 无");
+      }
+      if (forks && forks.length > 0) {
+        lines.push(`  领域分叉提议: ${forks.length} 个`);
+      }
+      // 类型健康度
+      const health = c.existingTypesHealth as Array<Record<string, unknown>> | undefined;
+      if (health) {
+        for (const h of health) {
+          lines.push(`  ${h.protoType}: ${typeof h.health === "number" ? (h.health * 100).toFixed(0) + "%" : "N/A"}`);
+        }
+      }
+    }
     lines.push("");
   }
 
@@ -232,6 +294,15 @@ export function formatAuditReport(report: AuditReport): string {
   }
 
   return lines.join("\n");
+}
+
+/** 聚合 ViolationEntry 按 constraintId 分组 */
+function aggregateViolations(violations: Array<{ constraintId: string; violationCount: number }>): Array<{ constraintId: string; count: number }> {
+  const map = new Map<string, number>();
+  for (const v of violations) {
+    map.set(v.constraintId, (map.get(v.constraintId) ?? 0) + v.violationCount);
+  }
+  return Array.from(map.entries()).map(([constraintId, count]) => ({ constraintId, count }));
 }
 
 // ══════════════════════════════════════════════════════════════════

@@ -133,14 +133,13 @@ export class ArchitectureAuditor {
     return zombies.length / structures.length;
   }
 
-  private calcDecayRate(auditLog: Array<Record<string, unknown>>, structures: ProtoStructure[]): number {
-    const activeCount = structures.filter(s =>
-      s.lifecycle !== "deprecated" && s.lifecycle !== "rejected",
+  /** 衰退率: 已退役/已降级结构占总结构数的比例 */
+  private calcDecayRate(_auditLog: Array<Record<string, unknown>>, structures: ProtoStructure[]): number {
+    if (structures.length === 0) return 0;
+    const decayed = structures.filter(s =>
+      s.lifecycle === "deprecated" || s.lifecycle === "rejected",
     ).length;
-    if (activeCount === 0) return 0;
-    const decayEntries = auditLog.filter(e => e.type === "structural_gap_signal").length;
-    // 归一化: 每 100 个活跃结构每 30 天的信号数
-    return Math.min(1, decayEntries / Math.max(1, activeCount) / 10);
+    return decayed / structures.length;
   }
 
   private findZombies(structures: ProtoStructure[]): ProtoStructure[] {
