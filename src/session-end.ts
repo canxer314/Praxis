@@ -17,6 +17,7 @@ import { parsePredictionMarkers } from "./orchestration/prediction-protocol";
 import { createVersion } from "./structure-version";
 import { StatisticalVerifier } from "./analysis/statistical-verifier";
 import { RoleVerifier } from "./analysis/role-verifier";
+import { fullPropagation } from "./structure-graph";
 
 // ---- SessionEndHandler ----
 
@@ -195,6 +196,8 @@ export class SessionEndHandler {
       if (allSources.length === 0) {
         // skip — no signal sources
       } else {
+        // T6: 记录本轮融合的结构 (供关系图传播)
+        const fusedThisRound: Array<{ id: string; oldConfidence: number; newConfidence: number }> = [];
         for (const structure of injectedStructures) {
           const sources = allSources.filter(s => s.structureId === structure.id);
           if (sources.length === 0) continue;
@@ -212,6 +215,36 @@ export class SessionEndHandler {
             versionedCount++;
             if (this.deps.memory.saveProtoStructure) {
               await this.deps.memory.saveProtoStructure(structure);
+            }
+            fusedThisRound.push({ id: structure.id, oldConfidence, newConfidence: fused.confidence });
+          }
+        }
+
+        // T6: 关系图置信度传播 (§3) — 融合后的 confidence 变化沿关系图传播到关联结构
+        if (fusedThisRound.length > 0) {
+          const allStructuresMap = new Map(injectedStructures.map(s => [s.id, s]));
+          for (const { id: changedId, oldConfidence, newConfidence } of fusedThisRound) {
+            const delta = newConfidence - oldConfidence;
+            if (Math.abs(delta) < 0.001) continue;
+            const propagated = fullPropagation(changedId, delta, allStructuresMap);
+            for (const [affectedId, propDelta] of propagated) {
+              if (affectedId === changedId) continue;
+              const affected = allStructuresMap.get(affectedId);
+              if (!affected) continue;
+              const oldAffected = affected.confidence;
+              affected.confidence = Math.max(0, Math.min(1, affected.confidence + propDelta));
+              if (Math.abs(affected.confidence - oldAffected) > 0.001) {
+                createVersion(affected, "auto_refinement", [{
+                  type: "confidence_changed" as const,
+                  path: "/confidence",
+                  oldValue: oldAffected,
+                  newValue: affected.confidence,
+                }], `Propagation from ${changedId} (delta ${delta.toFixed(3)})`, []);
+                versionedCount++;
+                if (this.deps.memory.saveProtoStructure) {
+                  await this.deps.memory.saveProtoStructure(affected);
+                }
+              }
             }
           }
         }

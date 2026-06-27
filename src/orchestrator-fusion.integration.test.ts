@@ -183,4 +183,29 @@ describe("EventOrchestrator cross-process state (Phase 0 SessionStateStore)", ()
     const allSources = fuseSpy.mock.calls.flatMap((c) => c[0] as SignalSourceInput[]);
     expect(allSources.some((s) => s.sourceName === "statistical")).toBe(true);
   });
+
+  it("T6: relation-graph confidence propagation (A depends_on B → B fused → A propagates)", async () => {
+    // B: sequence with step "分诊"; A: sequence depends_on B (strength 1.0)
+    const B = { ...CLINIC_FLOW, id: "ps-triage", tentativeName: "分诊流程", structure: { steps: [{ position: 1, action: "分诊" }] }, relations: [] };
+    const A = {
+      ...CLINIC_FLOW, id: "ps-consult", tentativeName: "问诊流程",
+      structure: { steps: [{ position: 1, action: "问诊" }] },
+      relations: [{ targetId: "ps-triage", type: "depends_on" as const, strength: 1.0, evidence: [], establishedAt: 0, lastValidatedAt: 0 }],
+    };
+    const { deps, saveProtoStructure } = makeSlotBackedDeps([A, B]);
+    const orch = new EventOrchestrator(deps);
+    await orch.handleSessionStart("t6-session");
+    // after_tool_call matching B's step "分诊" → StatisticalVerifier match for B; llm_marker for B
+    await orch.handleAfterToolCall("t6-session", "分诊", {}, { success: true });
+    await orch.handleSessionEnd("t6-session", "用户: 分诊\nassistant: [PREDICTION_CONFIRMED: ps-triage]");
+
+    // B fused (llm_marker + statistical) → confidence changed → propagated to A (depends_on B)
+    const savedA = saveProtoStructure.mock.calls
+      .map((c) => c[0] as { id?: string; confidence?: number })
+      .find((s) => s.id === "ps-consult");
+    expect(savedA).toBeTruthy();
+    // A had no direct fusion sources (its step "问诊" didn't match "分诊") → its confidence change
+    // is purely from relation-graph propagation (§3 depends_on).
+    expect(savedA!.confidence).not.toBe(0.5);
+  });
 });
