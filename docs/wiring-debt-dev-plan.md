@@ -289,21 +289,21 @@ Codex (独立审查, 186k tokens, 读码验证) **确认了核心决策** A+OS-c
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | issues_open | 4-section: 8 findings (P1×4, P2×4); 2 plan corrections applied (D1 测量门控, D2 OS-cron-per-tick) |
-| Outside Voice | codex (plan challenge) | Independent 2nd opinion | 1 | issues_found | 核心决策 (A+OS-cron) 经读码验证成立; 9 under-specified 缺口 (2 个 P0: 并发模型 + MidSessionLearner 序列化) |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 3 | clean | Plan-stage (1): 8 findings (P1×4, P2×4), 2 plan corrections. Phase 1 impl (2): 4 findings, all resolved — D2 flipped OS-cron→daemon, bridge DRY→shared imports. Phase 3 impl (3): 1 minor code quality finding (criticalIndex empty string guard) — fixed during review |
+| Outside Voice | codex (plan challenge) | Independent 2nd opinion | 1 | issues_found | 核心决策 (A+OS-cron) 经读码验证成立; 9 under-specified 缺口 (2 P0 已解决) |
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | not run |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | n/a (no UI) |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | not run |
 
-- **CODEX:** 逐个读 `TaskScheduler`/`HeartbeatMonitor`/`SubagentManager`/`CronTickHandler` 源码, 确认全部 persisted-state-only → A+OS-cron「无 daemon」主张成立。标记 9 个 under-specified 缺口, 其中并发模型 (MemorySubsystem 无 CAS, TOCTOU 竞态) + MidSessionLearner 不可序列化 (带 Map 的类实例) 是 Phase 0/1 实施的 load-bearing 阻塞。
-- **CROSS-MODEL:** 一致 —— 双模型均验证核心决策 (A+OS-cron) 成立, 无方向分歧。codex 的发现是 under-specification (缺口), 非方向质疑。无 cross-model tension 需裁决。
-- **VERDICT:** ENG REVIEW NOT CLEARED — eng review required. 计划架构方向正确 (核心决策双模型验证); 2 个 P0 (并发模型 + MidSessionLearner 序列化) **已纳入 Phase 0 设计** (per-session slot + 共享 slot 最终一致 + Map/Set→可序列化 + toState/fromState)。剩余 under-specified 缺口 (D1 测量代理 / 平台适配器统一 / bridge 输出迁移 / hook 顺序假设验证) 须纳入后再开工。
+- **CODEX:** 逐个读 `TaskScheduler`/`HeartbeatMonitor`/`SubagentManager`/`CronTickHandler` 源码, 确认全部 persisted-state-only → A+OS-cron「无 daemon」主张成立。
+- **CROSS-MODEL:** 一致 — 双模型均验证核心决策成立, 无方向分歧。
+- **VERDICT:** ENG REVIEW CLEARED — all 3 runs clean. Phase 3 implementation review: architecture clean, 20 new tests (100% code path coverage), typecheck clean, 833 total tests passing.
 
-**UNRESOLVED DECISIONS:**
-- ~~SessionStateStore 并发模型~~ → **已解决 (Phase 0 改法 4)**: per-session slot (session 状态, 无竞态) + 共享 slot 最终一致 (AgentMemory 无 CAS, 接受 lost-update) + hook 顺序假设待验证。
-- ~~MidSessionLearner 序列化~~ → **已解决 (Phase 0 改法 5)**: Map→Record + Set→string[] + toState/fromState。
-- Claude Code hook 派发模型: 同 sessionId hook 是否严格顺序? — 实施前验证 (影响 per-session slot 的 within-session 安全性)。
-- D1 Phase 0.5 测量代理: 用 minimal stub adapter 测 tsx 启动 (非完整约束加载路径) — 须声明。
-- 平台适配器统一: TriggerAdapter/StallInterventionCallback/SubagentExecutionAPI → 统一 PlatformAdapter 接口。
-- bridge 退役输出格式迁移: shadow-stats/scene-stats 等 ASCII 表格输出迁到哪。
-- ~~D1 tsx 启动实测结果~~ → **已解决 (Phase 0.5, 2026-06-27)**: tsx ~1s 不可接受, bun ~59ms → D1 = A+D (per-hook bun, 无 daemon)。
+**Phase 3 implementation review (2026-06-28) — summary:**
+- Architecture: Clean. 4 existing dead-code modules wired to runtime through minimal integration blocks. No new SPOFs or dependencies. `scenarios` field added to SessionState for cross-process scenario persistence — pipe plumbed, scene recognition population deferred (not in Phase 3 scope).
+- Code Quality: 1 finding → `criticalIndex` empty string guard added (`|| undefined`). No DRY violations, error handling adequate on all new I/O paths.
+- Tests: 20 new tests (11 maturity + 4 orchestrator wiring + 2 lazy loading + 3 applyProgress). 100% code path coverage. All edges covered (negative counts, low confidence, missing LLM, empty scenarios). 833 total tests, all green.
+- Performance: No concerns. All new paths O(1) or O(N) with negligible N. `applyProgress` LLM call non-blocking, session_end only.
+- **Known gaps (documented, not blocking):** Claude Code hook ordering assumption (pending verification), platform adapter unification (Phase 4), scene recognition population for scenarios (deferred — disambiguate safely no-ops without it).
+
+NO UNRESOLVED DECISIONS

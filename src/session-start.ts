@@ -132,7 +132,7 @@ export class SessionStartHandler {
 
     // Phase 3 T10: Critical 压力 → 构建结构索引 (Lazy Loading)
     const criticalIndex = pressure === "critical" && tieredContext
-      ? formatStructureIndex(buildStructureIndex(tieredContext.tierA.items))
+      ? formatStructureIndex(buildStructureIndex(tieredContext.tierA.items)) || undefined
       : undefined;
 
     return {
