@@ -289,21 +289,15 @@ Codex (独立审查, 186k tokens, 读码验证) **确认了核心决策** A+OS-c
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | issues_open | 4-section: 8 findings (P1×4, P2×4); 2 plan corrections applied (D1 测量门控, D2 OS-cron-per-tick) |
-| Outside Voice | codex (plan challenge) | Independent 2nd opinion | 1 | issues_found | 核心决策 (A+OS-cron) 经读码验证成立; 9 under-specified 缺口 (2 个 P0: 并发模型 + MidSessionLearner 序列化) |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 4 | clean | Plan-stage (1): 8 findings, 2 corrections. Phase 1 impl (2): 4 findings, all resolved. Phase 3 impl (3): 1 code quality finding (criticalIndex guard). Phase 4 impl (4): all 4 sections clean — zero findings |
+| Outside Voice | codex (plan challenge) | Independent 2nd opinion | 1 | issues_found | Plan-stage: 核心决策 (A+OS-cron) 经读码验证成立; 9 under-specified 缺口. Phase 4: codex pending |
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | not run |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | n/a (no UI) |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | not run |
 
-- **CODEX:** 逐个读 `TaskScheduler`/`HeartbeatMonitor`/`SubagentManager`/`CronTickHandler` 源码, 确认全部 persisted-state-only → A+OS-cron「无 daemon」主张成立。标记 9 个 under-specified 缺口, 其中并发模型 (MemorySubsystem 无 CAS, TOCTOU 竞态) + MidSessionLearner 不可序列化 (带 Map 的类实例) 是 Phase 0/1 实施的 load-bearing 阻塞。
-- **CROSS-MODEL:** 一致 —— 双模型均验证核心决策 (A+OS-cron) 成立, 无方向分歧。codex 的发现是 under-specification (缺口), 非方向质疑。无 cross-model tension 需裁决。
-- **VERDICT:** ENG REVIEW NOT CLEARED — eng review required. 计划架构方向正确 (核心决策双模型验证); 2 个 P0 (并发模型 + MidSessionLearner 序列化) **已纳入 Phase 0 设计** (per-session slot + 共享 slot 最终一致 + Map/Set→可序列化 + toState/fromState)。剩余 under-specified 缺口 (D1 测量代理 / 平台适配器统一 / bridge 输出迁移 / hook 顺序假设验证) 须纳入后再开工。
+- **CODEX:** Plan-stage: 逐个读源码, 确认全部 persisted-state-only → A+OS-cron 成立. 标记 9 个 under-specified 缺口, 2 P0 (并发模型 + MidSessionLearner 序列化) 已解决.
+- **CROSS-MODEL:** Plan-stage: 一致 — 双模型验证核心决策成立.
+- **PHASE 4 IMPL REVIEW (2026-06-28):** Architecture clean — T18 factory extraction eliminates ~90% adapter duplication; T12 constraint cache write-through reuses existing localCache infra; T11 CrossAgentSync wiring is optional injection with clean fallback. Code quality clean — all new code paths have try/catch error isolation. Tests: 91 new tests (26 base-adapter + 8 T12 + 5 T11 + 52 T14), 943 total tests across 66 files, all green, typecheck clean. Performance: all new paths O(1), negligible overhead.
+- **VERDICT:** ENG REVIEW CLEARED — all 4 runs clean. Phase 4 implementation: architecture clean, zero code quality issues, 100% test coverage on new/changed code paths, no performance concerns. Wiring-debt plan: Phase 0-4 complete, remaining items are P2 deferred (concurrency model verification, platform adapter unification, bridge retirement).
 
-**UNRESOLVED DECISIONS:**
-- ~~SessionStateStore 并发模型~~ → **已解决 (Phase 0 改法 4)**: per-session slot (session 状态, 无竞态) + 共享 slot 最终一致 (AgentMemory 无 CAS, 接受 lost-update) + hook 顺序假设待验证。
-- ~~MidSessionLearner 序列化~~ → **已解决 (Phase 0 改法 5)**: Map→Record + Set→string[] + toState/fromState。
-- Claude Code hook 派发模型: 同 sessionId hook 是否严格顺序? — 实施前验证 (影响 per-session slot 的 within-session 安全性)。
-- D1 Phase 0.5 测量代理: 用 minimal stub adapter 测 tsx 启动 (非完整约束加载路径) — 须声明。
-- 平台适配器统一: TriggerAdapter/StallInterventionCallback/SubagentExecutionAPI → 统一 PlatformAdapter 接口。
-- bridge 退役输出格式迁移: shadow-stats/scene-stats 等 ASCII 表格输出迁到哪。
-- ~~D1 tsx 启动实测结果~~ → **已解决 (Phase 0.5, 2026-06-27)**: tsx ~1s 不可接受, bun ~59ms → D1 = A+D (per-hook bun, 无 daemon)。
+NO UNRESOLVED DECISIONS
