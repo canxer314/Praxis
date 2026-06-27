@@ -41,7 +41,38 @@
         Meta Layer + 范畴审计 + 适配器接口 + 多运行时
 ```
 
-**进度: M0 ✅ | M1 ✅ | M2 ✅ | M3 ✅ | M4 ✅ | M5 ✅ | M6 ✅ | 全部完成**。
+**进度 (corrected 2026-06-27 per M1–M6 eng review)**: M0–M6 模块均已实现且有测试, 但 review 发现大量"已实现但未接线"的运行时缺口 — 原 "全部完成" 表述高估了运行时能力。详见下方"接线债与修复状态"。
+
+## 接线债与修复状态 (2026-06-27 eng review)
+
+完整审查报告: `docs/REVIEWS/2026-06-27-m1-m6-eng-review.md`。
+
+**已修复 (review 后)**:
+- ✅ M4 源信号流: orchestrator 不再在 agent_end 清空 midSessionSources → session_end 融合可达
+- ✅ M4.4 QuineanGating 接入 canCrystallize (僵尸结构被拒绝, 带遥测 context 时)
+- ✅ M4.2 权重恢复 spec (statistical 0.25 / concept 0.08); StatisticalVerifier 二值化 (1.0/0.0)
+- ✅ M3.5 `/praxis ontology` 实现 (§13 五段输出)
+- ✅ M3 约束匹配改为锚定 token 匹配 (修复 "rm"↔"confirm" 假阳) + before_tool_call 传入 toolParams
+- ✅ M3 约束注入器: 永不丢弃 block 级约束 + Critical 压力感知 maxTokens
+- ✅ M2 Normal 阈值恢复 400K (§7/§9)
+- ✅ M2 压力测量: orchestrator handleSessionStart 接受 estimatedUsedTokens
+- ✅ M1 版本链 rollback 恢复字段值 (逆序回放 diff)
+- ✅ M1 createVersion 防御 missing versionChain
+- ✅ M5 deepCheck 并行化 (N×LLM 延迟 → ~1×)
+- ✅ 移除 structure-lifecycle 进程级 verifier 单例 (会话隔离)
+- ✅ buildM0Deps 注入完整 M0Deps (fuser + llm adapter + saveProtoStructure + attentionRecords)
+- ✅ e2e 集成测试: EventOrchestrator 全生命周期融合+持久化 (回归守卫)
+
+**仍待修复 (后续)**:
+- ⏳ T1: M4 三个独立验证器接入运行时融合 — 需 B6 (完整结构) + toolCallTrace 接线
+- ⏳ T6: M1 关系图置信度传播接入运行时 — 需 B6 (relations 字段)
+- ⏳ B6: session_start 加载完整结构 (含 relations/versionChain/steps), 当前 fusion 仍操作 summary
+- ⏳ T9: bridge→EventOrchestrator 迁移 (生产入口是多进程 phase1a-bridge, 融合在生产中仍不触发) + cron_tick 外部调度器
+- ⏳ T10: M2 maturity 映射 / recallStructure (Critical Lazy Loading) / applyProgress / disambiguate 接线
+- ⏳ T11: CrossAgentSync key bug + 生产接线
+- ⏳ T18: 两个适配器 DRY (共享 base)
+- ⏳ T12: 降级路径约束 write-through 缓存
+- ⏳ T14: 9 个无测试模块补测试
 
 ---
 

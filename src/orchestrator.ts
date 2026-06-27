@@ -87,7 +87,13 @@ export class EventOrchestrator {
   // 公开 API — 每个事件类型一个方法
   // ════════════════════════════════════════════════════════════════
 
-  async handleSessionStart(sessionId: string) {
+  async handleSessionStart(
+    sessionId: string,
+    /** T3: caller-provided context-pressure inputs (LLM usage feedback or conservative
+     *  estimate). Without these, pressure defaults to "normal" (M2.2 adaptive compression
+     *  never triggers). The bridge can pass an estimate from env/heuristic. */
+    opts?: { estimatedUsedTokens?: number; contextWindowSize?: number },
+  ) {
     // 初始化 session 状态 (Phase 0: + M5.1 MidSessionLearner)
     this.sessions.set(sessionId, {
       pendingSignals: [],
@@ -100,7 +106,7 @@ export class EventOrchestrator {
       midSessionLearner: new MidSessionLearner(),
       corrections: [],
     });
-    const result = await this.sessionStart.handle(sessionId);
+    const result = await this.sessionStart.handle(sessionId, opts);
     // M3: 加载已结晶约束到 before_tool_call 处理器
     if (result.ok && result.value.tieredContext?.criticalConstraints) {
       this.beforeToolCall.loadConstraints(
@@ -166,7 +172,7 @@ export class EventOrchestrator {
 
   /** Phase 0: sessionId 线程 — before_tool_call 携带 sessionId + M5.1 约束违规计数 */
   async handleBeforeToolCall(sessionId: string, toolName: string, toolParams?: Record<string, unknown>) {
-    const result = await this.beforeToolCall.handle(sessionId, toolName);
+    const result = await this.beforeToolCall.handle(sessionId, toolName, toolParams);
     // M5.1: 约束违规 → MidSessionLearner 计数
     if (result.ok && result.value.constraintId) {
       const state = this.sessions.get(sessionId);
@@ -197,8 +203,13 @@ export class EventOrchestrator {
     // Phase 0: 创建 AgentEndHandler + 注入 MidSession 信号源
     const handler = new AgentEndHandler(this.deps, [...state.toolCallTrace]);
     if (state.midSessionSources.length > 0) {
+      // Copy to AgentEndHandler for its initial-pass fusion (logged, not persisted).
+      // Do NOT clear state.midSessionSources here: session_end is the unified
+      // fusion+persist point (session-end.ts: "实际结构更新在 session-end 的统一融合中完成")
+      // and must still see these sources. Clearing here starved session_end of
+      // mid_session sources, leaving fusion with only llm_marker (< MIN_SOURCES),
+      // so no structure was ever fused/persisted.
       handler.addMidSessionSources([...state.midSessionSources]);
-      state.midSessionSources = []; // 消费后清空
     }
 
     // M6 Fix-1: 传递 corrections 给 handler → 异步 deepCheck
