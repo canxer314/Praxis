@@ -1,7 +1,14 @@
 /**
- * Phase 1A Bridge — 将 5 个模块接入 Claude Code hook 系统
+ * Phase 1A Bridge — ⚠️ DEPRECATED (Phase 1, 2026-06-28)
  *
- * 用法:
+ * Replaced by:
+ *   - scripts/praxis-hook.ts  (per-hook bun entry, via HookDispatcher)
+ *   - /praxis CLI commands    (show, shadow-stats, scene-stats, learn, scene-log)
+ *
+ * This file is retained during the Phase 1 transition for backward compatibility.
+ * New integrations should use scripts/praxis-hook.ts with bun runtime.
+ *
+ * 用法 (legacy):
  *   tsx src/phase1a-bridge.ts inject        — SessionStart: 输出上下文注入
  *   tsx src/phase1a-bridge.ts end <file>    — SessionEnd: 分析 transcript 并保存学习
  *   tsx src/phase1a-bridge.ts show          — 查看学习状态
@@ -30,6 +37,9 @@ import { SEED_SCENARIOS } from "./cognitive/scenario-registry";
 import type { ScenarioCacheEntry } from "./cognitive/scenario-cache";
 import type { M0Deps, ProtoStructureCandidate } from "./m0-deps";
 import { ConfidenceFuser } from "./orchestration/confidence-fuser";
+// Phase 1: use shared factory + formatter (DRY — bridge imports from extracted modules)
+import { buildM0Deps } from "./m0-deps-factory";
+import { formatSessionContextInjection } from "./context-formatter";
 
 // ---- CognitiveCore 工厂 (T8) ----
 
@@ -363,192 +373,9 @@ function appendShadowDecision(record: ShadowDecisionRecord): void {
   fs.appendFileSync(SHADOW_DECISIONS_FILE, line, "utf-8");
 }
 
-// ---- M0Deps 适配器 — 将 agentmemory 包装为 M0 标准接口 ----
-
-/**
- * M1.5: LLM-backed ProtoStructure extraction (partial impl — full T7 follow-up).
- * Prompts the LLM for candidates as strict JSON, validates protoType, and falls
- * back to [] on ANY parse/shape failure — never emits garbage structures.
- */
-async function extractProtoStructuresViaLLM(transcript: string): Promise<ProtoStructureCandidate[]> {
-  if (!transcript || transcript.trim().length === 0) return [];
-  const prompt =
-    "Analyze the following session transcript and extract ProtoStructure candidates. " +
-    "Return ONLY a JSON array (no prose, no markdown fences). Each element must have: " +
-    '{"protoType":"sequence"|"role"|"concept"|"purpose"|"constraint","tentativeName":string,' +
-    '"scenarioId":string,"confidence":0.0-1.0}. Optional: steps:[{position,action,agent?}], ' +
-    "purpose, severity, definition, behaviors:[string]. Focus on ProtoSequence first. " +
-    "Omit fields that don't apply.\n\nTranscript:\n" + transcript.slice(0, 12000);
-  const result = await llmClient.analyze(prompt);
-  if (!result.ok || !result.value) return [];
-  try {
-    const parsed: unknown = JSON.parse(result.value);
-    if (!Array.isArray(parsed)) return [];
-    const validTypes = new Set(["sequence", "role", "concept", "purpose", "constraint"]);
-    return parsed
-      .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null)
-      .filter((c) => validTypes.has(String(c.protoType)))
-      .map((c) => ({
-        protoType: String(c.protoType) as ProtoStructureCandidate["protoType"],
-        tentativeName: String(c.tentativeName ?? ""),
-        scenarioId: String(c.scenarioId ?? ""),
-        confidence: typeof c.confidence === "number" ? c.confidence : 0.3,
-        steps: Array.isArray(c.steps) ? (c.steps as ProtoStructureCandidate["steps"]) : undefined,
-        purpose: c.purpose !== undefined ? String(c.purpose) : undefined,
-        severity: c.severity !== undefined ? String(c.severity) : undefined,
-        definition: c.definition !== undefined ? String(c.definition) : undefined,
-        behaviors: Array.isArray(c.behaviors) ? c.behaviors.map(String) : undefined,
-      }))
-      .filter((c) => c.tentativeName.length > 0);
-  } catch {
-    return []; // LLM returned non-JSON — no garbage.
-  }
-}
-
-function buildM0Deps(): M0Deps {
-  const cacheDir = MEMORY_DIR;
-  const analyzer = new TranscriptAnalyzerV2(llmClient);
-
-  return {
-    memory: {
-      isAvailable: () => agentmemory.isAvailable(),
-      getSlot: (name: string) => agentmemory.getSlot(name),
-      setSlot: (name: string, value: unknown) => agentmemory.setSlot(name, value),
-      smartSearch: async (query: string, type?: string) => {
-        if (type === "proto_structure") {
-          return agentmemory.searchProtoStructures(query);
-        }
-        try {
-          const results = await agentmemory.smartSearch(query, 20);
-          return { ok: true as const, value: results as unknown[] };
-        } catch (e) {
-          return { ok: false, error: { code: "SEARCH_ERROR", message: String(e) } };
-        }
-      },
-      saveLesson: async (lesson: Record<string, unknown>) => {
-        const content = String(lesson.content || "");
-        const tags = Array.isArray(lesson.tags) ? lesson.tags.map(String) : [];
-        const confidence = Number(lesson.confidence ?? 0.8);
-        return agentmemory.saveLesson(content, tags, confidence);
-      },
-      saveProtoStructure: async (structure: Record<string, unknown>) =>
-        agentmemory.saveProtoStructure(structure),
-    },
-    cache: {
-      get: (key: string) => {
-        try {
-          const filePath = path.join(cacheDir, `cache-${key}.json`);
-          if (!fs.existsSync(filePath)) return null;
-          return JSON.parse(fs.readFileSync(filePath, "utf-8"));
-        } catch { return null; }
-      },
-      set: (key: string, value: unknown) => {
-        try {
-          ensureDir();
-          fs.writeFileSync(path.join(cacheDir, `cache-${key}.json`), JSON.stringify(value), "utf-8");
-        } catch { /* 缓存写入失败不影响主流程 */ }
-      },
-      list: () => {
-        try {
-          if (!fs.existsSync(cacheDir)) return [];
-          return fs.readdirSync(cacheDir)
-            .filter((f) => f.startsWith("cache-") && f.endsWith(".json"))
-            .map((f) => {
-              const key = f.slice(6, -5);
-              const raw = fs.readFileSync(path.join(cacheDir, f), "utf-8");
-              return { key, value: JSON.parse(raw), writtenAt: fs.statSync(path.join(cacheDir, f)).mtimeMs };
-            });
-        } catch { return []; }
-      },
-      delete: (key: string) => {
-        try {
-          const filePath = path.join(cacheDir, `cache-${key}.json`);
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        } catch { /* 忽略 */ }
-      },
-    },
-    llm: {
-      analyzeTranscript: (t: string) => analyzer.analyze(t),
-      extractProtoStructures: (t: string) => extractProtoStructuresViaLLM(t),
-      analyze: (prompt: string) => llmClient.analyze(prompt),
-    },
-    fuser: new ConfidenceFuser(),
-    attentionRecords: new Map(),
-  };
-}
-
-/**
- * 将 M0 SessionContextInjection 格式化为 System Prompt 注入文本。
- * 顺序: Critical Constraints → 能力 → Tier A/B/C → 知识 → 思维状态
- */
-function formatSessionContextInjection(
-  ctx: import("./cognitive/types").SessionContextInjection,
-  cronWarning: string,
-): string {
-  const sections: string[] = [];
-  sections.push("## Praxis Context");
-
-  // M3: Critical Constraints (最高优先级，不可压缩)
-  if (ctx.tieredContext?.criticalConstraints?.injectionText) {
-    sections.push("");
-    sections.push(ctx.tieredContext.criticalConstraints.injectionText);
-  }
-
-  // 能力概况 (compact)
-  const c = ctx.competency;
-  sections.push("");
-  sections.push("### Capability");
-  sections.push(`- Overall: ${c.overallProficiency.toFixed(2)} | Strongest: ${c.strongestDomains.join(", ") || "—"} | Weakest: ${c.weakestDomains.join(", ") || "—"}`);
-  if (c.currentLearningFocus) {
-    sections.push(`- Learning Focus: ${c.currentLearningFocus}`);
-  }
-
-  // M2: 分层上下文 (Tier A/B)
-  const tc = ctx.tieredContext;
-  if (tc && (tc.tierA.items.length > 0 || tc.tierB.items.length > 0)) {
-    const pressureTag = tc.meta.pressure !== "normal" ? ` [压力: ${tc.meta.pressure}]` : "";
-    sections.push("");
-    sections.push(`### Active Context (${tc.meta.totalStructures} structures, maturity: ${tc.meta.maturity}${pressureTag})`);
-
-    if (tc.tierA.items.length > 0) {
-      sections.push(`**Tier A** (${tc.tierA.items.length} items, ~${tc.tierA.totalTokens} tokens):`);
-      for (const item of tc.tierA.items) {
-        sections.push(`- [${item.protoType}] ${item.tentativeName}: ${item.description.slice(0, 120)}`);
-      }
-    }
-    if (tc.tierB.items.length > 0) {
-      sections.push(`**Tier B** (${tc.tierB.items.length} items, ~${tc.tierB.totalTokens} tokens):`);
-      for (const item of tc.tierB.items) {
-        sections.push(`- [${item.protoType}] ${item.tentativeName}`);
-      }
-    }
-  }
-
-  // 相关经验 (最多 5 条)
-  if (ctx.knowledge.length > 0) {
-    sections.push("");
-    sections.push("### Related Experience");
-    for (const k of ctx.knowledge.slice(0, 5)) {
-      const title = k.title || k.content.slice(0, 60);
-      sections.push(`- [${k.source}] ${title} (${k.confidence.toFixed(2)})`);
-    }
-  }
-
-  // 思维状态
-  if (ctx.mentalState) {
-    sections.push("");
-    sections.push(`### Previous State\n${ctx.mentalState.slice(0, 200)}`);
-  }
-
-  // Cron 警告
-  if (cronWarning) {
-    sections.push("");
-    sections.push(cronWarning.trim());
-  }
-
-  sections.push(""); // trailing newline
-  return sections.join("\n");
-}
+// ---- M0Deps 适配器 — 使用共享工厂 (Phase 1: DRY, 从 m0-deps-factory.ts 导入) ----
+// buildM0Deps(), extractProtoStructuresViaLLM(), formatSessionContextInjection()
+// formatSessionContextInjection 已提取到 src/context-formatter.ts (Phase 1 DRY)
 
 async function setSlotForSessionEnd(name: string, data: unknown): Promise<Result<void>> {
   const amAvailable = await agentmemory.isAvailable();
