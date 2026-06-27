@@ -111,3 +111,58 @@ describe("EventOrchestrator fusion e2e (M4 Phase 0 wiring)", () => {
     expect(saved?.confidence).not.toBe(0.5);
   });
 });
+
+// Phase 0 acceptance: cross-process session state survives via SessionStateStore.
+// Map-backed slot store so orchestrator B can read what orchestrator A wrote.
+function makeSlotBackedDeps(protoStructures: unknown[]) {
+  const slots = new Map<string, unknown>();
+  const saveProtoStructure = vi.fn().mockResolvedValue({ ok: true } as Result<void>);
+  const deps: M0Deps = {
+    memory: {
+      isAvailable: async () => true,
+      getSlot: vi.fn(async (name: string) => ({ ok: true as const, value: slots.get(name) ?? null })),
+      setSlot: vi.fn(async (name: string, value: unknown) => { slots.set(name, value); return { ok: true as const }; }),
+      smartSearch: vi.fn(async (_q: string, type?: string) =>
+        type === "proto_structure" ? { ok: true as const, value: protoStructures } : { ok: true as const, value: [] }),
+      saveLesson: vi.fn().mockResolvedValue({ ok: true } as Result<void>),
+      saveProtoStructure,
+    },
+    cache: { get: () => null, set: () => {}, list: () => [], delete: () => {} },
+    llm: {
+      analyzeTranscript: async () => [],
+      extractProtoStructures: async () => [],
+      analyze: async () => ({ ok: true as const, value: "" }),
+    },
+    fuser: new ConfidenceFuser(),
+    attentionRecords: new Map(),
+  };
+  return { deps, saveProtoStructure, slots };
+}
+
+describe("EventOrchestrator cross-process state (Phase 0 SessionStateStore)", () => {
+  it("orchestrator B (session_end) loads state persisted by orchestrator A (session_start+message)", async () => {
+    const { deps, saveProtoStructure } = makeSlotBackedDeps([CLINIC_FLOW]);
+
+    // Process A: session_start + message (produces mid_session source) → state persisted to slot
+    const orchA = new EventOrchestrator(deps);
+    await orchA.handleSessionStart("xp-session");
+    await orchA.handleMessageReceived("xp-session", { role: "user", content: "门诊流程，不对，顺序错了" });
+
+    // Process B: NEW orchestrator instance (empty in-memory Map) — must load state from slot
+    const orchB = new EventOrchestrator(deps);
+    await orchB.handleAgentEnd("xp-session");
+    const result = await orchB.handleSessionEnd(
+      "xp-session",
+      "用户: 门诊流程，不对\nassistant: [PREDICTION_CONFIRMED: ps-clinic-flow]",
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // fusion ran from persisted state (mid_session from A + llm_marker from transcript)
+      expect(result.value.fusedCount).toBeGreaterThan(0);
+    }
+    expect(saveProtoStructure).toHaveBeenCalled();
+    const saved = saveProtoStructure.mock.calls[0]?.[0] as { id?: string };
+    expect(saved?.id).toBe("ps-clinic-flow");
+  });
+});
