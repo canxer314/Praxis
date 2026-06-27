@@ -31,6 +31,20 @@ export class BeforeToolCallHandler {
     this.activeConstraints = [...constraints]; // 防御性拷贝
   }
 
+  /** T12: 从 local-cache 加载约束作为降级路径 (AgentMemory 不可用时) */
+  loadConstraintsFromCache(): boolean {
+    try {
+      const cached = this.deps.cache.get("active_constraints");
+      if (Array.isArray(cached) && cached.length > 0) {
+        this.activeConstraints = [...cached] as ProtoConstraint[];
+        return true;
+      }
+    } catch {
+      // 缓存读取失败不崩溃
+    }
+    return false;
+  }
+
   /**
    * 处理 before_tool_call 事件。返回自主性决策 + M3 约束验证的合并结果。
    * 合并优先级: constraint block ≥ autonomy block > constraint confirm
@@ -39,14 +53,14 @@ export class BeforeToolCallHandler {
    * Phase 0: 接受 sessionId 参数（供 M5.1 MidSessionLearner 违规计数用）
    * M6 Fix-3: 约束违反时写入 audit_log slot
    */
-  async handle(sessionId: string, toolName: string): Promise<
+  async handle(sessionId: string, toolName: string, toolParams?: Record<string, unknown>): Promise<
     Result<{ action: "proceed" | "inform" | "confirm" | "block"; reason: string; constraintId?: string }>
   > {
     // 1. M0 自主性决策
     const autonomyResult = this.getAutonomyDecision(toolName);
 
-    // 2. M3 约束验证
-    const constraintResult = checkConstraints(toolName, this.activeConstraints);
+    // 2. M3 约束验证 (T4: 传入 toolParams 以支持基于参数的约束匹配)
+    const constraintResult = checkConstraints(toolName, this.activeConstraints, toolParams);
 
     // 3. 合并: 取最严格结果
     const merged = this.mergeResults(autonomyResult, constraintResult);

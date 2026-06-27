@@ -181,3 +181,31 @@ describe("MidSessionLearner", () => {
     expect(sources).toHaveLength(0);
   });
 });
+
+describe("MidSessionLearner 序列化 (P0-2)", () => {
+  it("toState/fromState round-trip 不丢状态 (含 affectedStructures 去重)", () => {
+    const learner = new MidSessionLearner();
+    const s = makeStructure({ id: "seq-1", tentativeName: "API POST Request" });
+    learner.handleCorrection("不对，API POST Request 错了", [s]);
+    learner.handleConstraintViolation("c1");
+    learner.handleConstraintViolation("c1");
+    learner.handleConstraintViolation("c1"); // 触发违反惩罚
+    const totalBefore = learner.getSessionTotalPenalty();
+    const recordsBefore = learner.getRecords().length;
+
+    const json = JSON.stringify(learner.toState()); // 验证可 JSON 序列化
+    const restored = MidSessionLearner.fromState(JSON.parse(json));
+
+    expect(restored.getSessionTotalPenalty()).toBe(totalBefore);
+    expect(restored.getRecords()).toHaveLength(recordsBefore);
+    // round-trip 后 affectedStructures 保留 → 同一结构不再被重复惩罚
+    const sourcesAgain = restored.handleCorrection("不对，API POST Request 又错了", [s]);
+    expect(sourcesAgain).toHaveLength(0);
+  });
+
+  it("空 learner 的 toState/fromState round-trip", () => {
+    const restored = MidSessionLearner.fromState(new MidSessionLearner().toState());
+    expect(restored.getSessionTotalPenalty()).toBe(0);
+    expect(restored.getRecords()).toHaveLength(0);
+  });
+});

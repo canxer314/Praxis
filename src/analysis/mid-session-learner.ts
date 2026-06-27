@@ -145,6 +145,15 @@ export function computePenalty(
 // MidSessionLearner
 // ══════════════════════════════════════════════════════════════════
 
+/** MidSessionLearner 的可序列化状态 (供 SessionStateStore 持久化, P0-2)。 */
+export interface MidSessionLearnerState {
+  totalPenalty: number;
+  correctionCount: number;
+  violationCounters: Record<string, number>;
+  affectedStructures: string[];
+  records: DowngradeRecord[];
+}
+
 export class MidSessionLearner {
   /** 本会话累计惩罚 (纠正 + 违规共享) */
   private totalPenalty = 0;
@@ -152,11 +161,11 @@ export class MidSessionLearner {
   /** 本会话纠正次数 */
   private correctionCount = 0;
 
-  /** 约束违反计数器: constraintId → count */
-  private readonly violationCounters = new Map<string, number>();
+  /** 约束违反计数器: constraintId → count (P0-2: Record 可序列化) */
+  private violationCounters: Record<string, number> = {};
 
-  /** 已被惩罚的结构 ID 集合 (防止重复惩罚) */
-  private readonly affectedStructures = new Set<string>();
+  /** 已被惩罚的结构 ID 集合 (防止重复惩罚; P0-2: string[] 可序列化) */
+  private affectedStructures: string[] = [];
 
   /** 已记录的降级记录（审计用） */
   private readonly records: DowngradeRecord[] = [];
@@ -185,7 +194,7 @@ export class MidSessionLearner {
     }
 
     for (const { structure, matchedKeywords } of matched) {
-      if (this.affectedStructures.has(structure.id)) continue;
+      if (this.affectedStructures.includes(structure.id)) continue;
 
       const penalty = computePenalty(correctionText, structure, matchedKeywords);
       const cappedPenalty = Math.min(penalty, MAX_SESSION_PENALTY - this.totalPenalty);
@@ -193,7 +202,7 @@ export class MidSessionLearner {
 
       this.totalPenalty += cappedPenalty;
       this.correctionCount++;
-      this.affectedStructures.add(structure.id);
+      this.affectedStructures.push(structure.id);
       this.records.push({
         structureId: structure.id,
         penalty: cappedPenalty,
@@ -224,8 +233,8 @@ export class MidSessionLearner {
     const sources: SignalSourceInput[] = [];
     if (!constraintId) return sources;
 
-    const count = (this.violationCounters.get(constraintId) ?? 0) + 1;
-    this.violationCounters.set(constraintId, count);
+    const count = (this.violationCounters[constraintId] ?? 0) + 1;
+    this.violationCounters[constraintId] = count;
 
     if (count < VIOLATION_TRIGGER_COUNT) return sources;
 
@@ -274,12 +283,34 @@ export class MidSessionLearner {
     return this.records;
   }
 
+  /** 序列化为可 JSON 持久化的状态 (P0-2, 供 SessionStateStore)。 */
+  toState(): MidSessionLearnerState {
+    return {
+      totalPenalty: this.totalPenalty,
+      correctionCount: this.correctionCount,
+      violationCounters: { ...this.violationCounters },
+      affectedStructures: [...this.affectedStructures],
+      records: [...this.records],
+    };
+  }
+
+  /** 从持久化状态重建 (P0-2)。 */
+  static fromState(state: MidSessionLearnerState): MidSessionLearner {
+    const learner = new MidSessionLearner();
+    learner.totalPenalty = state.totalPenalty;
+    learner.correctionCount = state.correctionCount;
+    learner.violationCounters = { ...state.violationCounters };
+    learner.affectedStructures = [...state.affectedStructures];
+    learner.records.push(...state.records);
+    return learner;
+  }
+
   /** session_end 时重置 */
   reset(): void {
     this.totalPenalty = 0;
     this.correctionCount = 0;
-    this.violationCounters.clear();
-    this.affectedStructures.clear();
+    this.violationCounters = {};
+    this.affectedStructures = [];
     this.records.length = 0;
   }
 }

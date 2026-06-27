@@ -7,6 +7,10 @@
  *   - Notification 过滤: 仅 user_message 映射到 message_received
  *   - 纯函数, 无状态, 不做认知处理
  *
+ * T18: 使用共享 base-adapter 工厂，仅覆盖平台差异:
+ *   - mapToMessageReceived: Notification 过滤
+ *   - mapToAfterToolCall: 额外 tool_result / root-level success/error fallback
+ *
  * Claude Code Hook 参考:
  *   SessionStart → session_start
  *   PreToolUse  → before_tool_call
@@ -17,30 +21,19 @@
  */
 
 import type { PraxisLifecycleEvent } from "../orchestrator";
-import type { AgentRuntimeAdapter, RuntimeInstruction } from "./adapter-interface";
+import type { AgentRuntimeAdapter } from "./adapter-interface";
+import { createBaseAdapter } from "./base-adapter";
 
 // ══════════════════════════════════════════════════════════════════
 // ClaudeCodeAdapter
 // ══════════════════════════════════════════════════════════════════
 
-export const claudeCodeAdapter: AgentRuntimeAdapter = {
-  runtimeName: "claude-code",
-
-  // ── Runtime → Praxis (事件映射) ──
-
-  mapToSessionStart(raw: Record<string, unknown>): PraxisLifecycleEvent {
-    return {
-      type: "session_start",
-      sessionId: String(raw.session_id ?? raw.sessionId ?? `claude-${Date.now()}`),
-      timestamp: typeof raw.timestamp === "number" ? raw.timestamp : Date.now(),
-    };
-  },
-
+export const claudeCodeAdapter: AgentRuntimeAdapter = createBaseAdapter("claude-code", {
+  /** Claude Code Notification 过滤: 仅 user_message 映射 */
   mapToMessageReceived(raw: Record<string, unknown>): PraxisLifecycleEvent | null {
-    // Claude Code Notification 过滤: 仅 user_message 映射
     const notificationType = String(raw.notification_type ?? raw.type ?? "");
     if (notificationType && notificationType !== "user_message") {
-      return null; // 权限请求、空闲、系统通知 → 不产生 Praxis 事件
+      return null;
     }
 
     const msg = (raw.message ?? raw.content ?? {}) as Record<string, unknown>;
@@ -56,15 +49,7 @@ export const claudeCodeAdapter: AgentRuntimeAdapter = {
     };
   },
 
-  mapToBeforeToolCall(raw: Record<string, unknown>): PraxisLifecycleEvent {
-    return {
-      type: "before_tool_call",
-      sessionId: String(raw.session_id ?? raw.sessionId ?? ""),
-      toolName: String(raw.tool_name ?? raw.toolName ?? "unknown"),
-      toolParams: (raw.tool_input ?? raw.toolParams ?? {}) as Record<string, unknown>,
-    };
-  },
-
+  /** Claude Code PostToolUse 额外字段: tool_result + root-level success/error */
   mapToAfterToolCall(raw: Record<string, unknown>): PraxisLifecycleEvent {
     const result = (raw.result ?? raw.tool_result ?? {}) as Record<string, unknown>;
     return {
@@ -81,60 +66,4 @@ export const claudeCodeAdapter: AgentRuntimeAdapter = {
       },
     };
   },
-
-  mapToAgentEnd(raw: Record<string, unknown>): PraxisLifecycleEvent {
-    return {
-      type: "agent_end",
-      sessionId: String(raw.session_id ?? raw.sessionId ?? ""),
-    };
-  },
-
-  mapToSessionEnd(raw: Record<string, unknown>): PraxisLifecycleEvent {
-    return {
-      type: "session_end",
-      sessionId: String(raw.session_id ?? raw.sessionId ?? ""),
-      transcript: typeof raw.transcript === "string" ? raw.transcript : undefined,
-      timestamp: typeof raw.timestamp === "number" ? raw.timestamp : Date.now(),
-    };
-  },
-
-  // ── Praxis → Runtime (决策映射) ──
-
-  mapAutonomyDecision(
-    event: PraxisLifecycleEvent,
-    decision: { action: "proceed" | "inform" | "confirm" | "block"; reason: string },
-  ): RuntimeInstruction {
-    switch (decision.action) {
-      case "proceed":
-        return { type: "proceed", toolCall: {} };
-      case "inform":
-        return { type: "inform", message: `[Praxis] ${decision.reason}` };
-      case "confirm":
-        return {
-          type: "confirm",
-          message: `[Praxis] 需要确认: ${decision.reason}`,
-          toolCall: {},
-        };
-      case "block":
-        return { type: "block", reason: decision.reason, constraintId: "claude-code-block" };
-    }
-  },
-
-  mapConstraintViolation(
-    event: PraxisLifecycleEvent,
-    violation: { constraintId: string; description: string; severity: "block" | "confirm" | "warn" },
-  ): RuntimeInstruction {
-    switch (violation.severity) {
-      case "block":
-        return { type: "block", reason: violation.description, constraintId: violation.constraintId };
-      case "confirm":
-        return {
-          type: "confirm",
-          message: `[Praxis] 约束: ${violation.description}`,
-          toolCall: {},
-        };
-      case "warn":
-        return { type: "inform", message: `[Praxis] 约束提醒: ${violation.description}` };
-    }
-  },
-};
+});

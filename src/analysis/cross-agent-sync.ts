@@ -56,8 +56,11 @@ export class CrossAgentSync {
     // 1. 读取当前版本
     const currentResult = await this.deps.memory.getSlot(slotKey);
     const currentData = currentResult.ok ? (currentResult as { ok: true; value: unknown }).value : null;
+    // T11: 鲁棒版本读取 — `version` 字段缺失时回退到 versionChain 长度
+    // (生产 saveProtoStructure 路径不写 `version` 字段, 仅写 versionChain)。
     const currentVersion = currentData
-      ? ((currentData as Record<string, unknown>).version as number) ?? 0
+      ? ((currentData as Record<string, unknown>).version as number)
+        ?? ((currentData as { versionChain?: unknown[] }).versionChain?.length ?? 0)
       : 0;
 
     // 2. 我们的版本号 (基于 versionChain 长度)
@@ -118,7 +121,11 @@ export class CrossAgentSync {
     };
 
     try {
-      await this.deps.memory.setSlot(`pending_merge_${merge.id}`, merge as unknown as Record<string, unknown>);
+      // T11: 单一 pending_merges 数组 slot — 修复 key 不匹配 bug
+      // (此前 stage 用 pending_merge_${merge.id} 双前缀, list 用 pending_merge_${s.id}, 永不匹配)
+      const list = await this.readPendingMerges();
+      list.push(merge);
+      await this.deps.memory.setSlot("pending_merges", list as unknown as Record<string, unknown>);
     } catch { /* 暂存失败不阻塞 */ }
 
     return {
@@ -137,10 +144,10 @@ export class CrossAgentSync {
     llm?: { analyze: (prompt: string) => Promise<{ ok: boolean; value?: string }> },
   ): Promise<ProtoStructure | null> {
     try {
-      const result = await this.deps.memory.getSlot(`pending_merge_${mergeId}`);
-      if (!result.ok || !result.value) return null;
+      const list = await this.readPendingMerges();
+      const merge = list.find((m) => m.id === mergeId);
+      if (!merge) return null;
 
-      const merge = result.value as unknown as PendingMerge;
       const merged: ProtoStructure = {
         ...merge.currentValue,
         confidence: Math.min(merge.proposedUpdate.confidence ?? merge.currentValue.confidence, merge.currentValue.confidence),
@@ -180,8 +187,12 @@ export class CrossAgentSync {
         await this.deps.memory.saveProtoStructure(merged);
       }
 
-      // 清理 pending_merge
-      try { await this.deps.memory.setSlot(`pending_merge_${mergeId}`, null); } catch { /* ignore */ }
+      // 清理 pending_merge (从数组移除)
+      try {
+        const list2 = await this.readPendingMerges();
+        const filtered = list2.filter((m) => m.id !== mergeId);
+        await this.deps.memory.setSlot("pending_merges", filtered as unknown as Record<string, unknown>);
+      } catch { /* ignore */ }
 
       return merged;
     } catch {
@@ -193,21 +204,18 @@ export class CrossAgentSync {
    * 列出所有未解决的 pending_merge 冲突。
    */
   async listPendingMerges(): Promise<PendingMerge[]> {
-    // 通过扫描已知 structure 的 pending_merge slot 来查找
-    // 简化: 尝试加载可能存在的 pending_merge slots
-    const merges: PendingMerge[] = [];
+    return this.readPendingMerges();
+  }
+
+  /** T11: 读取单一 pending_merges 数组 slot (修复 key 不匹配 bug)。 */
+  private async readPendingMerges(): Promise<PendingMerge[]> {
     try {
-      const structResult = await this.deps.memory.smartSearch("*", "proto_structure");
-      if (structResult.ok && Array.isArray(structResult.value)) {
-        for (const s of structResult.value as Array<Record<string, unknown>>) {
-          const slotResult = await this.deps.memory.getSlot(`pending_merge_${s.id}`);
-          if (slotResult.ok && slotResult.value) {
-            merges.push(slotResult.value as unknown as PendingMerge);
-          }
-        }
+      const result = await this.deps.memory.getSlot("pending_merges");
+      if (result.ok && Array.isArray(result.value)) {
+        return result.value as unknown as PendingMerge[];
       }
-    } catch { /* 降级 */ }
-    return merges;
+    } catch { /* 降级到空数组 */ }
+    return [];
   }
 
   /**

@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.15.0.0] - 2026-06-28
+
+### Added
+- **Phase 4 Cleanup — 接线债清零:**
+  - **T18 DRY Adapters:** 共享 `base-adapter.ts` 工厂函数 (`createBaseAdapter`) — 提取 openclaw/claude-code 适配器 ~90% 重复映射逻辑. 27 tests. (`src/adapters/base-adapter.ts`)
+  - **T12 Degraded Constraint Cache:** session_start write-through 活跃约束到 local-cache → before_tool_call `loadConstraintsFromCache()` 降级读取. AgentMemory 不可用时约束仍可执行 (§12 优雅降级). 8 tests. (`src/before-tool-call.ts`, `src/session-start.ts`, `src/orchestrator.ts`)
+  - **T11 CrossAgentSync Wiring:** session-end 集成 `CrossAgentSync.saveWithOptimisticLock` (CAS version-check) 替代直接 `saveProtoStructure`. 冲突 → pending_merge staging. EventOrchestrator 自动实例化并注入. 5 tests. (`src/session-end.ts`, `src/orchestrator.ts`)
+  - **T14 Test Completion:** 8 个此前无测试模块补齐测试 (role-verifier, concept-verifier, curiosity-engine, structure-retirement, proto-task-learner, cross-agent-sync, praxis-audit, praxis-status). 52 new tests.
+
+### Changed
+- **adapters/openclaw-adapter.ts:** 126→19 lines — 使用 base-adapter 工厂, OpenClaw 无覆盖
+- **adapters/claude-code-adapter.ts:** 141→68 lines — 仅覆盖 Notification 过滤 + 额外 result 字段
+- **session-end.ts:** 新增 `saveStructureSafe()` helper — CrossAgentSync 优先, 不可用时降级 saveProtoStructure
+- **before-tool-call.ts:** 新增 `loadConstraintsFromCache()` — local-cache 降级路径
+- **orchestrator.ts:** CrossAgentSync 实例化 + session_end 注入 + cache fallback 接线
+
+### Tests
+- 91 new tests: base-adapter (26), T12 constraint cache (8), T11 CrossAgentSync wiring (5), T14 module tests (52)
+- 943 total tests, 66 files, all green. Typecheck clean.
+- Outside voice review: 3 findings fixed (CrossAgentSync dead-code wiring, mock exhaustion, vacuous test)
+
 ## [0.12.0.1] - 2026-06-27
 
 ### Added

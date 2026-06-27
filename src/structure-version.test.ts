@@ -56,6 +56,22 @@ describe("rollback", () => {
     createVersion(s, "auto_refinement", [], "v1");
     expect(() => rollback(s, "v99")).toThrow("v99 not found");
   });
+
+  it("回滚恢复字段值到目标版本状态 (T8/M1.4)", () => {
+    const s = makePS({ confidence: 0.5 });
+    // v1: confidence 0.5 → 0.8
+    createVersion(s, "auto_refinement", [{ type: "confidence_changed", path: "/confidence", oldValue: 0.5, newValue: 0.8 }], "bump to 0.8");
+    s.confidence = 0.8;
+    // v2: confidence 0.8 → 0.9
+    createVersion(s, "auto_refinement", [{ type: "confidence_changed", path: "/confidence", oldValue: 0.8, newValue: 0.9 }], "bump to 0.9");
+    s.confidence = 0.9;
+    expect(s.confidence).toBe(0.9);
+
+    // rollback to v1 → confidence restored to v1's state (0.8), not left at 0.9
+    rollback(s, "v1");
+    expect(s.confidence).toBe(0.8);
+    expect(s.versionChain).toHaveLength(1);
+  });
 });
 
 describe("getVersion", () => {
