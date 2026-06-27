@@ -96,6 +96,8 @@ export class SessionEndHandler {
         if (this.deps.attentionRecords && injectedStructureIds) {
           this.deps.attentionRecords = updateAttention(
             this.deps.attentionRecords, usedIds, injectedStructureIds);
+          // M6 Fix-4: 持久化 attentionRecords 到 AgentMemory
+          await this.persistAttentionRecords();
         }
       }
 
@@ -267,6 +269,27 @@ export class SessionEndHandler {
     }
 
     return written;
+  }
+
+  /** M6 Fix-4: 持久化 attentionRecords 到 AgentMemory slot */
+  private async persistAttentionRecords(): Promise<void> {
+    if (!this.deps.attentionRecords || this.deps.attentionRecords.size === 0) return;
+    try {
+      // 将 Map 序列化为可存储的数组格式
+      const records = Array.from(this.deps.attentionRecords.entries()).map(
+        ([structureId, record]) => {
+          const r = record as unknown as Record<string, unknown>;
+          const { structureId: _sid, ...rest } = r;
+          return { structureId, ...rest };
+        },
+      );
+      await this.deps.memory.setSlot("attention_records", {
+        records,
+        updatedAt: Date.now(),
+      });
+    } catch {
+      // 持久化失败不阻塞 session_end
+    }
   }
 
   private async writeLesson(sessionId: string, lesson: Record<string, unknown>): Promise<void> {
