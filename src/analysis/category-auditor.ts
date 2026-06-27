@@ -50,7 +50,8 @@ export interface NewCategoryProposal {
 }
 
 // 现有 5 种 ProtoStructure 类型
-const EXISTING_TYPES = ["ProtoSequence", "ProtoRole", "ProtoConcept", "ProtoPurpose", "ProtoConstraint"];
+/** 现有 5 种 ProtoStructure 类型 (与 ProtoType 联合类型一致, 均为小写) */
+const EXISTING_TYPES = ["sequence", "role", "concept", "purpose", "constraint"];
 
 // Q2 同质性检查最小结构数
 const MIN_STRUCTURES_FOR_Q2 = 10;
@@ -136,13 +137,26 @@ export class CategoryAuditor {
     structures: ProtoStructure[],
     llm?: { analyze: (prompt: string) => Promise<{ ok: boolean; value?: string }> },
   ): Promise<CategoryBlindSpot | null> {
-    // Step 1: 数据充分性检查
-    const totalObservations = structures.filter(s =>
-      s.protoType && s.observationsCount >= 1,
-    ).length;
+    // Step 1: 数据充分性检查 (per-cluster)
+    // 观察次数 ≥ 5?
+    if (cluster.count < 5) {
+      return {
+        pattern: cluster.pattern,
+        evidenceCount: cluster.count,
+        suggestedCategory: "none",
+        diagnosis: "data_insufficient",
+      };
+    }
 
-    if (cluster.count < 3 && totalObservations < 5) {
-      // 数据不充分 → 不标记盲区
+    // 是否有对应的 ProtoStructure 尝试? (按 pattern 关键词匹配)
+    const patternLower = cluster.pattern.toLowerCase();
+    const matchingStructures = structures.filter(s =>
+      s.tentativeName.toLowerCase().includes(patternLower) ||
+      s.id.toLowerCase().includes(patternLower) ||
+      (s.scenarioId && s.scenarioId.toLowerCase().includes(patternLower)),
+    );
+    if (matchingStructures.length === 0 && structures.length < 5) {
+      // 全局结构数不足 + 无匹配结构 → 可能是数据问题
       return {
         pattern: cluster.pattern,
         evidenceCount: cluster.count,
@@ -157,9 +171,12 @@ export class CategoryAuditor {
       if (canExpress) {
         return null; // 可用现有类型表达 → 不标记盲区
       }
+    } else if (matchingStructures.length > 0) {
+      // 无 LLM 时: 如果有匹配结构, 保守假定可表达
+      return null;
     }
 
-    // Step 3: 范畴不足 → 标记 blind spot
+    // Step 3: 数据充分 + 范畴不足 → 标记 blind spot
     return {
       pattern: cluster.pattern,
       evidenceCount: cluster.count,

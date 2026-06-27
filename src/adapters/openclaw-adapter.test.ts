@@ -4,6 +4,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { openclawAdapter } from "./openclaw-adapter";
+import { claudeCodeAdapter } from "./claude-code-adapter";
 
 describe("OpenClawAdapter — 事件映射", () => {
   it("mapToSessionStart: 映射 openclaw session.init", () => {
@@ -146,5 +147,48 @@ describe("OpenClawAdapter — 决策映射", () => {
       constraintId: "c2", description: "consider caching", severity: "warn",
     });
     expect(inst.type).toBe("inform");
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════
+// M6.3 交叉验证: 两个适配器对同一原始事件产生等价的 PraxisLifecycleEvent
+// ══════════════════════════════════════════════════════════════════
+
+describe("Cross-adapter equivalence (M6.3)", () => {
+  const rawSessionStart = { session_id: "sess-001", timestamp: 1700000000000 };
+  const rawUserMessage = { session_id: "sess-001", message: { role: "user" as const, content: "hello" } };
+  const rawToolCall = { session_id: "sess-001", tool_name: "read_file", tool_input: { path: "/f.txt" } };
+
+  it("both adapters produce same event type for session_start", () => {
+    const o = openclawAdapter.mapToSessionStart(rawSessionStart);
+    const c = claudeCodeAdapter.mapToSessionStart(rawSessionStart);
+    expect(o.type).toBe(c.type);
+    expect(o.sessionId).toBe(c.sessionId);
+  });
+
+  it("both adapters produce same event type for message_received", () => {
+    const o = openclawAdapter.mapToMessageReceived(rawUserMessage);
+    const c = claudeCodeAdapter.mapToMessageReceived(rawUserMessage);
+    expect(o).not.toBeNull();
+    expect(c).not.toBeNull();
+    expect(o!.type).toBe(c!.type);
+    expect(o!.message.role).toBe(c!.message.role);
+    expect(o!.message.content).toBe(c!.message.content);
+  });
+
+  it("both adapters produce same event type for before_tool_call", () => {
+    const o = openclawAdapter.mapToBeforeToolCall(rawToolCall);
+    const c = claudeCodeAdapter.mapToBeforeToolCall(rawToolCall);
+    expect(o.type).toBe(c.type);
+    expect(o.toolName).toBe(c.toolName);
+    expect(o.toolParams).toEqual(c.toolParams);
+  });
+
+  it("both adapters map autonomy decisions identically", () => {
+    const mockEvent = { type: "before_tool_call" as const, sessionId: "s", toolName: "t", toolParams: {} };
+    const o = openclawAdapter.mapAutonomyDecision(mockEvent, { action: "block", reason: "forbidden" });
+    const c = claudeCodeAdapter.mapAutonomyDecision(mockEvent, { action: "block", reason: "forbidden" });
+    expect(o.type).toBe("block");
+    expect(c.type).toBe("block");
   });
 });

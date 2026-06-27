@@ -87,9 +87,6 @@ export class BeforeToolCallHandler {
       await this.deps.memory.setSlot("audit_log", {
         ...log,
         entries: trimmed,
-        violations: Array.isArray(trimmed)
-          ? trimmed.filter((e: Record<string, unknown>) => e.type === "constraint_violation")
-          : [],
       });
     } catch {
       // audit_log 写入失败不阻塞 before_tool_call 决策
