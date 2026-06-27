@@ -122,4 +122,125 @@ describe("SessionEndHandler (M0)", () => {
       expect(result.value.lessonsWritten).toBe(2);
     }
   });
+
+  // ── Phase 3 T10: applyProgress wiring ──
+
+  it("session_end → LLM 推断进度 → applyProgress → 持久化 TaskContext", async () => {
+    // Mock task_context slot: a TaskContext in "init" phase
+    const taskCtx = {
+      taskId: "task-1",
+      name: "Implement Phase 3",
+      type: "feature",
+      currentPhase: "init",
+      progressSummary: "",
+      activeSubtasks: [],
+      relevantScenarios: ["api_design"],
+      lastAutoUpdated: null,
+      createdAt: Date.now() - 3600000,
+    };
+    deps.memory.getSlot = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: taskCtx }) // task_context read
+      .mockResolvedValue({ ok: true, value: null });
+
+    // Mock LLM analyze → returns inferred progress as JSON
+    deps.llm = {
+      analyzeTranscript: vi.fn().mockResolvedValue([]),
+      analyze: vi.fn().mockResolvedValue({
+        ok: true,
+        value: JSON.stringify({
+          newPhase: "implementation",
+          progressUpdate: "Completed TDD tests for maturity module",
+          confidence: 0.85,
+        }),
+      } as Result<string>),
+    };
+    deps.memory.saveLesson = vi.fn().mockResolvedValue({ ok: true } as Result<void>);
+    deps.memory.setSlot = vi.fn().mockResolvedValue({ ok: true } as Result<void>);
+
+    const handler = new SessionEndHandler(deps);
+    const signals: PendingSignal[] = [];
+    const result = await handler.handle("progress-test", "implemented maturity.ts with tests...", signals);
+
+    expect(result.ok).toBe(true);
+
+    // Verify task_context was updated
+    const setSlotCalls = (deps.memory.setSlot as ReturnType<typeof vi.fn>).mock.calls;
+    const taskCtxCall = setSlotCalls.find(
+      (call: unknown[]) => call[0] === "task_context",
+    );
+    expect(taskCtxCall).toBeDefined();
+    const updatedCtx = (taskCtxCall as unknown[])[1] as Record<string, unknown>;
+    expect(updatedCtx.currentPhase).toBe("implementation");
+    expect(updatedCtx.progressSummary).toBe("Completed TDD tests for maturity module");
+  });
+
+  it("applyProgress — confidence < 0.7 → 不更新 TaskContext", async () => {
+    const taskCtx = {
+      taskId: "task-1",
+      name: "Low confidence task",
+      type: "feature",
+      currentPhase: "init",
+      progressSummary: "",
+      activeSubtasks: [],
+      relevantScenarios: [],
+      lastAutoUpdated: null,
+      createdAt: Date.now(),
+    };
+    deps.memory.getSlot = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: taskCtx })
+      .mockResolvedValue({ ok: true, value: null });
+
+    deps.llm = {
+      analyzeTranscript: vi.fn().mockResolvedValue([]),
+      analyze: vi.fn().mockResolvedValue({
+        ok: true,
+        value: JSON.stringify({
+          newPhase: "done",
+          confidence: 0.5, // below threshold
+        }),
+      } as Result<string>),
+    };
+    deps.memory.saveLesson = vi.fn().mockResolvedValue({ ok: true } as Result<void>);
+    deps.memory.setSlot = vi.fn().mockResolvedValue({ ok: true } as Result<void>);
+
+    const handler = new SessionEndHandler(deps);
+    const result = await handler.handle("low-conf", "some transcript", []);
+
+    expect(result.ok).toBe(true);
+
+    // task_context should NOT be updated (confidence < 0.7)
+    const setSlotCalls = (deps.memory.setSlot as ReturnType<typeof vi.fn>).mock.calls;
+    const taskCtxCall = setSlotCalls.find(
+      (call: unknown[]) => call[0] === "task_context",
+    );
+    expect(taskCtxCall).toBeUndefined();
+  });
+
+  it("applyProgress — 无 LLM analyze 方法时跳过 (不崩溃)", async () => {
+    const taskCtx = {
+      taskId: "task-1",
+      name: "No LLM",
+      type: "feature" as const,
+      currentPhase: "init",
+      progressSummary: "",
+      activeSubtasks: [],
+      relevantScenarios: [],
+      lastAutoUpdated: null,
+      createdAt: Date.now(),
+    };
+    deps.memory.getSlot = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: taskCtx })
+      .mockResolvedValue({ ok: true, value: null });
+    // No llm.analyze method
+    deps.llm = {
+      analyzeTranscript: vi.fn().mockResolvedValue([]),
+    };
+    deps.memory.saveLesson = vi.fn().mockResolvedValue({ ok: true } as Result<void>);
+
+    const handler = new SessionEndHandler(deps);
+    const result = await handler.handle("no-llm-analyze", "transcript", []);
+
+    expect(result.ok).toBe(true);
+    // Should not crash
+  });
 });

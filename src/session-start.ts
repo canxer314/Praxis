@@ -17,6 +17,7 @@ import { measurePressure } from "./context-pressure-monitor";
 import type { PressureLevel, MaturityLevel } from "./context-pressure-monitor";
 import { getActiveConstraints } from "./proto-constraint";
 import { injectConstraints } from "./constraint-injector";
+import { buildStructureIndex, formatStructureIndex } from "./memory/recall-structure";
 
 // ---- 默认值（降级用） ----
 
@@ -129,6 +130,11 @@ export class SessionStartHandler {
       ? this.buildCriticalConstraints(pressure)
       : undefined;
 
+    // Phase 3 T10: Critical 压力 → 构建结构索引 (Lazy Loading)
+    const criticalIndex = pressure === "critical" && tieredContext
+      ? formatStructureIndex(buildStructureIndex(tieredContext.tierA.items))
+      : undefined;
+
     return {
       ok: true,
       value: {
@@ -142,6 +148,7 @@ export class SessionStartHandler {
           tierC: tieredContext.tierC,
           meta: tieredContext.meta,
           criticalConstraints,
+          criticalIndex,
         } : undefined,
       },
     };

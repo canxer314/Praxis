@@ -68,7 +68,7 @@
 - ⏳ T6: M1 关系图置信度传播接入运行时 — 需 B6 (relations 字段)
 - ⏳ B6: session_start 加载完整结构 (含 relations/versionChain/steps), 当前 fusion 仍操作 summary
 - ⏳ T9: bridge→EventOrchestrator 迁移 (生产入口是多进程 phase1a-bridge, 融合在生产中仍不触发) + cron_tick 外部调度器
-- ⏳ T10: M2 maturity 映射 / recallStructure (Critical Lazy Loading) / applyProgress / disambiguate 接线
+- ✅ T10: M2 maturity 映射 / recallStructure (Critical Lazy Loading) / applyProgress / disambiguate 接线 (Phase 3, 2026-06-28)
 - ⏳ T11: CrossAgentSync key bug + 生产接线
 - ⏳ T18: 两个适配器 DRY (共享 base)
 - ⏳ T12: 降级路径约束 write-through 缓存

@@ -18,6 +18,7 @@ import { createVersion } from "./structure-version";
 import { StatisticalVerifier } from "./analysis/statistical-verifier";
 import { RoleVerifier } from "./analysis/role-verifier";
 import { fullPropagation } from "./structure-graph";
+import { applyProgress, type TaskContext, type InferredProgress } from "./task-context";
 
 // ---- SessionEndHandler ----
 
@@ -248,6 +249,33 @@ export class SessionEndHandler {
             }
           }
         }
+      }
+    }
+
+    // Phase 3 T10: applyProgress — 自动推断任务进度 (confidence < 0.7 不更新)
+    if (transcript && this.deps.llm?.analyze) {
+      try {
+        const taskCtxResult = await this.deps.memory.getSlot("task_context");
+        if (taskCtxResult.ok && taskCtxResult.value) {
+          const taskCtx = taskCtxResult.value as TaskContext;
+          const analysisResult = await this.deps.llm.analyze(
+            `Analyze the following conversation transcript and infer task progress. ` +
+            `Current task: "${taskCtx.name}" (phase: ${taskCtx.currentPhase}). ` +
+            `Return ONLY valid JSON with this schema: ` +
+            `{"newPhase": "<inferred phase or null>", "progressUpdate": "<summary or null>", ` +
+            `"newSubtasks": ["<subtask>"], "completedSubtasks": ["<subtask>"], "confidence": <0.0-1.0>}\n\n` +
+            `Transcript:\n${transcript.slice(0, 4000)}`,
+          );
+          if (analysisResult.ok) {
+            const inferred: InferredProgress = JSON.parse(analysisResult.value);
+            const { updated, applied } = applyProgress(taskCtx, inferred);
+            if (applied) {
+              await this.deps.memory.setSlot("task_context", updated);
+            }
+          }
+        }
+      } catch {
+        // Progress inference failure is non-blocking
       }
     }
 

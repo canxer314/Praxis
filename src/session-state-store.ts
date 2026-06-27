@@ -19,6 +19,7 @@ import type {
   ToolCallRecord,
   ProtoStructure,
   SignalSourceInput,
+  ScenarioMatch,
 } from "./cognitive/types";
 import type { MidSessionLearnerState } from "./analysis/mid-session-learner";
 
@@ -37,6 +38,8 @@ export interface SessionStateSnapshot {
   currentDomain: string;
   midSessionLearnerState: MidSessionLearnerState;
   corrections: Array<{ sequenceId: string; correctionText: string; timestamp: number }>;
+  /** Phase 3 T10: 当前活跃场景 (scene recognizer 输出, 供 disambiguate 使用) */
+  scenarios: ScenarioMatch[];
 }
 
 export class SessionStateStore {

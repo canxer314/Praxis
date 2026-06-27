@@ -229,6 +229,72 @@ describe("SessionStartHandler (M2 — tieredContext)", () => {
     }
   });
 
+  // ── Phase 3 T10: Critical Lazy Loading ──
+
+  it("Critical 压力 → criticalIndex 包含结构索引", async () => {
+    const deps = makeDeps();
+    deps.memory.getSlot = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { domainProficiencies: { typescript: { selfRating: 0.8, taskCount: 12 } } },
+    } as Result<unknown>);
+    deps.memory.smartSearch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>) // knowledge
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>) // mental_state
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          { id: "ps1", tentativeName: "门诊流程", protoType: "sequence", confidence: 0.9, scenarioId: "medical", structure: { steps: [{ action: "挂号" }, { action: "就诊" }] } },
+          { id: "ps2", tentativeName: "住院流程", protoType: "sequence", confidence: 0.85, scenarioId: "medical" },
+        ],
+      } as Result<unknown[]>); // proto_structure
+
+    const handler = new SessionStartHandler(deps);
+    const result = await handler.handle("critical-test", {
+      pressure: "critical",
+      maturity: "expert",
+      scenarios: [{ scenarioId: "medical", confidence: 0.9, source: "llm_inference" }],
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.tieredContext).toBeDefined();
+      // Critical index should be present
+      expect(result.value.tieredContext!.criticalIndex).toBeDefined();
+      expect(result.value.tieredContext!.criticalIndex!).toContain("ProtoStructure 索引");
+      expect(result.value.tieredContext!.criticalIndex!).toContain("recall_structure");
+      expect(result.value.tieredContext!.criticalIndex!).toContain("门诊流程");
+      expect(result.value.tieredContext!.criticalIndex!).toContain("住院流程");
+    }
+  });
+
+  it("非 Critical 压力 → criticalIndex 为 undefined", async () => {
+    const deps = makeDeps();
+    deps.memory.getSlot = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { domainProficiencies: { typescript: { selfRating: 0.8, taskCount: 12 } } },
+    } as Result<unknown>);
+    deps.memory.smartSearch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          { id: "ps1", tentativeName: "门诊流程", protoType: "sequence", confidence: 0.9, scenarioId: "medical" },
+        ],
+      } as Result<unknown[]>);
+
+    const handler = new SessionStartHandler(deps);
+    const result = await handler.handle("normal-test", {
+      pressure: "normal",
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.tieredContext).toBeDefined();
+      expect(result.value.tieredContext!.criticalIndex).toBeUndefined();
+    }
+  });
+
   it("空 ProtoStructures 时不生成 tieredContext", async () => {
     const deps = makeDeps();
     deps.memory.getSlot = vi.fn().mockResolvedValue({

@@ -13,7 +13,7 @@
 
 import type { Result } from "./platform-adapter";
 import type { M0Deps } from "./m0-deps";
-import type { PendingSignal, ToolCallRecord, ProtoStructure, SignalSourceInput } from "./cognitive/types";
+import type { PendingSignal, ToolCallRecord, ProtoStructure, SignalSourceInput, ScenarioMatch } from "./cognitive/types";
 import { SessionStartHandler } from "./session-start";
 import { SessionEndHandler } from "./session-end";
 import { MessageReceivedHandler } from "./message-received";
@@ -24,6 +24,8 @@ import { CronTickHandler } from "./cron-tick";
 import { MidSessionLearner } from "./analysis/mid-session-learner";
 import { SessionStateStore, type SessionStateSnapshot } from "./session-state-store";
 import { quickCheck, deepCheck, isProtoSequence } from "./analysis/teleological-judge";
+import { getSessionCount, incrementSessionCount, deriveMaturity } from "./maturity";
+import { disambiguateText, formatDisambiguationHint } from "./semantic-disambiguator";
 import type { ProtoSequence } from "./cognitive/types";
 
 // ══════════════════════════════════════════════════════════════════
@@ -60,6 +62,8 @@ interface SessionState {
   midSessionLearner: MidSessionLearner;
   /** M6 Fix-1: session 中收集的 (ProtoSequence, correctionText) 对, agent_end 时消费 */
   corrections: Array<{ sequenceId: string; correctionText: string; timestamp: number }>;
+  /** Phase 3 T10: 当前活跃场景 (供 semantic-disambiguator 使用) */
+  scenarios: ScenarioMatch[];
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -109,8 +113,18 @@ export class EventOrchestrator {
       currentDomain: this.deps.currentDomain ?? "unknown",
       midSessionLearner: new MidSessionLearner(),
       corrections: [],
+      scenarios: [],
     });
-    const result = await this.sessionStart.handle(sessionId, opts);
+
+    // Phase 3 T10: 从 session_count slot 推导认知成熟度 + 递增
+    const sessionCount = await getSessionCount(this.deps);
+    const maturity = deriveMaturity(sessionCount);
+    await incrementSessionCount(this.deps, sessionCount);
+
+    const result = await this.sessionStart.handle(sessionId, {
+      ...opts,
+      maturity,
+    });
     // M3: 加载已结晶约束到 before_tool_call 处理器
     if (result.ok && result.value.tieredContext?.criticalConstraints) {
       this.beforeToolCall.loadConstraints(
@@ -143,6 +157,23 @@ export class EventOrchestrator {
     const cmdResult = await handler.handle(sessionId, message);
     // M5.5: /praxis command → return response to caller
     if (typeof cmdResult === "string") return cmdResult;
+
+    // Phase 3 T10: 语义消歧 — 用 session 场景上下文标注用户意图
+    if (message.role === "user" && state.scenarios.length > 0) {
+      const disambiguations = disambiguateText(message.content, state.scenarios);
+      if (disambiguations.length > 0) {
+        const hint = formatDisambiguationHint(disambiguations);
+        if (hint) {
+          this.deps.logger?.info("semantic disambiguation", {
+            sessionId,
+            homographsFound: disambiguations.length,
+            resolvedCount: disambiguations.filter(d => d.resolved).length,
+            hint,
+          });
+        }
+      }
+    }
+
     // M5.1 + M5.2: 用户纠正 → 双重性质判断 → 实时下调
     if (message.role === "user" && state.structures.length > 0) {
       // M5.2: 对 ProtoSequence 做 quickCheck — 替代实现豁免惩罚
@@ -338,6 +369,7 @@ export class EventOrchestrator {
         currentDomain: snap.currentDomain,
         midSessionLearner: MidSessionLearner.fromState(snap.midSessionLearnerState),
         corrections: snap.corrections,
+        scenarios: snap.scenarios ?? [],
       };
     } else {
       state = {
@@ -350,6 +382,7 @@ export class EventOrchestrator {
         currentDomain: this.deps.currentDomain ?? "unknown",
         midSessionLearner: new MidSessionLearner(),
         corrections: [],
+        scenarios: [],
       };
     }
     this.sessions.set(sessionId, state);
@@ -371,6 +404,7 @@ export class EventOrchestrator {
       currentDomain: state.currentDomain,
       midSessionLearnerState: state.midSessionLearner.toState(),
       corrections: state.corrections,
+      scenarios: state.scenarios,
     };
     await this.stateStore.save(sessionId, snap);
   }
