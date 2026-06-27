@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.12.0.1] - 2026-06-27
+
+### Added
+- **M6.4 `/praxis status` command:** 8D 能力雷达图 (文本渲染) + 成长轨迹 (ASCII 图表) + 学习时间线. 从 competency_model、competency_snapshots、lessons 加载数据 (`src/commands/praxis-status.ts`)
+- **M6.5 CrossAgentSync:** 跨 Agent 认知同步 + 乐观锁写入 (CAS version-check). 冲突检测 → pending_merge (置信度差异 >15% 需人类审批). LLM 辅助合并接口预留 (`src/analysis/cross-agent-sync.ts`)
+
+### Changed
+- **praxis-cli.ts:** `/praxis status` 从存根切换为 handleStatus (8D 雷达 + 成长轨迹 + 时间线)
+- **analysis/index.ts:** 导出 CrossAgentSync + OptimisticLockResult + PendingMerge
+
 ## [0.12.0.0] - 2026-06-27
 
 ### Added

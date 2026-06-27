@@ -629,8 +629,8 @@ interface AgentRuntimeAdapter {
 - [x] Meta Layer 架构审计 + 范畴审计按定时间隔运行
 - [x] 至少 2 个适配器 (OpenClaw + Claude Code) 可互换映射同一场景事件
 - [x] `/praxis audit` 输出增强 — 包含 Meta Layer 审计数据
-- [ ] `/praxis status` 命令 (M6.4, 延后)
-- [ ] 跨运行时乐观锁 (M6.5, 延后)
+- [x] `/praxis status` 命令 (M6.4, v0.12.0.1) — 8D 雷达 + 成长轨迹 + 学习时间线
+- [x] 跨运行时乐观锁 (M6.5, v0.12.0.1) — CrossAgentSync standalone module
 
 ### M6 实际交付 (v0.12.0.0, 2026-06-27)
 
@@ -642,8 +642,8 @@ interface AgentRuntimeAdapter {
 - **M6.2**: 标准 AdapterInterface (纯函数类型, 6 事件 + 2 决策映射) + OpenClawAdapter 参考实现 (16 tests)
 - **M6.3**: ClaudeCodeAdapter (含 Notification 过滤逻辑, 11 tests) + platform-adapter acceptAdapterEvent 桥梁
 - **总计**: 16 files changed (+1260/-30), 6 new source modules + 2 test files, 774 tests, typecheck clean
-- **M6.4 `/praxis status`**: 延后 (P1, 独立功能)
-- **M6.5 跨 Agent 同步**: 延后 (P2, 依赖多运行时环境)
+- **M6.4 `/praxis status`**: v0.12.0.1 — 8D 雷达图 + 成长轨迹 + 学习时间线
+- **M6.5 跨 Agent 同步**: v0.12.0.1 — CrossAgentSync standalone module (乐观锁 + pending_merge); 生产接线需 MemorySubsystem 扩展
 
 ---
 

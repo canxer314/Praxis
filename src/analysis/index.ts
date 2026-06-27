@@ -21,3 +21,5 @@ export { ArchitectureAuditor } from "./architecture-auditor";
 export type { ArchitectureAuditReport, AdversarialChallenge, AuditRecommendation } from "./architecture-auditor";
 export { CategoryAuditor } from "./category-auditor";
 export type { CategoryAuditReport, CategoryBlindSpot, DomainCategoryForkProposal, NewCategoryProposal } from "./category-auditor";
+export { CrossAgentSync } from "./cross-agent-sync";
+export type { OptimisticLockResult, PendingMerge } from "./cross-agent-sync";

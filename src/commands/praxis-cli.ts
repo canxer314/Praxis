@@ -9,6 +9,7 @@
 
 import type { M0Deps } from "../m0-deps";
 import { generateAuditReport, formatAuditReport } from "./praxis-audit";
+import { generateStatusReport, formatStatusReport } from "./praxis-status";
 
 export type PraxisCommand = "ontology" | "audit" | "status" | "task";
 
@@ -40,11 +41,20 @@ export async function handlePraxisCommand(
     case "ontology":
       return "⚠️ /praxis ontology 尚未实现 (计划 M3.5)";
     case "status":
-      return "⚠️ /praxis status 尚未实现 (计划 M6.4)";
+      return handleStatus(deps);
     case "task":
       return "⚠️ /praxis task 尚未实现 (计划 M6)";
     default:
       return `未知命令: /praxis ${cmd}`;
+  }
+}
+
+async function handleStatus(deps: M0Deps): Promise<string> {
+  try {
+    const report = await generateStatusReport(deps);
+    return formatStatusReport(report);
+  } catch (e) {
+    return `❌ 状态报告生成失败: ${String(e)}`;
   }
 }
 
