@@ -48,11 +48,11 @@ describe("ConfidenceFuser.fuse", () => {
       makeSource("concept_verifier", 0.75),
     ];
 
-    // Available: statistical(0.28) + user_correction(0.12) + role_verifier(0.12) + concept_verifier(0.05) = 0.57
+    // Available: statistical(0.25) + user_correction(0.12) + role_verifier(0.12) + concept_verifier(0.08) = 0.57
     // Missing: llm_marker(0.25) + outcome_feedback(0.10) + mid_session(0.08) = 0.43
-    // Proportional: statistical = 0.28 + 0.43 * (0.28/0.57) ≈ 0.491
+    // Proportional: statistical = 0.25 + 0.43 * (0.25/0.57) ≈ 0.439
     const redist = fuser.redistributeWeights(new Set(["statistical", "user_correction", "role_verifier", "concept_verifier"]));
-    expect(redist.statistical).toBeCloseTo(0.28 + 0.43 * (0.28 / 0.57), 2);
+    expect(redist.statistical).toBeCloseTo(0.25 + 0.43 * (0.25 / 0.57), 2);
     expect(redist.user_correction).toBeCloseTo(0.12 + 0.43 * (0.12 / 0.57), 2);
     expect(redist.llm_marker).toBe(0);
     expect(redist.outcome_feedback).toBe(0);
@@ -120,9 +120,9 @@ describe("ConfidenceFuser.getWeights", () => {
   it("返回默认权重", () => {
     const fuser = new ConfidenceFuser();
     const w = fuser.getWeights();
-    expect(w.statistical).toBe(0.28);
+    expect(w.statistical).toBe(0.25);
     expect(w.llm_marker).toBe(0.25);
-    expect(w.concept_verifier).toBe(0.05);
+    expect(w.concept_verifier).toBe(0.08);
   });
 
   it("支持自定义权重", () => {
@@ -130,6 +130,6 @@ describe("ConfidenceFuser.getWeights", () => {
     const w = fuser.getWeights();
     expect(w.statistical).toBe(0.5);
     expect(w.llm_marker).toBe(0.1);
-    expect(w.concept_verifier).toBe(0.05); // unchanged
+    expect(w.concept_verifier).toBe(0.08); // unchanged
   });
 });

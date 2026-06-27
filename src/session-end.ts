@@ -11,10 +11,13 @@
 
 import type { Result } from "./platform-adapter";
 import type { M0Deps } from "./m0-deps";
-import type { PendingSignal, ProtoStructure, SignalSourceInput } from "./cognitive/types";
+import type { PendingSignal, ProtoStructure, SignalSourceInput, ToolCallRecord, VerificationContext } from "./cognitive/types";
 import { extractUsageMarkers, updateAttention } from "./attention-telemetry";
 import { parsePredictionMarkers } from "./orchestration/prediction-protocol";
 import { createVersion } from "./structure-version";
+import { StatisticalVerifier } from "./analysis/statistical-verifier";
+import { RoleVerifier } from "./analysis/role-verifier";
+import { fullPropagation } from "./structure-graph";
 
 // ---- SessionEndHandler ----
 
@@ -39,6 +42,8 @@ export class SessionEndHandler {
     injectedStructureIds?: string[],
     /** M5.1: MidSession 信号源（来自 MidSessionLearner） */
     midSessionSources?: SignalSourceInput[],
+    /** T1: session 工具调用轨迹 (供 LLM-independent 验证器, Phase 2) */
+    toolCallTrace?: ToolCallRecord[],
   ): Promise<Result<{ lessonsWritten: number; lessonsFromSignals: number; lessonsFromTranscript: number; structuresExtracted: number; structureUsageCount: number; fusedCount: number; versionedCount: number }>> {
     // 幂等去重
     if (this.processed.has(sessionId)) {
@@ -162,12 +167,37 @@ export class SessionEndHandler {
     }
 
     // Phase 0.5: 7 源置信度融合 — 对注入的结构进行融合
-    // 合并 llm_marker + mid_session 两类信号源
+    // T1: 加入 LLM-independent 验证器源 (statistical/role_verifier) — 打破 LLM 自评循环 (§4)
     if (this.deps.fuser && injectedStructures && injectedStructures.length > 0) {
-      const allSources = [...llmMarkerSources, ...(midSessionSources ?? [])];
+      const verifierSources: SignalSourceInput[] = [];
+      if (toolCallTrace && toolCallTrace.length > 0) {
+        const vCtx: VerificationContext = { sessionId, toolCallTrace, transcript: transcript ?? "" };
+        const verifiers = [new StatisticalVerifier(), new RoleVerifier()];
+        for (const structure of injectedStructures) {
+          for (const v of verifiers) {
+            try {
+              const out = await v.verify(structure, vCtx);
+              if (out.confidence > 0) { // skip neutral (非适用类型)
+                verifierSources.push({
+                  structureId: structure.id,
+                  sourceName: v.name,
+                  value: out.value,
+                  confidence: out.confidence,
+                  evidence: out.evidence,
+                });
+              }
+            } catch {
+              // 验证器失败隔离 — 不破坏融合
+            }
+          }
+        }
+      }
+      const allSources = [...llmMarkerSources, ...(midSessionSources ?? []), ...verifierSources];
       if (allSources.length === 0) {
         // skip — no signal sources
       } else {
+        // T6: 记录本轮融合的结构 (供关系图传播)
+        const fusedThisRound: Array<{ id: string; oldConfidence: number; newConfidence: number }> = [];
         for (const structure of injectedStructures) {
           const sources = allSources.filter(s => s.structureId === structure.id);
           if (sources.length === 0) continue;
@@ -185,6 +215,36 @@ export class SessionEndHandler {
             versionedCount++;
             if (this.deps.memory.saveProtoStructure) {
               await this.deps.memory.saveProtoStructure(structure);
+            }
+            fusedThisRound.push({ id: structure.id, oldConfidence, newConfidence: fused.confidence });
+          }
+        }
+
+        // T6: 关系图置信度传播 (§3) — 融合后的 confidence 变化沿关系图传播到关联结构
+        if (fusedThisRound.length > 0) {
+          const allStructuresMap = new Map(injectedStructures.map(s => [s.id, s]));
+          for (const { id: changedId, oldConfidence, newConfidence } of fusedThisRound) {
+            const delta = newConfidence - oldConfidence;
+            if (Math.abs(delta) < 0.001) continue;
+            const propagated = fullPropagation(changedId, delta, allStructuresMap);
+            for (const [affectedId, propDelta] of propagated) {
+              if (affectedId === changedId) continue;
+              const affected = allStructuresMap.get(affectedId);
+              if (!affected) continue;
+              const oldAffected = affected.confidence;
+              affected.confidence = Math.max(0, Math.min(1, affected.confidence + propDelta));
+              if (Math.abs(affected.confidence - oldAffected) > 0.001) {
+                createVersion(affected, "auto_refinement", [{
+                  type: "confidence_changed" as const,
+                  path: "/confidence",
+                  oldValue: oldAffected,
+                  newValue: affected.confidence,
+                }], `Propagation from ${changedId} (delta ${delta.toFixed(3)})`, []);
+                versionedCount++;
+                if (this.deps.memory.saveProtoStructure) {
+                  await this.deps.memory.saveProtoStructure(affected);
+                }
+              }
             }
           }
         }

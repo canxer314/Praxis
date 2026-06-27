@@ -16,11 +16,11 @@ import type { FusionWeights, SignalSourceInput, FusedConfidence, SourceContribut
 // ══════════════════════════════════════════════════════════════════
 
 const DEFAULT_WEIGHTS: FusionWeights = {
-  statistical: 0.28,       // M4: 吸收 concept 降权 0.03
+  statistical: 0.25,       // §4 spec table (LLM-independent)
   llm_marker: 0.25,
   user_correction: 0.12,
   role_verifier: 0.12,
-  concept_verifier: 0.05,  // M4: 降权反映 LLM 依赖风险
+  concept_verifier: 0.08,  // §4 spec table (LLM-independent, adversarial)
   outcome_feedback: 0.10,
   mid_session: 0.08,
 };

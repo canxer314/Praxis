@@ -126,7 +126,7 @@ export class SessionStartHandler {
 
     // M3: 从原始 ProtoStructure 数据中提取已结晶约束 → 生成注入段
     const criticalConstraints = amAvailable
-      ? this.buildCriticalConstraints()
+      ? this.buildCriticalConstraints(pressure)
       : undefined;
 
     return {
@@ -151,14 +151,14 @@ export class SessionStartHandler {
    * M3: 从原始 ProtoStructure 数据中提取已结晶约束并格式化为注入段。
    * 复用 loadProtoStructures 中已缓存的 rawStructures，避免额外 API 调用。
    */
-  private buildCriticalConstraints(): { injectionText: string; tokenCount: number; constraintIds: string[]; constraints: ProtoConstraint[] } | undefined {
+  private buildCriticalConstraints(pressure: PressureLevel = "normal"): { injectionText: string; tokenCount: number; constraintIds: string[]; constraints: ProtoConstraint[] } | undefined {
     const constraints = this.loadConstraints();
     if (constraints.length === 0) return undefined;
 
     const active = getActiveConstraints(constraints);
     if (active.length === 0) return undefined;
 
-    const result = injectConstraints({ constraints: active });
+    const result = injectConstraints({ constraints: active, maxTokens: pressure === "critical" ? 100 : 150 });
     if (result.injectionText === "") return undefined;
 
     return {
@@ -272,7 +272,17 @@ export class SessionStartHandler {
         confidence: Number(item.confidence ?? 0),
         scenarioId: String(item.scenarioId ?? item.scenario_id ?? ""),
         summary: this.formatProtoStructureSummary(item),
-      }));
+        // B6: 完整结构字段 (§9), 供 fusion/验证器/传播使用 (此前 summary 缺这些 → 验证器 NPE, 传播无 relations, createVersion 靠 guard 兜底)
+        observationsCount: Number(item.observationsCount ?? item.observations_count ?? 0),
+        adoptionRate: Number(item.adoptionRate ?? item.adoption_rate ?? 0),
+        lifecycle: String(item.lifecycle ?? "hypothesized"),
+        relations: Array.isArray(item.relations) ? item.relations : [],
+        versionChain: Array.isArray(item.versionChain) ? item.versionChain : [],
+        structure: item.structure ?? { steps: [] },
+        function: item.function ?? { purpose: "", precondition: [], postcondition: [], failureModes: [] },
+        updatedAt: Number(item.updatedAt ?? 0),
+        createdAt: Number(item.createdAt ?? 0),
+      })) as unknown as SessionContextInjection["protoStructures"];
     } catch {
       return [];
     }

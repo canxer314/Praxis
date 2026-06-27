@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.13.0.0] - 2026-06-28
+
+### Added
+- **Phase 1 Production Runtime:** per-hook bun entry + daemon scheduling + bridge retirement path
+- **HookDispatcher:** adapter-agnostic hook dispatch — maps raw hook data → ClaudeCodeAdapter → EventOrchestrator.route(). Supports all 7 lifecycle events + cron_tick. 10 tests (`src/adapters/hook-dispatcher.ts`)
+- **ContextFormatter:** extracted `formatSessionContextInjection()` from phase1a-bridge.ts to shared module. Formats SessionContextInjection → System Prompt injection text (`src/context-formatter.ts`)
+- **M0DepsFactory:** extracted `buildM0Deps()` from phase1a-bridge.ts to shared module. AgentMemory-backed production dependency injection (`src/m0-deps-factory.ts`)
+- **Per-hook bun entry:** `scripts/praxis-hook.ts` — stdin JSON hook event → HookDispatcher → stdout result. Bun ~59ms cold start (D1 = A+D, no daemon)
+- **Praxis Daemon:** `scripts/praxis-daemon.ts` — setInterval 30min → CronTickHandler.handle(). Crash-isolated via try-catch + uncaughtException/unhandledRejection handlers. D2 = daemon (simpler than OS-cron, cross-platform, no install script needed)
+- **Cron tick entry:** `scripts/praxis-cron.ts` — single-shot cron entry (OS-cron alternative, retained for flexibility)
+- **/praxis CLI extension:** 5 new commands migrated from phase1a-bridge — `show` (learning overview), `shadow-stats` (governor shadow decisions), `scene-stats` (scene classification), `learn` (manual learning), `scene-log` (scene recognition). 13 tests (`src/commands/praxis-cli.ts`)
+
+### Changed
+- **phase1a-bridge.ts:** marked DEPRECATED. Now imports shared `buildM0Deps` + `formatSessionContextInjection` from extracted modules (DRY — ~270 lines duplicated code eliminated). Retained for backward compatibility during Phase 1 transition
+- **praxis-cli.ts:** PraxisCommand type extended with 5 new subcommands. parsePraxisCommand handles `/praxis learn <content>` pattern. All commands routed to AgentMemory-backed handlers
+
+### Docs
+- **wiring-debt-dev-plan.md:** GSTACK REVIEW REPORT updated — Phase 1 implementation review (2nd eng review). D2 decision flipped OS-cron→daemon. All Phase 1 findings resolved.
+
 ## [0.12.0.1] - 2026-06-27
 
 ### Added

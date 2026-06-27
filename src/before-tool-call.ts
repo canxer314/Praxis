@@ -39,14 +39,14 @@ export class BeforeToolCallHandler {
    * Phase 0: 接受 sessionId 参数（供 M5.1 MidSessionLearner 违规计数用）
    * M6 Fix-3: 约束违反时写入 audit_log slot
    */
-  async handle(sessionId: string, toolName: string): Promise<
+  async handle(sessionId: string, toolName: string, toolParams?: Record<string, unknown>): Promise<
     Result<{ action: "proceed" | "inform" | "confirm" | "block"; reason: string; constraintId?: string }>
   > {
     // 1. M0 自主性决策
     const autonomyResult = this.getAutonomyDecision(toolName);
 
-    // 2. M3 约束验证
-    const constraintResult = checkConstraints(toolName, this.activeConstraints);
+    // 2. M3 约束验证 (T4: 传入 toolParams 以支持基于参数的约束匹配)
+    const constraintResult = checkConstraints(toolName, this.activeConstraints, toolParams);
 
     // 3. 合并: 取最严格结果
     const merged = this.mergeResults(autonomyResult, constraintResult);

@@ -22,6 +22,7 @@ import { AfterToolCallHandler } from "./after-tool-call";
 import { AgentEndHandler, type AgentEndSummary } from "./agent-end";
 import { CronTickHandler } from "./cron-tick";
 import { MidSessionLearner } from "./analysis/mid-session-learner";
+import { SessionStateStore, type SessionStateSnapshot } from "./session-state-store";
 import { quickCheck, deepCheck, isProtoSequence } from "./analysis/teleological-judge";
 import type { ProtoSequence } from "./cognitive/types";
 
@@ -71,8 +72,10 @@ export class EventOrchestrator {
   private readonly sessionEnd: SessionEndHandler;
   private readonly beforeToolCall: BeforeToolCallHandler;
   private readonly cronTick: CronTickHandler;
+  /** Phase 0: per-session 状态持久化 (跨 hook 进程) */
+  private readonly stateStore: SessionStateStore;
 
-  /** 活跃 session 的状态 (sessionId → state) */
+  /** 活跃 session 的状态 (sessionId → state) — 进程内缓存, 跨进程由 stateStore 持久化 */
   private readonly sessions = new Map<string, SessionState>();
 
   constructor(deps: M0Deps) {
@@ -81,13 +84,20 @@ export class EventOrchestrator {
     this.sessionEnd = new SessionEndHandler(deps);
     this.beforeToolCall = new BeforeToolCallHandler(deps);
     this.cronTick = new CronTickHandler(deps);
+    this.stateStore = new SessionStateStore(deps);
   }
 
   // ════════════════════════════════════════════════════════════════
   // 公开 API — 每个事件类型一个方法
   // ════════════════════════════════════════════════════════════════
 
-  async handleSessionStart(sessionId: string) {
+  async handleSessionStart(
+    sessionId: string,
+    /** T3: caller-provided context-pressure inputs (LLM usage feedback or conservative
+     *  estimate). Without these, pressure defaults to "normal" (M2.2 adaptive compression
+     *  never triggers). The bridge can pass an estimate from env/heuristic. */
+    opts?: { estimatedUsedTokens?: number; contextWindowSize?: number },
+  ) {
     // 初始化 session 状态 (Phase 0: + M5.1 MidSessionLearner)
     this.sessions.set(sessionId, {
       pendingSignals: [],
@@ -100,7 +110,7 @@ export class EventOrchestrator {
       midSessionLearner: new MidSessionLearner(),
       corrections: [],
     });
-    const result = await this.sessionStart.handle(sessionId);
+    const result = await this.sessionStart.handle(sessionId, opts);
     // M3: 加载已结晶约束到 before_tool_call 处理器
     if (result.ok && result.value.tieredContext?.criticalConstraints) {
       this.beforeToolCall.loadConstraints(
@@ -121,11 +131,14 @@ export class EventOrchestrator {
     // M6 Fix-4: 从 AgentMemory 加载 attentionRecords（重启恢复）
     await this.loadAttentionRecords();
 
+    // Phase 0: 持久化 session 状态 (跨 hook 进程可达)
+    await this.saveState(sessionId);
+
     return result;
   }
 
   async handleMessageReceived(sessionId: string, message: { role: "user" | "assistant"; content: string }) {
-    const state = this.getOrCreateState(sessionId);
+    const state = await this.getOrCreateState(sessionId);
     const handler = new MessageReceivedHandler(this.deps, state.pendingSignals);
     const cmdResult = await handler.handle(sessionId, message);
     // M5.5: /praxis command → return response to caller
@@ -162,21 +175,23 @@ export class EventOrchestrator {
         }
       }
     }
+    // Phase 0: 持久化 session 状态 (midSessionSources/corrections 跨 hook 可达)
+    await this.saveState(sessionId);
   }
 
   /** Phase 0: sessionId 线程 — before_tool_call 携带 sessionId + M5.1 约束违规计数 */
   async handleBeforeToolCall(sessionId: string, toolName: string, toolParams?: Record<string, unknown>) {
-    const result = await this.beforeToolCall.handle(sessionId, toolName);
+    const result = await this.beforeToolCall.handle(sessionId, toolName, toolParams);
     // M5.1: 约束违规 → MidSessionLearner 计数
     if (result.ok && result.value.constraintId) {
-      const state = this.sessions.get(sessionId);
-      if (state) {
-        const sources = state.midSessionLearner.handleConstraintViolation(
-          result.value.constraintId);
-        if (sources.length > 0) {
-          state.midSessionSources.push(...sources);
-        }
+      const state = await this.getOrCreateState(sessionId);
+      const sources = state.midSessionLearner.handleConstraintViolation(
+        result.value.constraintId);
+      if (sources.length > 0) {
+        state.midSessionSources.push(...sources);
       }
+      // Phase 0: 持久化违规计数 (跨 hook 可达)
+      await this.saveState(sessionId);
     }
     return result;
   }
@@ -187,18 +202,25 @@ export class EventOrchestrator {
     toolParams: Record<string, unknown>,
     result: { success: boolean; output?: unknown; error?: string },
   ) {
-    const state = this.getOrCreateState(sessionId);
+    const state = await this.getOrCreateState(sessionId);
     const handler = new AfterToolCallHandler(this.deps, state.toolCallTrace, state.pendingSignals);
     await handler.handle(sessionId, toolName, toolParams, result);
+    // Phase 0: 持久化 toolCallTrace/pendingSignals
+    await this.saveState(sessionId);
   }
 
   async handleAgentEnd(sessionId: string): Promise<AgentEndSummary> {
-    const state = this.getOrCreateState(sessionId);
+    const state = await this.getOrCreateState(sessionId);
     // Phase 0: 创建 AgentEndHandler + 注入 MidSession 信号源
     const handler = new AgentEndHandler(this.deps, [...state.toolCallTrace]);
     if (state.midSessionSources.length > 0) {
+      // Copy to AgentEndHandler for its initial-pass fusion (logged, not persisted).
+      // Do NOT clear state.midSessionSources here: session_end is the unified
+      // fusion+persist point (session-end.ts: "实际结构更新在 session-end 的统一融合中完成")
+      // and must still see these sources. Clearing here starved session_end of
+      // mid_session sources, leaving fusion with only llm_marker (< MIN_SOURCES),
+      // so no structure was ever fused/persisted.
       handler.addMidSessionSources([...state.midSessionSources]);
-      state.midSessionSources = []; // 消费后清空
     }
 
     // M6 Fix-1: 传递 corrections 给 handler → 异步 deepCheck
@@ -212,6 +234,8 @@ export class EventOrchestrator {
       }
     }
 
+    // Phase 0: 持久化 (corrections 已消费清空)
+    await this.saveState(sessionId);
     return handler.handle(sessionId);
   }
 
@@ -243,7 +267,7 @@ export class EventOrchestrator {
   }
 
   async handleSessionEnd(sessionId: string, transcript?: string) {
-    const state = this.getOrCreateState(sessionId);
+    const state = await this.getOrCreateState(sessionId);
     // Drain midSessionSources before passing to session-end
     const midSources = [...state.midSessionSources];
     // Phase 0: 传入注入的结构 + MidSession 信号源
@@ -254,10 +278,13 @@ export class EventOrchestrator {
       state.structures.length > 0 ? state.structures : undefined,
       state.injectedStructureIds.length > 0 ? state.injectedStructureIds : undefined,
       midSources.length > 0 ? midSources : undefined,
+      state.toolCallTrace.length > 0 ? state.toolCallTrace : undefined,
     );
     // M5.1: 清理 MidSessionLearner
     state.midSessionLearner.reset();
-    // 清理 session 状态
+    // Phase 0: 清理持久化 session 状态 (session 已结束)
+    await this.stateStore.delete(sessionId);
+    // 清理进程内缓存
     this.sessions.delete(sessionId);
     return result;
   }
@@ -295,9 +322,24 @@ export class EventOrchestrator {
   // 内部
   // ════════════════════════════════════════════════════════════════
 
-  private getOrCreateState(sessionId: string): SessionState {
+  private async getOrCreateState(sessionId: string): Promise<SessionState> {
     let state = this.sessions.get(sessionId);
-    if (!state) {
+    if (state) return state;
+    // Phase 0: 跨进程 (per-hook) — 从持久化 slot 加载
+    const snap = await this.stateStore.load(sessionId);
+    if (snap) {
+      state = {
+        pendingSignals: snap.pendingSignals,
+        toolCallTrace: snap.toolCallTrace,
+        structures: snap.structures,
+        injectedStructureIds: snap.injectedStructureIds,
+        midSessionSources: snap.midSessionSources,
+        currentTaskType: snap.currentTaskType,
+        currentDomain: snap.currentDomain,
+        midSessionLearner: MidSessionLearner.fromState(snap.midSessionLearnerState),
+        corrections: snap.corrections,
+      };
+    } else {
       state = {
         pendingSignals: [],
         toolCallTrace: [],
@@ -309,8 +351,27 @@ export class EventOrchestrator {
         midSessionLearner: new MidSessionLearner(),
         corrections: [],
       };
-      this.sessions.set(sessionId, state);
     }
+    this.sessions.set(sessionId, state);
     return state;
+  }
+
+  /** Phase 0: 持久化 session 状态到 per-session slot (跨 hook 进程可达)。 */
+  private async saveState(sessionId: string): Promise<void> {
+    const state = this.sessions.get(sessionId);
+    if (!state) return;
+    const snap: SessionStateSnapshot = {
+      schemaVersion: 1,
+      pendingSignals: state.pendingSignals,
+      toolCallTrace: state.toolCallTrace,
+      structures: state.structures,
+      injectedStructureIds: state.injectedStructureIds,
+      midSessionSources: state.midSessionSources,
+      currentTaskType: state.currentTaskType,
+      currentDomain: state.currentDomain,
+      midSessionLearnerState: state.midSessionLearner.toState(),
+      corrections: state.corrections,
+    };
+    await this.stateStore.save(sessionId, snap);
   }
 }

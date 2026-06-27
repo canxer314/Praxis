@@ -85,6 +85,37 @@ describe("canCrystallize", () => {
     expect(result.allowed).toBe(false);
     expect(result.blockedBy.some((r) => r.includes("观察次数"))).toBe(true);
   });
+
+  it("奎因式门控: 僵尸结构 (高置信度但从不使用) → 被拒绝 (M4.4)", () => {
+    const s = makePS({ confidence: 0.85, observationsCount: 10, lifecycle: "experimental" });
+    // 僵尸: 高置信度 + 足够观察, 但从不被使用 (sessionsWithStructure=0, accuracyWithStructure=0)
+    const gatingContext = {
+      sessionsWithStructure: 0,
+      sessionsWithoutStructure: 12,
+      accuracyWithStructure: 0,
+      accuracyWithoutStructure: 0.5,
+      alternativeStructureIds: [],
+      alternativeAccuracies: new Map<string, number>(),
+    };
+    const result = canCrystallize(s, { gatingContext });
+    expect(result.allowed).toBe(false);
+    // 充分性失败: 从不使用的结构无法通过
+    expect(result.blockedBy.some((r) => r.toLowerCase().includes("sufficiency"))).toBe(true);
+  });
+
+  it("奎因式门控: 积极使用且有效 → 通过", () => {
+    const s = makePS({ confidence: 0.85, observationsCount: 10, lifecycle: "experimental" });
+    const gatingContext = {
+      sessionsWithStructure: 12,
+      sessionsWithoutStructure: 8,
+      accuracyWithStructure: 0.8,
+      accuracyWithoutStructure: 0.5,
+      alternativeStructureIds: [],
+      alternativeAccuracies: new Map<string, number>(),
+    };
+    const result = canCrystallize(s, { gatingContext });
+    expect(result.allowed).toBe(true);
+  });
 });
 
 describe("canDegrade", () => {
