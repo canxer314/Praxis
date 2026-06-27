@@ -346,3 +346,104 @@ describe("SessionStartHandler (M3 — criticalConstraints)", () => {
     }
   });
 });
+
+// ══════════════════════════════════════════════════════════════════
+// T12: 降级约束缓存 — write-through
+// ══════════════════════════════════════════════════════════════════
+
+describe("SessionStartHandler (T12 — constraint cache write-through)", () => {
+  it("已结晶约束被写入 local-cache (write-through)", async () => {
+    const cacheSet = vi.fn();
+    const deps = makeDeps({
+      cache: {
+        get: vi.fn().mockReturnValue(null),
+        set: cacheSet,
+        list: vi.fn().mockReturnValue([]),
+        delete: vi.fn(),
+      },
+    });
+    deps.memory.getSlot = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { domainProficiencies: { typescript: { selfRating: 0.8, taskCount: 12 } } },
+    } as Result<unknown>);
+    deps.memory.smartSearch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          { id: "c1", tentativeName: "备份约束", protoType: "constraint", confidence: 0.9, scenarioId: "general", lifecycle: "crystallized", severity: "block", source: "user_taught", rulePatterns: ["migrate"], observationsCount: 23 },
+          { id: "ps1", tentativeName: "通用流程", protoType: "sequence", confidence: 0.8, scenarioId: "general", lifecycle: "crystallized" },
+        ],
+      } as Result<unknown[]>);
+
+    const handler = new SessionStartHandler(deps);
+    await handler.handle("t12-write-through");
+
+    // Verify cache.set was called with active_constraints key
+    expect(cacheSet).toHaveBeenCalled();
+    const cacheCalls = cacheSet.mock.calls;
+    const constraintCall = cacheCalls.find((c: unknown[]) => c[0] === "active_constraints");
+    expect(constraintCall).toBeDefined();
+    expect(Array.isArray(constraintCall[1])).toBe(true);
+    expect(constraintCall[1].length).toBeGreaterThan(0);
+    // Verify constraint data integrity
+    const cached = constraintCall[1][0] as Record<string, unknown>;
+    expect(cached.id).toBe("c1");
+    expect(cached.severity).toBe("block");
+    expect(cached.lifecycle).toBe("crystallized");
+  });
+
+  it("无已结晶约束时不写入 local-cache", async () => {
+    const cacheSet = vi.fn();
+    const deps = makeDeps({
+      cache: {
+        get: vi.fn().mockReturnValue(null),
+        set: cacheSet,
+        list: vi.fn().mockReturnValue([]),
+        delete: vi.fn(),
+      },
+    });
+    deps.memory.getSlot = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { domainProficiencies: { typescript: { selfRating: 0.8, taskCount: 12 } } },
+    } as Result<unknown>);
+    // No constraint-type structures
+    deps.memory.smartSearch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          { id: "ps1", tentativeName: "只有序列", protoType: "sequence", confidence: 0.8, lifecycle: "crystallized" },
+        ],
+      } as Result<unknown[]>);
+
+    const handler = new SessionStartHandler(deps);
+    await handler.handle("t12-no-constraints");
+
+    // active_constraints should NOT be written (no constraints to cache)
+    const constraintCalls = cacheSet.mock.calls.filter((c: unknown[]) => c[0] === "active_constraints");
+    expect(constraintCalls).toHaveLength(0);
+  });
+
+  it("AgentMemory 不可用时不写入（无约束可写）", async () => {
+    const cacheSet = vi.fn();
+    const deps = makeDeps({
+      cache: {
+        get: vi.fn().mockReturnValue(null),
+        set: cacheSet,
+        list: vi.fn().mockReturnValue([]),
+        delete: vi.fn(),
+      },
+    });
+    deps.memory.isAvailable = vi.fn().mockResolvedValue(false);
+
+    const handler = new SessionStartHandler(deps);
+    await handler.handle("t12-am-unavailable");
+
+    // No constraints to cache when AgentMemory is unavailable
+    const constraintCalls = cacheSet.mock.calls.filter((c: unknown[]) => c[0] === "active_constraints");
+    expect(constraintCalls).toHaveLength(0);
+  });
+});

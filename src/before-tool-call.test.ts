@@ -192,3 +192,91 @@ describe("BeforeToolCallHandler (M3 — constraints)", () => {
     }
   });
 });
+
+// ══════════════════════════════════════════════════════════════════
+// T12: 降级约束缓存
+// ══════════════════════════════════════════════════════════════════
+
+describe("BeforeToolCallHandler (T12 — constraint cache fallback)", () => {
+  it("loadConstraintsFromCache 从 local-cache 读取并加载约束", () => {
+    const cachedConstraints = [
+      makeConstraint({ id: "cached-c1", rulePatterns: ["dangerous_tool"], severity: "block" }),
+    ];
+    const deps = makeDeps({
+      cache: {
+        get: vi.fn().mockReturnValue(cachedConstraints),
+        set: vi.fn(),
+        list: vi.fn().mockReturnValue([]),
+        delete: vi.fn(),
+      },
+    });
+    const handler = new BeforeToolCallHandler(deps);
+    const loaded = handler.loadConstraintsFromCache();
+    expect(loaded).toBe(true);
+    expect(deps.cache.get).toHaveBeenCalledWith("active_constraints");
+  });
+
+  it("loadConstraintsFromCache 返回 false 当缓存为空", () => {
+    const deps = makeDeps({
+      cache: {
+        get: vi.fn().mockReturnValue(null),
+        set: vi.fn(),
+        list: vi.fn().mockReturnValue([]),
+        delete: vi.fn(),
+      },
+    });
+    const handler = new BeforeToolCallHandler(deps);
+    const loaded = handler.loadConstraintsFromCache();
+    expect(loaded).toBe(false);
+  });
+
+  it("loadConstraintsFromCache 返回 false 当缓存数据不是数组", () => {
+    const deps = makeDeps({
+      cache: {
+        get: vi.fn().mockReturnValue({ not: "an array" }),
+        set: vi.fn(),
+        list: vi.fn().mockReturnValue([]),
+        delete: vi.fn(),
+      },
+    });
+    const handler = new BeforeToolCallHandler(deps);
+    const loaded = handler.loadConstraintsFromCache();
+    expect(loaded).toBe(false);
+  });
+
+  it("从缓存加载的约束可以正常拦截违规操作", async () => {
+    const cachedConstraints = [
+      makeConstraint({ id: "cache-block", rulePatterns: ["dangerous_op"], severity: "block" }),
+    ];
+    const deps = makeDeps({
+      cache: {
+        get: vi.fn().mockReturnValue(cachedConstraints),
+        set: vi.fn(),
+        list: vi.fn().mockReturnValue([]),
+        delete: vi.fn(),
+      },
+    });
+    const handler = new BeforeToolCallHandler(deps);
+    handler.loadConstraintsFromCache();
+    const result = await handler.handle("test-session", "dangerous_op");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.action).toBe("block");
+      expect(result.value.constraintId).toBe("cache-block");
+    }
+  });
+
+  it("缓存加载失败（异常）→ 返回 false，不崩溃", () => {
+    const deps = makeDeps({
+      cache: {
+        get: vi.fn().mockImplementation(() => { throw new Error("disk error"); }),
+        set: vi.fn(),
+        list: vi.fn().mockReturnValue([]),
+        delete: vi.fn(),
+      },
+    });
+    const handler = new BeforeToolCallHandler(deps);
+    const loaded = handler.loadConstraintsFromCache();
+    expect(loaded).toBe(false);
+  });
+});

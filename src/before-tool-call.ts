@@ -31,6 +31,20 @@ export class BeforeToolCallHandler {
     this.activeConstraints = [...constraints]; // 防御性拷贝
   }
 
+  /** T12: 从 local-cache 加载约束作为降级路径 (AgentMemory 不可用时) */
+  loadConstraintsFromCache(): boolean {
+    try {
+      const cached = this.deps.cache.get("active_constraints");
+      if (Array.isArray(cached) && cached.length > 0) {
+        this.activeConstraints = [...cached] as ProtoConstraint[];
+        return true;
+      }
+    } catch {
+      // 缓存读取失败不崩溃
+    }
+    return false;
+  }
+
   /**
    * 处理 before_tool_call 事件。返回自主性决策 + M3 约束验证的合并结果。
    * 合并优先级: constraint block ≥ autonomy block > constraint confirm

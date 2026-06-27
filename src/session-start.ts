@@ -129,6 +129,16 @@ export class SessionStartHandler {
       ? this.buildCriticalConstraints(pressure)
       : undefined;
 
+    // T12: 降级约束缓存 — write-through 活跃约束到 local-cache
+    // 使 AgentMemory 不可用时 before_tool_call 仍能从 local-cache 读约束执行
+    if (criticalConstraints?.constraints && criticalConstraints.constraints.length > 0) {
+      try {
+        this.deps.cache.set("active_constraints", criticalConstraints.constraints);
+      } catch {
+        // 缓存写入失败不阻塞 session_start
+      }
+    }
+
     return {
       ok: true,
       value: {

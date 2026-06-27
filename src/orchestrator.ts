@@ -24,6 +24,7 @@ import { CronTickHandler } from "./cron-tick";
 import { MidSessionLearner } from "./analysis/mid-session-learner";
 import { SessionStateStore, type SessionStateSnapshot } from "./session-state-store";
 import { quickCheck, deepCheck, isProtoSequence } from "./analysis/teleological-judge";
+import { CrossAgentSync } from "./analysis/cross-agent-sync";
 import type { ProtoSequence } from "./cognitive/types";
 
 // ══════════════════════════════════════════════════════════════════
@@ -81,7 +82,8 @@ export class EventOrchestrator {
   constructor(deps: M0Deps) {
     this.deps = deps;
     this.sessionStart = new SessionStartHandler(deps);
-    this.sessionEnd = new SessionEndHandler(deps);
+    // T11: 注入 CrossAgentSync 以启用乐观锁写入 (子 Agent 认知回流)
+    this.sessionEnd = new SessionEndHandler(deps, new CrossAgentSync(deps));
     this.beforeToolCall = new BeforeToolCallHandler(deps);
     this.cronTick = new CronTickHandler(deps);
     this.stateStore = new SessionStateStore(deps);
@@ -117,7 +119,10 @@ export class EventOrchestrator {
         result.value.tieredContext.criticalConstraints.constraints,
       );
     } else {
-      this.beforeToolCall.loadConstraints([]); // 清除上一 session 的陈旧约束
+      // T12: 降级约束缓存 — AgentMemory 不可用时从 local-cache 加载
+      if (!this.beforeToolCall.loadConstraintsFromCache()) {
+        this.beforeToolCall.loadConstraints([]); // 缓存也为空 → 清除
+      }
     }
     // Phase 0: 缓存注入的结构摘要 + ID 列表 + attention 更新
     if (result.ok && result.value.protoStructures) {
