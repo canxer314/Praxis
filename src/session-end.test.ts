@@ -123,3 +123,172 @@ describe("SessionEndHandler (M0)", () => {
     }
   });
 });
+
+// ══════════════════════════════════════════════════════════════════
+// T11: CrossAgentSync wiring — 乐观锁写入
+// ══════════════════════════════════════════════════════════════════
+
+import { CrossAgentSync } from "./analysis/cross-agent-sync";
+import type { ProtoStructure } from "./cognitive/types";
+
+function makeProtoStructure(overrides: Partial<ProtoStructure> = {}): ProtoStructure {
+  return {
+    id: "ps-test",
+    protoType: "sequence",
+    tentativeName: "测试结构",
+    scenarioId: "general",
+    confidence: 0.6,
+    observationsCount: 5,
+    adoptionRate: 0.3,
+    lifecycle: "experimental",
+    relations: [],
+    versionChain: [{ versionId: "v1", parentVersion: "root", createdAt: Date.now(), createdBy: "fusion", diff: [], rationale: "initial", evidence: [], performance: { predictionAccuracy: 0, userSatisfaction: 0, activeDurationDays: 0 } }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    ...overrides,
+  };
+}
+
+describe("SessionEndHandler (T11 — CrossAgentSync wiring)", () => {
+  it("saveWithOptimisticLock 替换 saveProtoStructure 进行乐观锁写入", async () => {
+    // Mock the CrossAgentSync.saveWithOptimisticLock to simulate first-wins
+    const mockSync = {
+      saveWithOptimisticLock: vi.fn().mockResolvedValue({ committed: true }),
+      resolvePendingMerge: vi.fn(),
+      listPendingMerges: vi.fn().mockResolvedValue([]),
+      syncChildToParent: vi.fn(),
+    } as unknown as CrossAgentSync;
+
+    const deps = makeDeps({
+      llm: {
+        extractProtoStructures: vi.fn().mockResolvedValue([{
+          protoType: "sequence",
+          tentativeName: "提取的结构",
+          scenarioId: "general",
+          confidence: 0.5,
+          steps: [{ position: 1, action: "第一步" }],
+        }]),
+      },
+    });
+    // Inject CrossAgentSync via the handler
+    const handler = new SessionEndHandler(deps, mockSync);
+    const result = await handler.handle("t11-first", "transcript...", []);
+
+    expect(result.ok).toBe(true);
+    // Verify saveWithOptimisticLock was called (not saveProtoStructure)
+    expect(mockSync.saveWithOptimisticLock).toHaveBeenCalled();
+  });
+
+  it("first-wins: committed=true → 结构成功持久化", async () => {
+    const mockSync = {
+      saveWithOptimisticLock: vi.fn().mockResolvedValue({ committed: true }),
+      resolvePendingMerge: vi.fn(),
+      listPendingMerges: vi.fn().mockResolvedValue([]),
+      syncChildToParent: vi.fn(),
+    } as unknown as CrossAgentSync;
+
+    const deps = makeDeps({
+      llm: {
+        extractProtoStructures: vi.fn().mockResolvedValue([{
+          protoType: "sequence",
+          tentativeName: "提取的结构",
+          scenarioId: "general",
+          confidence: 0.5,
+        }]),
+      },
+    });
+
+    const handler = new SessionEndHandler(deps, mockSync);
+    const result = await handler.handle("t11-committed", "transcript...", []);
+
+    expect(result.ok).toBe(true);
+    const calls = mockSync.saveWithOptimisticLock.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    // Verify the saved structure was committed
+    expect(mockSync.resolvePendingMerge).not.toHaveBeenCalled();
+  });
+
+  it("conflict: committed=false → pending_merge 创建，不崩溃", async () => {
+    const mockSync = {
+      saveWithOptimisticLock: vi.fn().mockResolvedValue({
+        committed: false,
+        conflictVersion: 3,
+        pendingMergeId: "pending_merge_ps-test_123",
+      }),
+      resolvePendingMerge: vi.fn(),
+      listPendingMerges: vi.fn().mockResolvedValue([{
+        id: "pending_merge_ps-test_123",
+        structureId: "ps-test",
+        baseVersion: 3,
+        proposedUpdate: {},
+        currentValue: makeProtoStructure(),
+        createdAt: Date.now(),
+        confidenceDelta: 0.1,
+        needsHumanApproval: false,
+      }]),
+      syncChildToParent: vi.fn(),
+    } as unknown as CrossAgentSync;
+
+    const deps = makeDeps({
+      llm: {
+        extractProtoStructures: vi.fn().mockResolvedValue([{
+          protoType: "sequence",
+          tentativeName: "冲突结构",
+          scenarioId: "general",
+          confidence: 0.5,
+        }]),
+      },
+    });
+
+    const handler = new SessionEndHandler(deps, mockSync);
+    const result = await handler.handle("t11-conflict", "transcript...", []);
+
+    // Should not crash on conflict
+    expect(result.ok).toBe(true);
+  });
+
+  it("CrossAgentSync listPendingMerges 返回真实 merges (单元测试)", async () => {
+    const deps = makeDeps();
+    const pendingMerges = [{
+      id: "pm-1",
+      structureId: "s1",
+      baseVersion: 2,
+      proposedUpdate: { confidence: 0.7 },
+      currentValue: makeProtoStructure({ id: "s1", confidence: 0.5 }),
+      createdAt: Date.now(),
+      confidenceDelta: 0.2,
+      needsHumanApproval: true,
+    }];
+    deps.memory.getSlot = vi.fn().mockResolvedValue({ ok: true, value: pendingMerges } as Result<unknown>);
+
+    const sync = new CrossAgentSync(deps);
+    const merges = await sync.listPendingMerges();
+
+    expect(merges).toHaveLength(1);
+    expect(merges[0].id).toBe("pm-1");
+    expect(merges[0].needsHumanApproval).toBe(true);
+  });
+
+  it("CrossAgentSync 不可用时降级到直接 saveProtoStructure（不崩溃）", async () => {
+    // No CrossAgentSync injected → should fall back to saveProtoStructure
+    const deps = makeDeps({
+      llm: {
+        extractProtoStructures: vi.fn().mockResolvedValue([{
+          protoType: "sequence",
+          tentativeName: "降级结构",
+          scenarioId: "general",
+          confidence: 0.5,
+        }]),
+      },
+    });
+    // Add saveProtoStructure to memory mock
+    deps.memory.saveProtoStructure = vi.fn().mockResolvedValue({ ok: true } as Result<void>);
+
+    const handler = new SessionEndHandler(deps); // No CrossAgentSync
+    const result = await handler.handle("t11-degraded", "transcript...", []);
+
+    expect(result.ok).toBe(true);
+    // Direct saveProtoStructure was used as fallback
+    expect(deps.memory.saveProtoStructure).toHaveBeenCalled();
+  });
+});

@@ -18,13 +18,21 @@ import { createVersion } from "./structure-version";
 import { StatisticalVerifier } from "./analysis/statistical-verifier";
 import { RoleVerifier } from "./analysis/role-verifier";
 import { fullPropagation } from "./structure-graph";
+import { CrossAgentSync } from "./analysis/cross-agent-sync";
 
 // ---- SessionEndHandler ----
 
 export class SessionEndHandler {
   private readonly processed = new Set<string>();
+  /** T11: 跨 Agent 乐观锁同步 (若未注入则回退到直接 saveProtoStructure) */
+  private readonly crossAgentSync: CrossAgentSync | null;
 
-  constructor(private readonly deps: M0Deps) {}
+  constructor(
+    private readonly deps: M0Deps,
+    crossAgentSync?: CrossAgentSync,
+  ) {
+    this.crossAgentSync = crossAgentSync ?? null;
+  }
 
   /**
    * 处理 session_end 事件。
@@ -156,10 +164,8 @@ export class SessionEndHandler {
             versionedCount++;
           }
 
-          // Phase 0: 持久化 (先于融合，确保结构已存储)
-          if (this.deps.memory.saveProtoStructure) {
-            await this.deps.memory.saveProtoStructure(structure as unknown as ProtoStructure);
-          }
+          // Phase 0: 持久化 (先于融合，确保结构已存储) + T11 乐观锁
+          await this.saveStructureSafe(structure as unknown as ProtoStructure);
         }
       } catch {
         this.deps.logger?.warn("ProtoStructure extraction failed", { sessionId });
@@ -213,9 +219,7 @@ export class SessionEndHandler {
               newValue: fused.confidence,
             }], `Fused confidence from ${sources.length} source(s)`, []);
             versionedCount++;
-            if (this.deps.memory.saveProtoStructure) {
-              await this.deps.memory.saveProtoStructure(structure);
-            }
+            await this.saveStructureSafe(structure);
             fusedThisRound.push({ id: structure.id, oldConfidence, newConfidence: fused.confidence });
           }
         }
@@ -241,9 +245,7 @@ export class SessionEndHandler {
                   newValue: affected.confidence,
                 }], `Propagation from ${changedId} (delta ${delta.toFixed(3)})`, []);
                 versionedCount++;
-                if (this.deps.memory.saveProtoStructure) {
-                  await this.deps.memory.saveProtoStructure(affected);
-                }
+                await this.saveStructureSafe(affected);
               }
             }
           }
@@ -266,6 +268,33 @@ export class SessionEndHandler {
   }
 
   // ---- 内部 ----
+
+  /**
+   * T11: 乐观锁写入 ProtoStructure。
+   * 优先使用 CrossAgentSync.saveWithOptimisticLock (CAS),
+   * 不可用时降级到直接 saveProtoStructure。
+   */
+  private async saveStructureSafe(structure: ProtoStructure): Promise<void> {
+    if (this.crossAgentSync) {
+      try {
+        const result = await this.crossAgentSync.saveWithOptimisticLock(structure);
+        if (!result.committed && result.pendingMergeId) {
+          this.deps.logger?.warn("CrossAgentSync conflict — staged pending_merge", {
+            structureId: structure.id,
+            pendingMergeId: result.pendingMergeId,
+            conflictVersion: result.conflictVersion,
+          });
+        }
+        return;
+      } catch {
+        // 乐观锁失败 → 降级到直接写入
+      }
+    }
+    // Fallback: direct save (no optimistic lock)
+    if (this.deps.memory.saveProtoStructure) {
+      await this.deps.memory.saveProtoStructure(structure);
+    }
+  }
 
   private async saveProtoStructureCandidate(
     sessionId: string,
