@@ -49,9 +49,7 @@
  * 通用性: 不绑定 Claude Code 或任何特定平台。
  */
 
-// 主入口
-export { CognitiveCore, SessionCognitiveCore } from "./cognitive-core";
-export type { CognitiveCoreDeps, CognitiveCoreMemoryClient } from "./cognitive-core";
+// Phase 11: CognitiveCore 已删除 — bridge 退役, 使用 EventOrchestrator (src/orchestration/orchestrator.ts)
 
 // 纯函数
 export { isRealExperience } from "./utils/signal-quality";

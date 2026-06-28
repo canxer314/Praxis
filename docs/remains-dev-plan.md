@@ -466,7 +466,7 @@ Phase 9 的 15 个模块按优先级分两批:
 
 ---
 
-## Phase 11 — 适配器补全 + 收尾 `[低优先级, 生态完善]`
+## ✅ Phase 11 — 适配器补全 + 收尾 `[已完成 2026-06-28]`
 
 ### 11.1 Hermes + Codex 适配器
 
@@ -521,7 +521,7 @@ Phase 8 重组后, cognitive/ 保留以下模块:
 | **Phase 8** (模块重组) | ✅ 已完成 2026-06-28 | hooks/ + orchestration/ + analysis/ + cognitive cleanup
 | **Phase 9** (缺失模块) | ✅ 已完成 2026-06-28 | 12 个新模块, 架构模块完整 |
 | **Phase 10** (Prompts+Types) | ✅ 已完成 2026-06-28 | 16 个文件, 基础设施完整 |
-| **Phase 11** (适配器+清理) | 小 (2 个适配器 + cognitive 最终清理) | v1.0.0.0 |
+| **Phase 11** (适配器+清理) | ✅ 已完成 2026-06-28 | 2 适配器 + cognitive 清理, v1.0.0.0 |
 
 ---
 
@@ -537,7 +537,7 @@ Phase 8 重组后, cognitive/ 保留以下模块:
 
 ---
 
-> **下一步**: Phase 11 开工 — 适配器补全 + cognitive/ 清理。Phase 5-10 已完成: 生产入口就绪, 3 验证器接入, M2 编排完整, 目录对齐 §11, 架构模块完整, 基础设施完整。
+> **状态**: ✅ 全部完成 — Phase 5-11 已交付。v1.0.0.0 里程碑达成。Praxis 架构模块完整, 基础设施完整, 5 适配器就绪, bridge 退役。
 > **架构参考**: [praxis-architecture.md](../architech/praxis-architecture.md)
 > **当前状态参考**: [ROADMAP.md](../docs/ROADMAP.md), [wiring-debt-dev-plan.md](../docs/wiring-debt-dev-plan.md)
 

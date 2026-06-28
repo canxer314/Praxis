@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.21.0.0] - 2026-06-28
+
+### Added
+- **Phase 11 Adapters + Cognitive Cleanup — v1.0.0.0 milestone:**
+  - **hermes-adapter.ts:** Hermes Agent 运行时适配器 (reuses base-adapter.ts factory, 8 lines). 9 tests.
+  - **codex-adapter.ts:** OpenAI Codex CLI 适配器 (reuses base-adapter.ts factory, 8 lines). 9 tests.
+  - Both adapters complete the §11 adapters/ module tree (5/5: adapter-interface, base-adapter, openclaw, claude-code, hermes, codex)
+
+### Removed
+- **cognitive-core.ts:** Deleted — bridge fully retired (deprecated since Phase 5 v0.16.0.0). EventOrchestrator is the sole entry point.
+- **phase1a-bridge.ts inject/message commands:** Removed CognitiveCore factory and replaced with deprecation error messages. Shadow-stats command preserved (pure function, no deps).
+
+### Changed
+- **cognitive/index.ts:** Removed CognitiveCore/SessionCognitiveCore exports. Updated doc comment.
+- **cognitive/inmemory-client.ts:** Inlined CognitiveCoreMemoryClient interface (previously imported from deleted cognitive-core.ts).
+- **types/scene.ts:** Fixed GuidanceSignal import path (from orchestration/plan-generator.ts, not cognitive/types.ts).
+
+### Notes
+- 873 tests, 71 files, typecheck clean. Zero regressions.
+- All 5 adapters now implemented per §11 module tree. Praxis is multi-runtime ready.
+- Phase 5-11 complete: dev plan fully delivered. v1.0.0.0 milestone reached.
+
 ## [0.20.1.0] - 2026-06-28
 
 ### Added
