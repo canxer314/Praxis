@@ -11,7 +11,7 @@
  * cron_tick 由 Praxis 内部定时器触发，不在适配器映射范围内。
  */
 
-import type { PraxisLifecycleEvent } from "../orchestrator";
+import type { PraxisLifecycleEvent } from "../orchestration/orchestrator";
 
 // ══════════════════════════════════════════════════════════════════
 // Praxis → Runtime 决策指令

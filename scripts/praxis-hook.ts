@@ -14,7 +14,7 @@
  */
 
 import { buildM0Deps } from "../src/m0-builder";
-import { EventOrchestrator, type PraxisLifecycleEvent } from "../src/orchestrator";
+import { EventOrchestrator, type PraxisLifecycleEvent } from "../src/orchestration/orchestrator";
 import type { Result } from "../src/platform-adapter";
 
 // ══════════════════════════════════════════════════════════════════

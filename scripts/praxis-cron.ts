@@ -11,7 +11,7 @@
  */
 
 import { buildM0Deps } from "../src/m0-builder";
-import { CronTickHandler } from "../src/cron-tick";
+import { CronTickHandler } from "../src/hooks/cron-tick";
 
 type CronCommand = "cron-tick" | "heartbeat" | "meta-audit";
 

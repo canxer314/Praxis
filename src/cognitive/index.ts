@@ -53,76 +53,14 @@
 export { CognitiveCore, SessionCognitiveCore } from "./cognitive-core";
 export type { CognitiveCoreDeps, CognitiveCoreMemoryClient } from "./cognitive-core";
 
-// 元认知引擎
-export { MetacognitiveEngine } from "./metacognitive-engine";
-export type { MetacognitiveMemoryClient } from "./metacognitive-engine";
-
-// 学习环路
-export { LearningLoop } from "./learning-loop";
-export { TaskAssessmentBuilder } from "./task-assessment";
-export { ExecutionFeedbackCollector } from "./execution-feedback";
-export { LearningUpdateBuilder } from "./learning-update";
-
 // 纯函数
 export { isRealExperience } from "./utils/signal-quality";
 export { detectCorrection } from "./signal-detector";
 export { buildContextInjection, estimateTokens } from "./context";
 export type { BuildContextInput } from "./context";
 
-// Governor: 学习决策编排器 (Phase 1)
-export { Governor } from "./governor";
-export type {
-  ClassifiedSignal,
-  GatedSignal,
-  LearningDecision,
-  GovernorStats,
-} from "./governor";
-
-// Governor 子模块 (Phase 1)
-export { classify, isKnownSignalType, listSignalTypes } from "./timing-controller";
-export type { TimingDecision, SignalType, TimingResult } from "./timing-controller";
-export {
-  advanceTask,
-  advanceSubtask,
-  isTaskTerminal,
-  isSubtaskTerminal,
-  listTaskTransitions,
-  listSubtaskTransitions,
-} from "./task-state-machine";
-export type { TaskTransitionResult, SubtaskTransitionResult } from "./task-state-machine";
-
-// ProtoTask: 零样本任务模板 (Phase 1)
-export {
-  bootstrapProtoTask,
-  getCachedProtoTask,
-  invalidateProtoTaskCache,
-  clearProtoTaskCache,
-  shouldInjectProtoTask,
-} from "./proto-task";
-export type { ProtoTask, ProtoTaskPhase, ProtoTaskPitfall, ProtoTaskLLMClient } from "./proto-task";
-
-// 记忆巩固 (Phase 2.3)
-export { MemoryConsolidator } from "./memory-consolidator";
-
 // 安全
 export { sanitizePromptFragment } from "./sanitize";
-
-// E4/E5/E6 扩展 (Phase 2)
-export { GapDetector } from "./gap-detector";
-export { StrategyRegistry, StrategyProposer, StrategyApplier } from "./strategy-registry";
-export { CrossDomainAnalyzer } from "./cross-domain-analyzer";
-
-// V13: 任务调度 (Phase 3)
-export { TaskScheduler, isInQuietHours, canParallelize, countTodayTriggers, DEFAULT_TRIGGERING_CONFIG } from "./task-scheduler";
-export type { TaskSchedulerMemoryClient, SchedulerTaskContext, SchedulerSubtask } from "./task-scheduler";
-
-// V13: 子 Agent 管理 (Phase 3b)
-export { SubagentManager, buildSubagentContext } from "./subagent-manager";
-export type { SubagentMemoryClient, SubagentExecutionAPI, SubagentTaskInfo } from "./subagent-manager";
-
-// V13: Active Driving — 心跳监控 (Phase 3c)
-export { HeartbeatMonitor } from "./heartbeat-monitor";
-export type { HeartbeatMemoryClient, HeartbeatTaskContext, HeartbeatCheckResult, StallInterventionCallback } from "./heartbeat-monitor";
 
 // Phase 0 — Scenario-Contextual Memory
 export { SEED_SCENARIOS, getSeedScenario, validateSeedScenarios } from "./scenario-registry";
@@ -140,24 +78,24 @@ export { SLOTS } from "./constants";
 export { InMemoryMemoryClient } from "./inmemory-client";
 
 // M0: 核心运行时 (v0.8.0.0+)
-export { EventOrchestrator } from "../orchestrator";
-export type { PraxisLifecycleEvent } from "../orchestrator";
-export { SessionStartHandler } from "../session-start";
-export type { SessionStartOptions } from "../session-start";
-export { SessionEndHandler } from "../session-end";
-export { MessageReceivedHandler } from "../message-received";
-export { BeforeToolCallHandler } from "../before-tool-call";
-export { AfterToolCallHandler } from "../after-tool-call";
-export { AgentEndHandler } from "../agent-end";
-export type { AgentEndSummary } from "../agent-end";
-export { CronTickHandler } from "../cron-tick";
+export { EventOrchestrator } from "../orchestration/orchestrator";
+export type { PraxisLifecycleEvent } from "../orchestration/orchestrator";
+export { SessionStartHandler } from "../hooks/session-start";
+export type { SessionStartOptions } from "../hooks/session-start";
+export { SessionEndHandler } from "../hooks/session-end";
+export { MessageReceivedHandler } from "../hooks/message-received";
+export { BeforeToolCallHandler } from "../hooks/before-tool-call";
+export { AfterToolCallHandler } from "../hooks/after-tool-call";
+export { AgentEndHandler } from "../hooks/agent-end";
+export type { AgentEndSummary } from "../hooks/agent-end";
+export { CronTickHandler } from "../hooks/cron-tick";
 export type { M0Deps, MemorySubsystem, CacheSubsystem, LLMSubsystem } from "../m0-deps";
 export { DEFAULT_AUTONOMY_POLICY, assessRiskLevel } from "../m0-deps";
 export { localCache } from "../memory/local-cache";
 export type { CacheEntry, CacheStats } from "../memory/local-cache";
 
 // M2: 上下文编排 (v0.9.0.0+)
-export { organizeContext } from "../context-organizer";
+export { organizeContext } from "../orchestration/context-organizer";
 export type {
   PressureLevel,
   MaturityLevel,
@@ -166,18 +104,18 @@ export type {
   ContextTier,
   OrganizeContextInput,
   OrganizeContextOutput,
-} from "../context-organizer";
+} from "../orchestration/context-organizer";
 
 // M2 Step 2: 压力自适应
 export {
   measurePressure,
   getInjectionStrategy,
   assessPressure,
-} from "../context-pressure-monitor";
+} from "../orchestration/context-pressure-monitor";
 export type {
   PressureReading,
   InjectionStrategy,
-} from "../context-pressure-monitor";
+} from "../orchestration/context-pressure-monitor";
 
 // M2 Step 2.2: Lazy Loading
 export {
@@ -199,13 +137,13 @@ export {
   detectUnderestimated,
   generateTelemetryReport,
   formatTelemetryReport,
-} from "../attention-telemetry";
+} from "../analysis/attention-telemetry";
 export type {
   AttentionRecord,
   ZombieDetection,
   UnderestimatedDetection,
   TelemetryReport,
-} from "../attention-telemetry";
+} from "../analysis/attention-telemetry";
 
 // M2 Step 4: TaskContext
 export {
@@ -214,13 +152,13 @@ export {
   updateTaskContext,
   isStale,
   formatTaskContext,
-} from "../task-context";
+} from "../orchestration/task-context";
 export type {
   TaskContext,
   TaskType,
   InferredProgress,
   CreateTaskContextInput,
-} from "../task-context";
+} from "../orchestration/task-context";
 
 // M2 Step 5: 语义消歧
 export {
@@ -228,11 +166,11 @@ export {
   disambiguateText,
   registerHomographs,
   formatDisambiguationHint,
-} from "../semantic-disambiguator";
+} from "../analysis/semantic-disambiguator";
 export type {
   HomographEntry,
   DisambiguationResult,
-} from "../semantic-disambiguator";
+} from "../analysis/semantic-disambiguator";
 
 // M3: 约束系统 (v0.9.1.0+)
 export {
@@ -241,18 +179,18 @@ export {
   deprecateConstraint,
   estimateConstraintTokens,
   SEVERITY_RANK,
-} from "../proto-constraint";
+} from "../orchestration/proto-constraint";
 
 // M3 Step 2: 约束注入
-export { injectConstraints } from "../constraint-injector";
+export { injectConstraints } from "../orchestration/constraint-injector";
 export type {
   InjectConstraintsInput,
   InjectConstraintsOutput,
-} from "../constraint-injector";
+} from "../orchestration/constraint-injector";
 
 // M3 Step 3: 约束验证
-export { checkConstraints } from "../constraint-validator";
-export type { ConstraintCheckResult } from "../constraint-validator";
+export { checkConstraints } from "../orchestration/constraint-validator";
+export type { ConstraintCheckResult } from "../orchestration/constraint-validator";
 
 // 全部类型
 export type * from "./types";

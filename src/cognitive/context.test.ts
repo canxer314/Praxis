@@ -5,8 +5,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { buildContextInjection } from "./context";
 import type { BuildContextInput } from "./context";
-import { GapDetector } from "./gap-detector";
-import { MetacognitiveEngine } from "./metacognitive-engine";
 import { InMemoryMemoryClient } from "./inmemory-client";
 import type { EpisodicMemory, KnowledgeGap, MetacognitiveProfile } from "./types";
 import type { Result } from "../platform-adapter";
@@ -94,75 +92,5 @@ describe("buildContextInjection", () => {
     expect(result.tier).toBe("A");
     // CJK text should survive token budget (not prematurely truncated)
     expect(result.systemPromptAddition).toContain("这是中文陷阱描述");
-  });
-});
-
-describe("GapDetector", () => {
-  function makeProfile(overrides: Partial<MetacognitiveProfile> = {}): MetacognitiveProfile {
-    return {
-      domainProficiencies: {},
-      knowledgeGaps: [],
-      calibrationHistory: [],
-      inferredPreferences: { learnsBy: "instruction", needsConfirmationFor: [] },
-      ...overrides,
-    };
-  }
-
-  it("selfRating < 0.3 且 taskCount ≥ 3 → gap detected", async () => {
-    const profile = makeProfile({
-      domainProficiencies: {
-        typescript: { selfRating: 0.25, actualAccuracy: 0.2, taskCount: 5, lastCalibrated: Date.now() },
-      },
-    });
-    const client = new InMemoryMemoryClient();
-    await client.setSlot("metacognitive_profile", profile);
-    const engine = new MetacognitiveEngine(client);
-    const detector = new GapDetector(engine);
-
-    const result = await detector.detect();
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      const allGaps = [...result.value.gaps, ...result.value.escalatedGaps.map(e => e.gap)];
-      expect(allGaps.length).toBeGreaterThan(0);
-      const tsGaps = allGaps.filter(g => g.context?.includes("typescript"));
-      expect(tsGaps.length).toBeGreaterThan(0);
-    }
-  });
-
-  it("selfRating ≥ 0.3 → no gap detected", async () => {
-    const profile = makeProfile({
-      domainProficiencies: {
-        python: { selfRating: 0.5, actualAccuracy: 0.45, taskCount: 10, lastCalibrated: Date.now() },
-      },
-    });
-    const client = new InMemoryMemoryClient();
-    await client.setSlot("metacognitive_profile", profile);
-    const engine = new MetacognitiveEngine(client);
-    const detector = new GapDetector(engine);
-
-    const result = await detector.detect();
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.gaps).toEqual([]);
-    }
-  });
-
-  it("taskCount < 3 → gap not escalated", async () => {
-    const profile = makeProfile({
-      domainProficiencies: {
-        new_domain: { selfRating: 0.2, actualAccuracy: 0.1, taskCount: 2, lastCalibrated: 0 },
-      },
-    });
-    const client = new InMemoryMemoryClient();
-    await client.setSlot("metacognitive_profile", profile);
-    const engine = new MetacognitiveEngine(client);
-    const detector = new GapDetector(engine);
-
-    const result = await detector.detect();
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      // taskCount < 3, so not yet escalated
-      expect(result.value.escalatedGaps).toEqual([]);
-    }
   });
 });

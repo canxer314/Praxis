@@ -10,7 +10,7 @@
  *   - 纯函数，无状态
  */
 
-import type { PraxisLifecycleEvent } from "../orchestrator";
+import type { PraxisLifecycleEvent } from "../orchestration/orchestrator";
 import type { AgentRuntimeAdapter, RuntimeInstruction } from "./adapter-interface";
 
 // ══════════════════════════════════════════════════════════════════

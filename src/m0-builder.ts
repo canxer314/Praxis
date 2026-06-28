@@ -19,7 +19,7 @@ import * as os from "os";
 import type { M0Deps, ProtoStructureCandidate } from "./m0-deps";
 import type { ProtoStructure } from "./cognitive/types";
 import { agentmemory } from "./agentmemory-client";
-import { TranscriptAnalyzerV2 } from "./transcript-analyzer-v2";
+import { TranscriptAnalyzerV2 } from "./analysis/transcript-analyzer-v2";
 import { llmClient } from "./llm-client";
 import { ConfidenceFuser } from "./orchestration/confidence-fuser";
 
