@@ -19,7 +19,7 @@
     "typescript": "^5.9.3",
     "vitest": "^4.1.8"
   },
-  "version": "0.17.0.0",
+  "version": "0.18.0.0",
   "dependencies": {
     "@huggingface/transformers": "^4.2.0"
   }

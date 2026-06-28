@@ -208,7 +208,7 @@ const verifiers = [new StatisticalVerifier(), new RoleVerifier()];
 
 ---
 
-## Phase 7 — T10 M2 接线 `[上下文编排落地]`
+## ✅ Phase 7 — T10 M2 接线 `[已完成 2026-06-28]`
 
 **对应架构**: §7 (四级压力 × 三档成熟度双轴, Critical Lazy Loading, TaskContext 自动进度, 跨场景消歧)
 
@@ -517,7 +517,7 @@ Phase 8 重组后, cognitive/ 保留以下模块:
 |------|-----------|---------|
 | **Phase 5** (T9) | ✅ 已完成 2026-06-28 | bridge 退役 + bun 入口脚本 + 共享 deps + B6 fix |
 | **Phase 6** (T1 完成) | ✅ 已完成 2026-06-28 | ConceptVerifier + LlmClient 适配层 + roleMap |
-| **Phase 7** (T10) | 中 (deriveMaturity + 接线 3 个模块) | M2 上下文编排完整 |
+| **Phase 7** (T10) | ✅ 已完成 2026-06-28 | deriveMaturity + disambiguateText + applyProgress |
 | **Phase 8** (模块重组) | 大 (文件移动 + import 更新 + cognitive/ 17 模块删除) | 目录结构对齐 §11 |
 | **Phase 9** (缺失模块) | 大 (15 个新模块, 直接在目标目录创建) | 架构模块完整 |
 | **Phase 10** (Prompts+Types) | 中 (17 个文件) | 基础设施完整 |
@@ -537,7 +537,7 @@ Phase 8 重组后, cognitive/ 保留以下模块:
 
 ---
 
-> **下一步**: Phase 7 开工 — deriveMaturity + recallStructure + applyProgress + disambiguate 接线。Phase 5+6 已完成: 生产入口就绪, 3 验证器全部接入, LLM 自评循环被打破。
+> **下一步**: Phase 8 开工 — 模块重组 (平铺 → §11 目录结构)。Phase 5-7 已完成: 生产入口就绪, 3 验证器全部接入, M2 上下文编排完整。
 > **架构参考**: [praxis-architecture.md](../architech/praxis-architecture.md)
 > **当前状态参考**: [ROADMAP.md](../docs/ROADMAP.md), [wiring-debt-dev-plan.md](../docs/wiring-debt-dev-plan.md)
 
