@@ -4,6 +4,7 @@
  * 从 phase1a-bridge.ts 提取 buildM0Deps(), 供:
  *   - scripts/praxis-hook.ts (per-hook 入口)
  *   - scripts/praxis-cron.ts (cron-tick 入口)
+ *   - phase1a-bridge.ts (旧入口, 保持 30 天兼容)
  * 共用。
  *
  * 使用方式:
