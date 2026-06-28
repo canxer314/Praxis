@@ -25,6 +25,9 @@ import { MidSessionLearner } from "./analysis/mid-session-learner";
 import { SessionStateStore, type SessionStateSnapshot } from "./session-state-store";
 import { quickCheck, deepCheck, isProtoSequence } from "./analysis/teleological-judge";
 import { CrossAgentSync } from "./analysis/cross-agent-sync";
+import { deriveMaturity } from "./maturity";
+import { disambiguateText } from "./semantic-disambiguator";
+import { applyProgress } from "./task-context";
 import type { ProtoSequence } from "./cognitive/types";
 
 // ══════════════════════════════════════════════════════════════════
@@ -112,7 +115,26 @@ export class EventOrchestrator {
       midSessionLearner: new MidSessionLearner(),
       corrections: [],
     });
-    const result = await this.sessionStart.handle(sessionId, opts);
+
+    // Phase 7: deriveMaturity — 从 session 计数推导认知成熟度, 传入 session_start
+    let sessionCount = 0;
+    try {
+      const countResult = await this.deps.memory.getSlot("session_count");
+      if (countResult.ok && typeof countResult.value === "number") {
+        sessionCount = countResult.value;
+      }
+    } catch { /* slot 不可用 → 默认 0 */ }
+    const maturity = deriveMaturity(sessionCount);
+
+    const result = await this.sessionStart.handle(sessionId, {
+      ...opts,
+      maturity,
+    });
+
+    // Phase 7: 递增 session 计数并持久化
+    try {
+      await this.deps.memory.setSlot("session_count", sessionCount + 1);
+    } catch { /* 写入失败不阻塞 session_start */ }
     // M3: 加载已结晶约束到 before_tool_call 处理器
     if (result.ok && result.value.tieredContext?.criticalConstraints) {
       this.beforeToolCall.loadConstraints(
@@ -144,6 +166,23 @@ export class EventOrchestrator {
 
   async handleMessageReceived(sessionId: string, message: { role: "user" | "assistant"; content: string }) {
     const state = await this.getOrCreateState(sessionId);
+
+    // Phase 7: 跨场景语义消歧 — 对用户消息进行同形异义词消歧
+    if (message.role === "user" && message.content.length > 0) {
+      try {
+        const scenarios = state.structures
+          .filter(s => s.scenarioId)
+          .map(s => ({ scenarioId: s.scenarioId!, confidence: s.confidence, source: "llm_inference" as const }));
+        const results = disambiguateText(message.content, scenarios);
+        if (results.length > 0) {
+          this.deps.logger?.info("Semantic disambiguation applied", {
+            sessionId,
+            termsDisambiguated: results.length,
+          });
+        }
+      } catch { /* 消歧失败不阻塞消息处理 */ }
+    }
+
     const handler = new MessageReceivedHandler(this.deps, state.pendingSignals);
     const cmdResult = await handler.handle(sessionId, message);
     // M5.5: /praxis command → return response to caller
@@ -273,6 +312,30 @@ export class EventOrchestrator {
 
   async handleSessionEnd(sessionId: string, transcript?: string) {
     const state = await this.getOrCreateState(sessionId);
+
+    // Phase 7: TaskContext 自动进度推断 — 加载 → LLM 推断 → applyProgress → 持久化
+    try {
+      const tcResult = await this.deps.memory.getSlot("task_context");
+      if (tcResult.ok && tcResult.value) {
+        const taskCtx = tcResult.value as Record<string, unknown>;
+        // 尝试 LLM 推断进度 (confidence < 0.7 不自动更新已在 applyProgress 内处理)
+        const llm = this.deps.llm;
+        if (llm?.analyze && transcript && typeof taskCtx.task_id === "string") {
+          try {
+            const progressResult = await llm.analyze(
+              `Based on this session transcript, infer task progress for "${taskCtx.task_name ?? taskCtx.task_id}". Return JSON: {"phase":"...","progress_summary":"...","confidence":0.X}`,
+            );
+            if (progressResult.ok && progressResult.value) {
+              const inferred = JSON.parse(progressResult.value);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const { updated } = applyProgress(taskCtx as any, inferred);
+              await this.deps.memory.setSlot("task_context", updated);
+            }
+          } catch { /* LLM 推断失败不阻塞 session_end */ }
+        }
+      }
+    } catch { /* TaskContext 不可用不阻塞 */ }
+
     // Drain midSessionSources before passing to session-end
     const midSources = [...state.midSessionSources];
     // Phase 0: 传入注入的结构 + MidSession 信号源

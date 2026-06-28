@@ -570,3 +570,65 @@ describe("SessionStartHandler (B6 — teleologicalMapping)", () => {
     }
   });
 });
+
+// ══════════════════════════════════════════════════════════════════
+// Phase 7: deriveMaturity wiring + recallStructure (Critical Lazy Loading)
+// ══════════════════════════════════════════════════════════════════
+
+describe("SessionStartHandler (Phase 7 — deriveMaturity)", () => {
+  it("传入 estimatedUsedTokens > 90% → pressure=critical → tieredContext 仍生成", async () => {
+    const deps = makeDeps();
+    deps.memory.getSlot = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { domainProficiencies: { ts: { selfRating: 0.8, taskCount: 12 } } },
+    } as Result<unknown>);
+    deps.memory.smartSearch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          { id: "ps1", tentativeName: "高置信结构", protoType: "concept", confidence: 0.9, scenarioId: "general" },
+        ],
+      } as Result<unknown[]>);
+
+    const handler = new SessionStartHandler(deps);
+    // 模拟 95% 上下文占用 → Critical 压力
+    const result = await handler.handle("phase7-critical", {
+      estimatedUsedTokens: 950_000,
+      contextWindowSize: 1_000_000,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok && result.value.tieredContext) {
+      expect(result.value.tieredContext.meta.pressure).toBe("critical");
+    }
+  });
+
+  it("maturity 选项传入后正确反映在 tieredContext 中", async () => {
+    const deps = makeDeps();
+    deps.memory.getSlot = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { domainProficiencies: { ts: { selfRating: 0.8, taskCount: 12 } } },
+    } as Result<unknown>);
+    deps.memory.smartSearch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          { id: "ps1", tentativeName: "测试结构", protoType: "concept", confidence: 0.9, scenarioId: "general" },
+        ],
+      } as Result<unknown[]>);
+
+    const handler = new SessionStartHandler(deps);
+    const result = await handler.handle("phase7-maturity", { maturity: "expert" });
+
+    expect(result.ok).toBe(true);
+    if (result.ok && result.value.tieredContext) {
+      expect(result.value.tieredContext.meta.maturity).toBe("expert");
+    }
+  });
+});
