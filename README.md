@@ -2,7 +2,7 @@
 
 赋予 LLM 跨会话记忆、学习和任务编排能力。Praxis 在无状态 LLM 与外部世界之间作为中间件运行，让 AI 不再每次都从零开始。
 
-**当前版本**: `v0.21.0.0` | **v1.0.0.0 里程碑已达成** | **873 tests, 71 files, typecheck clean**
+**当前版本**: `v1.0.0.0` | **873 tests, 71 files, typecheck clean**
 
 ---
 

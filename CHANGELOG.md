@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.21.0.0] - 2026-06-28
+## [1.0.0.0] - 2026-06-28
 
 ### Added
 - **Phase 11 Adapters + Cognitive Cleanup — v1.0.0.0 milestone:**
