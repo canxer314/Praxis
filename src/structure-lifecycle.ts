@@ -10,6 +10,7 @@
  */
 
 import type { ProtoStructure, LifecycleStage } from "./cognitive/types";
+import { QuineanGating, type GatingContext } from "./analysis/quinean-gating";
 
 // ══════════════════════════════════════════════════════════════════
 // 状态机核心
@@ -76,7 +77,10 @@ export function transition(
  * 检查基础结晶化条件 (M1 实现的 2/6 条件)
  * M4 补充条件 3-6
  */
-export function canCrystallize(structure: ProtoStructure): {
+export function canCrystallize(
+  structure: ProtoStructure,
+  opts?: { gatingContext?: GatingContext },
+): {
   allowed: boolean;
   blockedBy: string[];
 } {
@@ -92,8 +96,18 @@ export function canCrystallize(structure: ProtoStructure): {
     blocked.push(`观察次数不足: ${structure.observationsCount} < 5`);
   }
 
-  // 门控 3-5: 预留 (M4 实现)
-  // 必要性/充分性/奥卡姆剃刀 — 需要统计验证器数据
+  // 门控 3-5: 奎因式门控 (necessity / sufficiency / parsimony)
+  // 仅当调用方提供 gatingContext (遥测数据) 时运行 — 需要统计验证器/注意力遥测数据。
+  // 无 context 时跳过 (无法评估) — 不阻塞；调用方应在积累足够数据后再结晶化。
+  // 这修复了 M4.4: 此前一个高置信度但从不被使用的"僵尸结构"会通过门控 1-2 直接结晶化,
+  // 违反 §3 充分性检验。现在带 context 时会被 QuineanGating 拒绝。
+  if (opts?.gatingContext) {
+    const gating = new QuineanGating();
+    const result = gating.check(structure, opts.gatingContext);
+    if (!result.passed) {
+      blocked.push(...result.blockedBy);
+    }
+  }
   // 门控 6: 人类审批 — 外部调用
 
   return {
@@ -158,13 +172,7 @@ export interface CrystallizationVerifier {
   checkParsimony(structure: ProtoStructure): Promise<boolean>;
 }
 
-/** M1 stub — M4 注入真实实现 */
-let verifier: CrystallizationVerifier | null = null;
-
-export function setVerifier(v: CrystallizationVerifier): void {
-  verifier = v;
-}
-
-export function getVerifier(): CrystallizationVerifier | null {
-  return verifier;
-}
+// NOTE (T2/M4.4): QuineanGating is now wired directly into canCrystallize via an
+// explicit `gatingContext` param, so the previous module-global `verifier` singleton
+// (a process-shared mutable field that violated session isolation — see T13) has been
+// removed. Callers pass telemetry context per-call instead of mutating global state.

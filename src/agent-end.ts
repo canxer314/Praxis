@@ -107,21 +107,23 @@ export class AgentEndHandler {
       }
     }
 
-    // M6 Fix-1: deepCheck teleological 分析 (异步, 不阻塞)
+    // M6 Fix-1: deepCheck teleological 分析 — 并行执行 (T19: 此前为顺序 await,
+    // N 个纠正会阻塞 agent_end N×LLM 延迟; 现在并行, 阻塞降至 ~1×延迟)。
+    // 真正的 fire-and-forget 需要 EventOrchestrator 单进程模型 (T9)。
     let teleologicalChecks = 0;
     if (this.correctionPairs.length > 0 && this.llmForDeepCheck) {
+      const llm = this.llmForDeepCheck; // capture non-null locally (closure does not narrow `this`)
       const sequenceMap = new Map(this.protoSequences.map(s => [s.id, s]));
-      for (const pair of this.correctionPairs) {
-        const sequence = sequenceMap.get(pair.sequenceId);
-        if (!sequence) continue;
-        try {
-          const judgment = await deepCheck(sequence, pair.correctionText, this.llmForDeepCheck);
+      const settled = await Promise.allSettled(
+        this.correctionPairs.map(async (pair) => {
+          const sequence = sequenceMap.get(pair.sequenceId);
+          if (!sequence) return false;
+          const judgment = await deepCheck(sequence, pair.correctionText, llm);
           await this.writeTeleologicalAuditLog(pair.sequenceId, pair.correctionText, judgment);
-          teleologicalChecks++;
-        } catch {
-          // deepCheck 失败不阻塞 agent_end
-        }
-      }
+          return true;
+        }),
+      );
+      teleologicalChecks = settled.filter((r) => r.status === "fulfilled" && r.value === true).length;
     }
 
     this.deps.logger?.info("agent_end summary", {

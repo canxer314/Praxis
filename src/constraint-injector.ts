@@ -68,13 +68,24 @@ export function injectConstraints(input: InjectConstraintsInput): InjectConstrai
   // 按 severity 降序排序: block → confirm → warn
   const sorted = sortBySeverity(constraints);
 
-  // Token 预算控制: 超出时按 severity 截断
+  // Token 预算控制: 超出时按 severity 截断 — 但 NEVER 丢弃 block 级约束
+  // (T20: 安全护栏不可因 token 预算被静默丢弃; warn 先丢, 再 confirm, block 永留)。
   const estimated = estimateConstraintTokens(sorted);
   let selected = sorted;
   if (estimated > maxTokens) {
-    // 保留 severity 更高的约束（已排序，前面的优先级更高）
-    const maxCount = Math.max(1, Math.floor(maxTokens / 40));
-    selected = sorted.slice(0, maxCount);
+    const PER = 40; // 与 estimateConstraintTokens 估算一致
+    const kept: ProtoConstraint[] = [];
+    let used = 0;
+    for (const c of sorted) {
+      if (c.severity === "block") { kept.push(c); used += PER; } // 全部 block, 无论预算
+    }
+    for (const c of sorted) {
+      if (c.severity === "confirm" && used + PER <= maxTokens) { kept.push(c); used += PER; }
+    }
+    for (const c of sorted) {
+      if (c.severity === "warn" && used + PER <= maxTokens) { kept.push(c); used += PER; }
+    }
+    selected = kept;
   }
 
   // 格式化

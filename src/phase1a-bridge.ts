@@ -28,7 +28,8 @@ import { readCache, writeCache, checkCache } from "./cognitive/scenario-cache";
 import { embed } from "./cognitive/embedding";
 import { SEED_SCENARIOS } from "./cognitive/scenario-registry";
 import type { ScenarioCacheEntry } from "./cognitive/scenario-cache";
-import type { M0Deps } from "./m0-deps";
+import type { M0Deps, ProtoStructureCandidate } from "./m0-deps";
+import { ConfidenceFuser } from "./orchestration/confidence-fuser";
 
 // ---- CognitiveCore 工厂 (T8) ----
 
@@ -364,8 +365,49 @@ function appendShadowDecision(record: ShadowDecisionRecord): void {
 
 // ---- M0Deps 适配器 — 将 agentmemory 包装为 M0 标准接口 ----
 
+/**
+ * M1.5: LLM-backed ProtoStructure extraction (partial impl — full T7 follow-up).
+ * Prompts the LLM for candidates as strict JSON, validates protoType, and falls
+ * back to [] on ANY parse/shape failure — never emits garbage structures.
+ */
+async function extractProtoStructuresViaLLM(transcript: string): Promise<ProtoStructureCandidate[]> {
+  if (!transcript || transcript.trim().length === 0) return [];
+  const prompt =
+    "Analyze the following session transcript and extract ProtoStructure candidates. " +
+    "Return ONLY a JSON array (no prose, no markdown fences). Each element must have: " +
+    '{"protoType":"sequence"|"role"|"concept"|"purpose"|"constraint","tentativeName":string,' +
+    '"scenarioId":string,"confidence":0.0-1.0}. Optional: steps:[{position,action,agent?}], ' +
+    "purpose, severity, definition, behaviors:[string]. Focus on ProtoSequence first. " +
+    "Omit fields that don't apply.\n\nTranscript:\n" + transcript.slice(0, 12000);
+  const result = await llmClient.analyze(prompt);
+  if (!result.ok || !result.value) return [];
+  try {
+    const parsed: unknown = JSON.parse(result.value);
+    if (!Array.isArray(parsed)) return [];
+    const validTypes = new Set(["sequence", "role", "concept", "purpose", "constraint"]);
+    return parsed
+      .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null)
+      .filter((c) => validTypes.has(String(c.protoType)))
+      .map((c) => ({
+        protoType: String(c.protoType) as ProtoStructureCandidate["protoType"],
+        tentativeName: String(c.tentativeName ?? ""),
+        scenarioId: String(c.scenarioId ?? ""),
+        confidence: typeof c.confidence === "number" ? c.confidence : 0.3,
+        steps: Array.isArray(c.steps) ? (c.steps as ProtoStructureCandidate["steps"]) : undefined,
+        purpose: c.purpose !== undefined ? String(c.purpose) : undefined,
+        severity: c.severity !== undefined ? String(c.severity) : undefined,
+        definition: c.definition !== undefined ? String(c.definition) : undefined,
+        behaviors: Array.isArray(c.behaviors) ? c.behaviors.map(String) : undefined,
+      }))
+      .filter((c) => c.tentativeName.length > 0);
+  } catch {
+    return []; // LLM returned non-JSON — no garbage.
+  }
+}
+
 function buildM0Deps(): M0Deps {
   const cacheDir = MEMORY_DIR;
+  const analyzer = new TranscriptAnalyzerV2(llmClient);
 
   return {
     memory: {
@@ -389,6 +431,8 @@ function buildM0Deps(): M0Deps {
         const confidence = Number(lesson.confidence ?? 0.8);
         return agentmemory.saveLesson(content, tags, confidence);
       },
+      saveProtoStructure: async (structure: Record<string, unknown>) =>
+        agentmemory.saveProtoStructure(structure),
     },
     cache: {
       get: (key: string) => {
@@ -423,6 +467,13 @@ function buildM0Deps(): M0Deps {
         } catch { /* 忽略 */ }
       },
     },
+    llm: {
+      analyzeTranscript: (t: string) => analyzer.analyze(t),
+      extractProtoStructures: (t: string) => extractProtoStructuresViaLLM(t),
+      analyze: (prompt: string) => llmClient.analyze(prompt),
+    },
+    fuser: new ConfidenceFuser(),
+    attentionRecords: new Map(),
   };
 }
 

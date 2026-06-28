@@ -25,10 +25,9 @@ export type MaturityLevel = "novice" | "competent" | "expert";
 const CRITICAL_FREE_THRESHOLD = 50_000;
 /** 上下文窗口大小低于此值 → High */
 const HIGH_FREE_THRESHOLD = 100_000;
-/** 上下文窗口大小低于此值 → Elevated */
-const ELEVATED_FREE_THRESHOLD = 250_000;
-/** 高于此值 → Normal */
-// (> ELEVATED_FREE_THRESHOLD is Normal)
+/** 上下文窗口大小低于此值 → Elevated (§7/§9: Normal requires > 400K free) */
+const ELEVATED_FREE_THRESHOLD = 400_000;
+/** 高于此值 → Normal (> ELEVATED_FREE_THRESHOLD = > 400K free) */
 
 /** 默认上下文窗口大小 (1M token 模型) */
 const DEFAULT_CONTEXT_WINDOW = 1_000_000;
