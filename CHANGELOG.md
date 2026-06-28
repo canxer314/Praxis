@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.20.0.0] - 2026-06-28
+
+### Added
+- **Phase 9 Missing Architecture Modules — 12 new modules completing §11 module tree:**
+  - **orchestration/plan-generator.ts (P0):** ProtoTask + TaskContext → PlanDocument. Generates executable plans with phases, subtasks, criteria, guidance signals, and pitfalls. 12 tests.
+  - **orchestration/verifier.ts (P1):** 5 verification criteria (command_output, file_existence, test_pass, llm, user_approval). Command whitelist. 21 tests.
+  - **orchestration/progress-tracker.ts (P2):** Progress event collection from after_tool_call + agent_end. Summary generation. 11 tests.
+  - **orchestration/pitfall-matcher.ts (P2):** CJK 2-gram keyword matching for real-time pitfall detection. Minimum 2-keyword threshold to avoid false positives. 7 tests.
+  - **analysis/pitfall-learner.ts (P1):** Pitfall hit recording + false-positive rate control (>30% auto-downgrade severity). 14 tests.
+  - **analysis/consistency-checker.ts (P2):** Cross-structure contradiction detection (known_contradiction, constraint_paradox, name_collision). 6 tests.
+  - **analysis/degradation-checker.ts (P2):** Degradation condition detection (stale, low_confidence, superseded). 12 tests.
+  - **analysis/config-adapter.ts (P2):** GovernancePolicy runtime adaptation based on session maturity (threshold, curiosity mode, max subagents). 7 tests.
+  - **memory/slots.ts (P1):** Centralized AgentMemory slot names + metadata (description, maxSize, schemaVersion). resolveSlotName() for dynamic slots. 14 tests.
+  - **memory/schemas.ts (P1):** JSON Schema definitions for ProtoStructure, ProtoTask, CompetencyModel, TaskContext. Lightweight validation (zero deps). 18 tests.
+  - **memory/queries.ts (P2):** Composite query builders for AgentMemory smart_search. 4 tests.
+  - **files/plan-file-writer.ts (P2):** Planning-with-files compatible markdown formatters (task_plan.md, progress.md, findings.md). 7 tests.
+
+### Notes
+- All 12 modules created directly in target directories per Phase 8 reorganization (`src/orchestration/`, `src/analysis/`, `src/memory/`, `src/files/`).
+- Strict TDD: every module has a test file written first, watched it fail (module not found), then implemented.
+- Zero regressions: all 815 existing tests continue to pass.
+- `src/files/` directory created as new top-level module directory.
+
 ## [0.19.0.0] - 2026-06-28
 
 ### Changed
