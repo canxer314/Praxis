@@ -10,7 +10,7 @@
  */
 
 import { log, logDegraded } from "./logger";
-import type { PraxisLifecycleEvent } from "./orchestrator";
+import type { PraxisLifecycleEvent } from "./orchestration/orchestrator";
 
 // ---- 类型 ----
 

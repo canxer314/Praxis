@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.19.0.0] - 2026-06-28
+
+### Changed
+- **Phase 8 Module Reorganization — 平铺 → §11 目录结构:**
+  - `src/hooks/`: 7 handlers moved (session-start, session-end, before-tool-call, after-tool-call, agent-end, message-received, cron-tick)
+  - `src/orchestration/`: 9 modules consolidated (orchestrator, context-organizer, context-pressure-monitor, task-context, session-state-store, maturity, proto-constraint, constraint-injector, constraint-validator)
+  - `src/analysis/`: 8 modules consolidated (transcript-analyzer, transcript-analyzer-v2, attention-telemetry, semantic-disambiguator, structure-lifecycle, structure-graph, structure-version, llm-adapter)
+  - `src/cognitive/`: 17 dead modules deleted (governor, gap-detector, heartbeat-monitor, proto-task, metacognitive-engine, learning-loop, task-assessment, execution-feedback, learning-update, memory-consolidator, cross-domain-analyzer, strategy-registry, subagent-manager, task-scheduler, task-state-machine, timing-controller + tests)
+  - `cognitive-core.ts`: reduced to minimal bridge stub
+  - `scripts/`: import paths updated for new module locations
+- 682 tests, 55 files, typecheck clean. No behavioral changes.
+
 ## [0.18.0.0] - 2026-06-28
 
 ### Added

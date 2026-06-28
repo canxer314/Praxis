@@ -9,7 +9,7 @@
 import type { Result } from "./platform-adapter";
 import type { AutonomyPolicy, PendingSignal, ProtoStructure } from "./cognitive/types";
 import type { ConfidenceFuser } from "./orchestration/confidence-fuser";
-import type { AttentionRecord } from "./attention-telemetry";
+import type { AttentionRecord } from "./analysis/attention-telemetry";
 
 // ══════════════════════════════════════════════════════════════════
 // 记忆子系统

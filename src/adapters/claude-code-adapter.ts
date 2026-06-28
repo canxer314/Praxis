@@ -20,7 +20,7 @@
  *   SessionEnd / PreCompact → session_end (partial)
  */
 
-import type { PraxisLifecycleEvent } from "../orchestrator";
+import type { PraxisLifecycleEvent } from "../orchestration/orchestrator";
 import type { AgentRuntimeAdapter } from "./adapter-interface";
 import { createBaseAdapter } from "./base-adapter";
 

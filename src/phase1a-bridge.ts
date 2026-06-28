@@ -19,9 +19,9 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { SessionStartHandler } from "./session-start";
-import { SessionEndHandler } from "./session-end";
-import { TranscriptAnalyzerV2 } from "./transcript-analyzer-v2";
+import { SessionStartHandler } from "./hooks/session-start";
+import { SessionEndHandler } from "./hooks/session-end";
+import { TranscriptAnalyzerV2 } from "./analysis/transcript-analyzer-v2";
 import { llmClient } from "./llm-client";
 import { agentmemory } from "./agentmemory-client";
 import { Result, LearningEvent } from "./platform-adapter";

@@ -2,7 +2,7 @@
 // Wall time of `tsx scripts/bench-hook-latency.ts` = tsx startup + Praxis import + route + exit.
 // This is the per-hook latency Claude Code would see on every tool call (the D1 variable).
 
-import { EventOrchestrator } from "../src/orchestrator";
+import { EventOrchestrator } from "../src/orchestration/orchestrator";
 
 async function main(): Promise<void> {
   // Minimal in-memory deps — no real AgentMemory I/O (measures pure route cost).

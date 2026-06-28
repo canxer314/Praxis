@@ -15,7 +15,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import type { MemorySubsystem } from "./m0-deps";
-import type { SessionStateSnapshot } from "./session-state-store";
+import type { SessionStateSnapshot } from "./orchestration/session-state-store";
 
 // ══════════════════════════════════════════════════════════════════
 // 类型

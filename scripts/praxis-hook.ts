@@ -14,7 +14,7 @@
  */
 
 import { buildM0Deps } from "../src/m0-builder";
-import { EventOrchestrator, type PraxisLifecycleEvent } from "../src/orchestrator";
+import { EventOrchestrator, type PraxisLifecycleEvent } from "../src/orchestration/orchestrator";
 import type { Result } from "../src/platform-adapter";
 
 // ══════════════════════════════════════════════════════════════════
@@ -201,29 +201,26 @@ async function main(): Promise<void> {
     const result = await runHook(ctx, deps);
 
     if (result.ok) {
-      // SessionStart: 输出注入文本
+      // SessionStart: stdout is the context injection mechanism — Claude Code inlines it
       if (ctx.hookType === "session_start" && result.value) {
         const injection = result.value as Record<string, unknown>;
         if (injection.tieredContext) {
-          // 输出格式化的上下文注入
           const tc = injection.tieredContext as Record<string, unknown>;
           const meta = tc.meta as Record<string, unknown> | undefined;
           console.log(`## Praxis Context
 ### Capability
 - Overall: ${(injection.competency as Record<string, number>)?.overallProficiency ?? 0.5} | Context pressure: ${meta?.pressure ?? "normal"}
 [Praxis Phase5] 注入验证码: PRAXIS-5-OK-${ctx.sessionId.slice(0, 4)}`);
-        } else {
-          console.log(`[Praxis Phase5] session_start OK — ${ctx.sessionId}`);
         }
-      } else if (ctx.hookType === "session_end") {
-        const val = result.value as Record<string, number> | undefined;
-        console.log(`[Praxis Phase5] session_end OK — lessons:${val?.lessonsWritten ?? 0} fused:${val?.fusedCount ?? 0} versioned:${val?.versionedCount ?? 0}`);
       } else {
-        console.log(`[Praxis Phase5] ${ctx.hookType} OK — ${ctx.sessionId}`);
+        // All other hooks: output JSON to match Claude Code's JSON expectation
+        // (avoids the known Stop hook false-error bug: anthropics/claude-code#10463)
+        const val = result.value as Record<string, unknown> | undefined;
+        console.log(JSON.stringify({ ok: true, hook: ctx.hookType, sessionId: ctx.sessionId, ...val }));
       }
       process.exit(0);
     } else {
-      console.error(`[Praxis] ${ctx.hookType} FAILED: ${result.error.message}`);
+      console.error(JSON.stringify({ ok: false, hook: ctx.hookType, error: result.error.message }));
       process.exit(1);
     }
   } catch (err) {
