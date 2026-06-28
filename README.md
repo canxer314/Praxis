@@ -1,33 +1,37 @@
 # Praxis v1.0.0.0
 
-> **AI 终于有记忆了。**  
-> Praxis 是 AI 的大脑皮层——一个在 LLM 与外部世界之间运行的认知中间件。  
-> 它让 AI 跨会话记住经验、从错误中学习、在执行前阻止违规，不再每次都从零开始。
+> **存在就是成为约束变元的值。** — 威拉德·范·奥曼·奎因
 
 ---
 
-## 它解决了什么问题？
+## AI 终于知道"自己相信什么"了。
 
-今天所有 AI 都是**无状态**的——每次对话结束，学到的东西全部归零。  
-Praxis 改变了这一点：
+今天所有的 AI 都是**哲学上的唯名论者**——它们处理每一个 token，但从不承认任何"共相"的真实存在。每次对话结束，所有学到的模式、发现的规律、建立的因果理解——全部归零。下一次对话，从头开始。
+
+**这不是工程缺陷。这是范畴错误。**
+
+AI 缺少的不是更大的上下文窗口，不是更快的推理速度，不是一个更好的 prompt 模板。它缺少的是**本体论承诺**——一套明确声明"我相信这些实体存在，以这个置信度，基于这些证据，随时准备被推翻"的认知框架。
+
+**Praxis 就是这套框架。**
+
+它是 AI 的大脑皮层——一个在 LLM 与外部世界之间的**概率化、自我演化的计算本体论引擎**。它从对话和工具调用中自动提取结构化知识（ProtoStructure），赋予置信度，在下次任务前注入 LLM 上下文。学到的模式带置信度、带版本历史、带关系依赖——不是"记住了什么"，而是"相信什么，以及为什么相信"。
+
+---
+
+## 一句话：它改变了什么？
 
 | 没有 Praxis | 有 Praxis |
 |------------|----------|
-| 每次任务从零开始 | 自动加载上次学到的经验 |
-| 重复犯同样的错误 | `before_tool_call` 拦截已知违规 |
-| LLM 自评不可靠 | 7 个独立信号源验证置信度 |
-| 上下文爆炸时全丢 | 4 级压力自适应 + 按需加载 |
-| 不知道学了什么 | `/praxis ontology` 查看全部认知结构 |
+| AI 是唯名论者——只看到 token，不承认模式 | AI 是概念论者——从 token 中提取结构，赋予置信度 |
+| 每次对话归零 | 跨会话知识积累，置信度随证据增长 |
+| 重复犯同样的错误 | `before_tool_call` 在犯错前拦截已知违规 |
+| LLM 自评自己的输出质量 | 7 个独立信号源加权融合——打破 LLM 自评循环 |
+| 上下文不够时随机丢弃 | 4 级压力自适应 + 结构索引 + 按需拉取 |
+| 不知道"自己相信什么" | `/praxis ontology` — 可审计的本体论承诺清单 |
 
 ---
 
 ## 5 分钟上手
-
-### 前置条件
-
-- **Claude Code** (或其他支持的 Agent 运行时)
-- **bun** (`irm bun.sh/install.ps1 | iex` 或 `curl -fsSL https://bun.sh/install | bash`)
-- **AgentMemory** (可选 — 无 AgentMemory 时以 local-cache 降级模式运行)
 
 ### 安装
 
@@ -36,153 +40,149 @@ Praxis 改变了这一点：
 .\scripts\install.ps1
 
 # macOS / Linux
-chmod +x scripts/install.sh && ./scripts/install.sh
+./scripts/install.sh
 ```
 
-安装脚本自动完成：
-1. 检测/安装 bun 运行时
-2. 安装 npm 依赖
-3. 注册 Claude Code hooks (SessionStart / Stop / UserPromptSubmit)
-4. 配置 AgentMemory MCP 连接（可选）
-5. 在 `.claude/settings.json` 中写入完整配置
-
-### 手动配置
-
-如果你使用不同的 Agent 运行时，手动设置：
-
-**Claude Code** — 在 `.claude/settings.json` 中添加:
-
-```json
-{
-  "hooks": {
-    "SessionStart": [{
-      "hooks": [{
-        "type": "command",
-        "command": "bun scripts/praxis-hook.ts session_start \"$CLAUDE_SESSION_ID\"",
-        "shell": "powershell"
-      }]
-    }],
-    "Stop": [{
-      "hooks": [{
-        "type": "command",
-        "command": "bun scripts/praxis-hook.ts agent_end \"$CLAUDE_SESSION_ID\"",
-        "shell": "powershell"
-      }]
-    }],
-    "UserPromptSubmit": [{
-      "hooks": [{
-        "type": "command",
-        "command": "bun scripts/praxis-hook.ts message_received \"$CLAUDE_SESSION_ID\"",
-        "shell": "powershell",
-        "timeout": 45
-      }]
-    }]
-  }
-}
-```
-
-**OpenClaw / Hermes / Codex** — 使用对应的适配器:
-
-```ts
-import { EventOrchestrator, buildM0Deps } from "@praxis/cognitive-core";
-import { openclawAdapter } from "./adapters/openclaw-adapter";
-
-const deps = buildM0Deps();
-const orch = new EventOrchestrator(deps);
-
-// 将你的运行时事件映射到 Praxis
-const event = openclawAdapter.mapToSessionStart(rawEvent);
-await orch.route(event);
-```
+安装脚本自动完成：bun 检测 → 依赖安装 → Claude Code hooks 注册 → AgentMemory 配置（可选）。
 
 ### 第一个 Session
 
-重启 Claude Code 后，Praxis 自动工作。首次 `session_start` 会初始化认知引擎：
+重启 Claude Code。Praxis 在后台工作——你看不到它，但它会记住你教它的一切。
 
 ```
-[Praxis Phase5] session_start OK — session-count: 1, maturity: novice, pressure: normal
+[Praxis] session_start OK — session-count: 1, maturity: novice
 ```
 
-发送几条消息后，`session_end` 自动提取学习：
+几轮对话后，`session_end` 自动提取学习：
 
 ```
-[Praxis Phase5] session_end OK — fused: 3 structures, lessons: 2, progress: updated
+[Praxis] session_end OK — fused: 3 structures, confidence: 0.45→0.52
 ```
 
-### 查看学习成果
+### 查看 Praxis 相信什么
 
 ```bash
-# 查看所有认知结构
-/praxis ontology
-
-# 查看能力模型
-/praxis status
-
-# 查看审计报告
-/praxis audit
+/praxis ontology    # 所有认知结构 + 置信度 + 证据
+/praxis status      # 8D 能力模型 + 成长轨迹
+/praxis audit       # 僵尸结构 / 低估结构 / 约束违反统计
 ```
 
 ---
 
-## 它学什么？
+## 核心洞察
 
-Praxis 从对话和工具调用中自动提取 **5 种认知结构**：
+### 1. 知识不是记住的，是结晶化的
 
-| 结构 | 学到什么 | 例子 |
-|------|---------|------|
-| **ProtoSequence** | 行为序列模式 | "这个项目部署流程是: lint→test→build→deploy→verify" |
-| **ProtoConstraint** | 绝对不能做的事 | "数据库迁移前必须先备份" |
-| **ProtoConcept** | 领域概念定义 | "分诊是指根据病情紧急程度分配就诊优先级" |
-| **ProtoRole** | 谁负责什么 | "后端负责 API，前端负责 UI，DevOps 负责部署" |
-| **ProtoPurpose** | 为什么做、成功标准 | "代码审查的目的是发现盲区，不是找茬" |
+Praxis 的核心数据结构叫 **ProtoStructure**——一种从对话和工具调用中提取的概率化、可演化的结构模式。它不是传统的知识图谱（人类手工定义，静态，确定性），而是由 LLM 从观察中自动提取的，带置信度，随时间演化，可被推翻。
 
-每个结构带**置信度**（0-1），由 7 个独立信号源加权融合——不依赖 LLM 自评。  
-置信度低于 0.2 的结构不会注入，高于 0.8 的结晶化为硬约束。
+五种类型：
 
----
+| 类型 | 学到什么 | 本体论对应 |
+|------|---------|----------|
+| **ProtoSequence** | 行为序列——"先做什么后做什么" | 事件（Events in time） |
+| **ProtoConstraint** | 禁止规则——"绝对不能/必须先" | 公理（Axioms） |
+| **ProtoConcept** | 领域概念——"X 是什么" | 实体（Substances） |
+| **ProtoRole** | 角色关系——"谁负责什么" | 关系（Relations） |
+| **ProtoPurpose** | 目标意图——"为什么做" | 意向功能（Intentional Function） |
 
-## 怎么防止错误？
+每个结构同时记录两个不可还原的维度——这是**工程本体论双重性质理论**（Kroes & Meijers）的直接实现：
 
-Praxis 在 **LLM 犯错之前** 拦截：
+```
+ProtoSequence "数据库迁移"：
+  ├─ 结构面（物理结构）：备份→迁移→验证→切换
+  └─ 功能面（意向功能）：保证数据完整性，最小化停机时间
 
-- **block**: 绝对禁止 (`before_tool_call` 返回拒绝)
-- **confirm**: 暂停等待用户确认
-- **warn**: 执行但记录审计日志
+当用户说"我们跳过备份直接用蓝绿部署"：
+  → 检查功能面：数据完整性和最小化停机是否仍被满足？
+  → 是 → 结构改变但功能不变 → 仅更新映射
+  → 否 → 结构改变且功能失败 → 置信度下调
+```
 
-三次观察 + 无违规 → 自动结晶化为 block 级约束。
+### 2. 置信度不来自 LLM 自评
 
----
+LLM 说自己正确，和它说自己错误，同样不可靠。Praxis 的置信度由 **7 个独立信号源** 加权融合：
 
-## 上下文不够怎么办？
+| 信号源 | 权重 | 来源 | 哲学意义 |
+|--------|------|------|---------|
+| statistical | 0.25 | 工具序列实际匹配 vs 预测 | 经验验证——独立于语言 |
+| llm_marker | 0.25 | LLM 输出中的确认/反驳标记 | 语言层的自我校准 |
+| user_correction | 0.12 | 用户显式纠正 | 人际监督信号 |
+| role_verifier | 0.12 | 角色行为 vs 实际调用者 | 结构一致性检验 |
+| concept_verifier | 0.08 | 对抗 prompt 寻找反例 | 波普尔式证伪 |
+| outcome_feedback | 0.10 | 子任务成败反馈 | 实用主义真理观 |
+| mid_session | 0.08 | 会话中实时矛盾检测 | 即时信号，不等 batch |
+
+**核心设计决策**：LLM 相关的信号源权重合计 0.25。独立于 LLM 的信号源权重合计 0.75。这不是技术偏好——这是**认识论立场**：语言模型不是真理的担保人。
+
+### 3. 在犯错之前阻止，而非在犯错之后标记
+
+传统 AI 安全依赖事后检测。Praxis 将已结晶的约束在 LLM 生成输出**之前**注入 system prompt，在工具执行**之前**通过 `before_tool_call` 拦截违规：
+
+```
+severity: block   → 拒绝执行
+severity: confirm → 暂停等待用户确认
+severity: warn    → 执行但记录审计日志
+```
+
+这是从"事后检测"到"事前约束"的范畴升级——对应于奎因的本体论承诺：一个系统的"信念"必须在其行为中可操作化，而非仅在其声称中。
+
+### 4. 上下文不够时优雅降级，而非随机丢弃
 
 Praxis 在每次注入前测量上下文利用率，按 4 级压力自适应：
 
-| 压力 | 剩余 Token | 注入策略 |
-|------|-----------|---------|
-| Normal | > 400K | 全量详情 |
+| 压力 | 剩余 Token | 策略 |
+|------|-----------|------|
+| Normal | > 400K | 全量详情注入 |
 | Elevated | 250-400K | 相关详情 + 其他摘要 |
 | High | 100-250K | 仅核心摘要 |
-| Critical | < 50K | 仅结构索引 + 按需拉取 |
+| Critical | < 50K | 仅结构索引 + `recall_structure()` 按需拉取 |
 
-即使上下文仅剩 1K token，LLM 仍知道所有结构存在——需要时调用 `recall_structure("...")` 拉取详情。
+**关键设计**：即使在仅剩 1K token 的临界状态，LLM 仍知道所有结构存在。Push（Praxis 主动注入）和 Pull（LLM 按需拉取）混合——"不注入全部细节"不等于"不让你知道它们存在"。这是对上下文窗口稀缺性的**信息论回应**：压缩深度，不压缩广度。
+
+### 5. 知道自己"不知道什么"——以及"为什么不知道"
+
+Meta Layer 是一个不对任务做处理的**侧观察者**。它操作的不是 ProtoStructure 本身，而是 ProtoStructure 的框架——**范畴系统**是否足够。
+
+这是一个康德式的区分：
+
+```
+模式被反复纠正但无法被现有类型捕获：
+  ├─ 数据不够？（观察频率是否足够？）
+  │   → 增加观察，暂不标记盲区
+  └─ 还是范畴不够？（现有类型无法表达该模式？）
+      → 标记 category_blind_spot → 提议新范畴 → 等待人类审批
+```
+
+**三种铁律**（不可自动突破）：
+1. 无新结构不经过人类审批
+2. 实验必须有范围限制
+3. 任何结构可回滚到任意历史版本
 
 ---
 
-## 它能自行发现"自己还缺什么"吗？
+## 哲学根源
 
-能。Meta Layer 定期审计框架本身：
-- **范畴盲区**: 现有 5 种 ProtoStructure 类型都无法捕获的重复模式？
-- **僵尸结构**: 置信度高但 LLM 从不使用的"死结构"
-- **衰退检测**: 60 天未引用的结构标记为待退役
+Praxis 的设计不是凭空发明的。它站在以下思想传统之上：
+
+- **奎因的本体论承诺**（1948）："存在就是成为约束变元的值"——Praxis 将"相信什么"从私人信念变为可公开审计的结构化声明。`/praxis ontology` 就是 Praxis 的"约束变元清单"。
+- **共相之争**（中世纪→当代）：实在论（共相先于殊相）、唯名论（只有殊相真实）、概念论（共相在事物中）——Praxis 将其实现为可配置的 `ontology_stance` 学习策略。
+- **双重性质理论**（Kroes & Meijers, 2000s）：每个工程造物同时具有物理结构面和意向功能面——Praxis 的 ProtoSequence 的 structure/function/teleological_mapping 是对此的形式化实现。
+- **神经符号 AI**（Gareez & Lamb, 2020s）：符号侧（ProtoStructure + 约束公理 + 统计验证器）提供精确但脆弱的骨架，神经侧（LLM 分析、场景识别、语义理解）提供灵活但不可靠的血肉。两者的边界和权重是 Praxis 最核心的架构决策。
+- **波普尔的证伪主义**：置信度不来自"更多证据支持"，而来自"未能被证伪"。ConceptVerifier 的对抗 prompt（"尝试为这个概念的反例辩护"）是这一原则的直接操作化。
 
 ---
 
 ## 当前状态
 
-**873 测试 · 71 文件 · TypeScript strict · typecheck clean**
+**v1.0.0.0 · 873 tests · 71 files · TypeScript strict · typecheck clean**
 
-所有架构模块已实现。5 个 Agent 运行时适配器（OpenClaw / Claude Code / Hermes / Codex）就绪。
+所有架构模块已实现。5 个 Agent 运行时适配器就绪。
 
-技术规格: [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md)  
-架构文档: [`architech/praxis-architecture.md`](architech/praxis-architecture.md)  
-开发路线: [`docs/ROADMAP.md`](docs/ROADMAP.md)
+| 文档 | 内容 |
+|------|------|
+| [技术规格](docs/SPECIFICATION.md) | 架构、模块树、API、GovernancePolicy |
+| [架构设计](architech/praxis-architecture.md) | 完整 §1-§13 六层架构 + ProtoStructure + 学习引擎 |
+| [架构演变史](architech/praxis-changelog.md) | V1→V13 完整演变 — 每个版本回答的核心问题 |
+| [路线图](docs/ROADMAP.md) | M0-M6 里程碑完成状态 |
+| [超深度解析：本体论](docs/超深度解析：本体论（Ontology）——从形而上学的终极追问到数字时代的知识架构.md) | 哲学本体论全景 |
+| [超深度解析：工程本体论](docs/超深度解析：工程本体论（Engineering Ontology）——从造物哲学到数字孪生的语义基石.md) | 工程本体论与双重性质理论 |
