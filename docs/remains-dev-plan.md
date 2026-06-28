@@ -164,7 +164,7 @@ OS 调度器 (Windows Task Scheduler / cron) — 无 Praxis daemon
 
 ---
 
-## Phase 6 — T1 完成: ConceptVerifier 接线 `[打破 LLM 自评循环]`
+## ✅ Phase 6 — T1 完成: ConceptVerifier 接线 `[已完成 2026-06-28]`
 
 **对应架构**: §4 (7 源融合), §12 原则 2 (LLM 不可靠 → 需独立信号)
 
@@ -516,7 +516,7 @@ Phase 8 重组后, cognitive/ 保留以下模块:
 | 阶段 | 预计工作量 | 关键交付 |
 |------|-----------|---------|
 | **Phase 5** (T9) | ✅ 已完成 2026-06-28 | bridge 退役 + bun 入口脚本 + 共享 deps + B6 fix |
-| **Phase 6** (T1 完成) | 小 (ConceptVerifier + LlmClient 适配层 + VerificationContext 修复) | 3 验证器全部接入 |
+| **Phase 6** (T1 完成) | ✅ 已完成 2026-06-28 | ConceptVerifier + LlmClient 适配层 + roleMap |
 | **Phase 7** (T10) | 中 (deriveMaturity + 接线 3 个模块) | M2 上下文编排完整 |
 | **Phase 8** (模块重组) | 大 (文件移动 + import 更新 + cognitive/ 17 模块删除) | 目录结构对齐 §11 |
 | **Phase 9** (缺失模块) | 大 (15 个新模块, 直接在目标目录创建) | 架构模块完整 |
@@ -537,7 +537,7 @@ Phase 8 重组后, cognitive/ 保留以下模块:
 
 ---
 
-> **下一步**: Phase 6 开工 — ConceptVerifier 接线 + LlmClient 适配层。Phase 5 已完成: bun per-hook 入口就绪, bridge 已弃用, 共享 deps 工厂就位, B6 teleologicalMapping 补完。
+> **下一步**: Phase 7 开工 — deriveMaturity + recallStructure + applyProgress + disambiguate 接线。Phase 5+6 已完成: 生产入口就绪, 3 验证器全部接入, LLM 自评循环被打破。
 > **架构参考**: [praxis-architecture.md](../architech/praxis-architecture.md)
 > **当前状态参考**: [ROADMAP.md](../docs/ROADMAP.md), [wiring-debt-dev-plan.md](../docs/wiring-debt-dev-plan.md)
 
