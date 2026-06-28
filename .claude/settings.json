@@ -22,7 +22,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx src/phase1a-bridge.ts inject 2>$null",
+            "command": "bun scripts/praxis-hook.ts session_start \"$env:CLAUDE_SESSION_ID\" 2>$null",
             "shell": "powershell"
           }
         ]
@@ -60,7 +60,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx src/phase1a-bridge.ts end --summary 2>$null",
+            "command": "bun scripts/praxis-hook.ts agent_end \"$env:CLAUDE_SESSION_ID\" 2>$null",
             "shell": "powershell"
           }
         ]
