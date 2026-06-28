@@ -63,7 +63,7 @@
 - ✅ buildM0Deps 注入完整 M0Deps (fuser + llm adapter + saveProtoStructure + attentionRecords)
 - ✅ e2e 集成测试: EventOrchestrator 全生命周期融合+持久化 (回归守卫)
 
-**仍待修复 (后续)**:
+**接线债已全部清除** (2026-06-28):
 - ✅ T1: M4 三个独立验证器接入运行时融合 — StatisticalVerifier + RoleVerifier + ConceptVerifier 全部接线 (Phase 6, 2026-06-28)
 - ✅ T6: M1 关系图置信度传播接入运行时 — 5/6 关系已接入 (Phase 2, 2026-06-28; precedes 按设计延后)
 - ✅ B6: session_start 加载完整结构 (relations/versionChain/steps/function/teleologicalMapping) — 全 11 字段已补完 (Phase 0 + Phase 5, 2026-06-28)
@@ -73,6 +73,7 @@
 - ✅ T18: 两个适配器 DRY — base-adapter.ts 共享工厂 (Phase 4, 2026-06-28)
 - ✅ T12: 降级路径约束 write-through 缓存 (Phase 4, 2026-06-28)
 - ✅ T14: 8 个无测试模块补测试 + 接线集成测试 (Phase 4, 2026-06-28)
+- ✅ Phase 8: 模块重组 — 平铺结构 → §11 目录结构, 17 dead 模块删除 (2026-06-28)
 
 ---
 
