@@ -447,3 +447,126 @@ describe("SessionStartHandler (T12 — constraint cache write-through)", () => {
     expect(constraintCalls).toHaveLength(0);
   });
 });
+
+// ══════════════════════════════════════════════════════════════════
+// B6: teleologicalMapping 字段完整性 (Phase 5)
+// ══════════════════════════════════════════════════════════════════
+
+describe("SessionStartHandler (B6 — teleologicalMapping)", () => {
+  it("loadProtoStructures 返回 teleologicalMapping 字段 (B6 完整性补丁)", async () => {
+    const deps = makeDeps();
+    deps.memory.getSlot = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { domainProficiencies: { ts: { selfRating: 0.8, taskCount: 12 } } },
+    } as Result<unknown>);
+    deps.memory.smartSearch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          {
+            id: "ps1",
+            tentativeName: "门诊流程",
+            protoType: "sequence",
+            confidence: 0.9,
+            scenarioId: "medical",
+            structure: { steps: [{ action: "挂号" }, { action: "就诊" }] },
+            function: { purpose: "诊疗", precondition: [], postcondition: [], failureModes: [] },
+            teleologicalMapping: [
+              { stepIndex: 0, serves: ["建立法律关系"], strength: "essential" },
+              { stepIndex: 1, serves: ["诊断"], strength: "essential" },
+            ],
+          },
+        ],
+      } as Result<unknown[]>);
+
+    const handler = new SessionStartHandler(deps);
+    const result = await handler.handle("b6-test");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const structures = result.value.protoStructures;
+      expect(structures).toHaveLength(1);
+      const ps1 = structures[0] as Record<string, unknown>;
+      expect(ps1.teleologicalMapping).toBeDefined();
+      expect(Array.isArray(ps1.teleologicalMapping)).toBe(true);
+      const tm = ps1.teleologicalMapping as Array<Record<string, unknown>>;
+      expect(tm).toHaveLength(2);
+      expect(tm[0].stepIndex).toBe(0);
+    }
+  });
+
+  it("AgentMemory 中无 teleologicalMapping 时返回空数组 (graceful degrade)", async () => {
+    const deps = makeDeps();
+    deps.memory.getSlot = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { domainProficiencies: { ts: { selfRating: 0.8, taskCount: 12 } } },
+    } as Result<unknown>);
+    deps.memory.smartSearch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          {
+            id: "ps_no_tm",
+            tentativeName: "无映射结构",
+            protoType: "sequence",
+            confidence: 0.5,
+            scenarioId: "general",
+            // 无 teleologicalMapping — 老 AgentMemory 数据
+          },
+        ],
+      } as Result<unknown[]>);
+
+    const handler = new SessionStartHandler(deps);
+    const result = await handler.handle("b6-no-tm");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const ps = result.value.protoStructures[0] as Record<string, unknown>;
+      expect(ps.teleologicalMapping).toEqual([]);
+    }
+  });
+
+  it("snake_case fallback: teleological_mapping 归一化为 teleologicalMapping", async () => {
+    const deps = makeDeps();
+    deps.memory.getSlot = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { domainProficiencies: { ts: { selfRating: 0.8, taskCount: 12 } } },
+    } as Result<unknown>);
+    deps.memory.smartSearch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({ ok: true, value: [] } as Result<unknown[]>)
+      .mockResolvedValueOnce({
+        ok: true,
+        value: [
+          {
+            id: "ps_snake",
+            tentativeName: "snake_case 数据",
+            protoType: "sequence",
+            confidence: 0.6,
+            scenarioId: "general",
+            teleological_mapping: [
+              { step_index: 0, serves: ["目的A"], strength: "supporting" },
+            ],
+          },
+        ],
+      } as Result<unknown[]>);
+
+    const handler = new SessionStartHandler(deps);
+    const result = await handler.handle("b6-snake");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const ps = result.value.protoStructures[0] as Record<string, unknown>;
+      expect(ps.teleologicalMapping).toBeDefined();
+      expect(Array.isArray(ps.teleologicalMapping)).toBe(true);
+      expect((ps.teleologicalMapping as Array<unknown>).length).toBe(1);
+    }
+  });
+});

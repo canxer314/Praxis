@@ -1,7 +1,13 @@
 /**
  * Phase 1A Bridge — 将 5 个模块接入 Claude Code hook 系统
  *
- * 用法:
+ * @deprecated 自 Phase 5 (v0.16.0.0) 起, 请使用 bun scripts/praxis-hook.ts 替代。
+ *   本文件保留 30 天作为回退路径 (至 2026-07-28), 之后将被删除。
+ *   迁移指南: 将 Claude Code hook 配置中的 `tsx src/phase1a-bridge.ts <cmd>`
+ *   替换为 `bun scripts/praxis-hook.ts <hook_type> <sessionId> [options]`。
+ *   详见 docs/remains-dev-plan.md Phase 5。
+ *
+ * 用法 (已弃用):
  *   tsx src/phase1a-bridge.ts inject        — SessionStart: 输出上下文注入
  *   tsx src/phase1a-bridge.ts end <file>    — SessionEnd: 分析 transcript 并保存学习
  *   tsx src/phase1a-bridge.ts show          — 查看学习状态
@@ -30,6 +36,10 @@ import { SEED_SCENARIOS } from "./cognitive/scenario-registry";
 import type { ScenarioCacheEntry } from "./cognitive/scenario-cache";
 import type { M0Deps, ProtoStructureCandidate } from "./m0-deps";
 import { ConfidenceFuser } from "./orchestration/confidence-fuser";
+import { buildM0Deps } from "./m0-builder";
+
+// ---- Deprecation warning ----
+console.error("[Praxis] ⚠ phase1a-bridge.ts 已弃用。请迁移到 bun scripts/praxis-hook.ts。详见 docs/remains-dev-plan.md Phase 5。");
 
 // ---- CognitiveCore 工厂 (T8) ----
 
@@ -405,76 +415,12 @@ async function extractProtoStructuresViaLLM(transcript: string): Promise<ProtoSt
   }
 }
 
+/**
+ * @deprecated 委托给共享的 buildM0Deps (src/m0-builder.ts)。
+ *   保留此包装以维持 bridge 的向后兼容 (30 天过渡期)。
+ */
 function buildM0Deps(): M0Deps {
-  const cacheDir = MEMORY_DIR;
-  const analyzer = new TranscriptAnalyzerV2(llmClient);
-
-  return {
-    memory: {
-      isAvailable: () => agentmemory.isAvailable(),
-      getSlot: (name: string) => agentmemory.getSlot(name),
-      setSlot: (name: string, value: unknown) => agentmemory.setSlot(name, value),
-      smartSearch: async (query: string, type?: string) => {
-        if (type === "proto_structure") {
-          return agentmemory.searchProtoStructures(query);
-        }
-        try {
-          const results = await agentmemory.smartSearch(query, 20);
-          return { ok: true as const, value: results as unknown[] };
-        } catch (e) {
-          return { ok: false, error: { code: "SEARCH_ERROR", message: String(e) } };
-        }
-      },
-      saveLesson: async (lesson: Record<string, unknown>) => {
-        const content = String(lesson.content || "");
-        const tags = Array.isArray(lesson.tags) ? lesson.tags.map(String) : [];
-        const confidence = Number(lesson.confidence ?? 0.8);
-        return agentmemory.saveLesson(content, tags, confidence);
-      },
-      saveProtoStructure: async (structure: Record<string, unknown>) =>
-        agentmemory.saveProtoStructure(structure),
-    },
-    cache: {
-      get: (key: string) => {
-        try {
-          const filePath = path.join(cacheDir, `cache-${key}.json`);
-          if (!fs.existsSync(filePath)) return null;
-          return JSON.parse(fs.readFileSync(filePath, "utf-8"));
-        } catch { return null; }
-      },
-      set: (key: string, value: unknown) => {
-        try {
-          ensureDir();
-          fs.writeFileSync(path.join(cacheDir, `cache-${key}.json`), JSON.stringify(value), "utf-8");
-        } catch { /* 缓存写入失败不影响主流程 */ }
-      },
-      list: () => {
-        try {
-          if (!fs.existsSync(cacheDir)) return [];
-          return fs.readdirSync(cacheDir)
-            .filter((f) => f.startsWith("cache-") && f.endsWith(".json"))
-            .map((f) => {
-              const key = f.slice(6, -5);
-              const raw = fs.readFileSync(path.join(cacheDir, f), "utf-8");
-              return { key, value: JSON.parse(raw), writtenAt: fs.statSync(path.join(cacheDir, f)).mtimeMs };
-            });
-        } catch { return []; }
-      },
-      delete: (key: string) => {
-        try {
-          const filePath = path.join(cacheDir, `cache-${key}.json`);
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        } catch { /* 忽略 */ }
-      },
-    },
-    llm: {
-      analyzeTranscript: (t: string) => analyzer.analyze(t),
-      extractProtoStructures: (t: string) => extractProtoStructuresViaLLM(t),
-      analyze: (prompt: string) => llmClient.analyze(prompt),
-    },
-    fuser: new ConfidenceFuser(),
-    attentionRecords: new Map(),
-  };
+  return buildM0Deps({ memoryDir: MEMORY_DIR });
 }
 
 /**
