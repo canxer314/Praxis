@@ -184,5 +184,5 @@ curiosity:          { mode: "ask_when_confident" }
 
 - [架构设计](../architech/praxis-architecture.md) — 完整 §1-§13
 - [路线图](ROADMAP.md) — M0-M6 里程碑
-- [开发计划](remains-dev-plan.md) — Phase 5-11 实施记录
+- [路线图](ROADMAP.md) — M0-M6 里程碑
 - [提示词模板](../src/prompts/) — 13 个 .md prompt 模板
