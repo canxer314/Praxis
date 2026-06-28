@@ -14,7 +14,15 @@
  */
 
 import type { Result } from "../platform-adapter";
-import type { CognitiveCoreMemoryClient } from "./cognitive-core";
+
+/** Phase 11: Inlined from deleted cognitive-core.ts */
+export interface CognitiveCoreMemoryClient {
+  getSlot(name: string): Promise<Result<unknown>>;
+  setSlot(name: string, data: unknown): Promise<Result<void>>;
+  smartSearch(query: string, opts?: { limit?: number }): Promise<Result<unknown[]>>;
+  lessonSave(data: Record<string, unknown>): Promise<Result<unknown>>;
+  lessonRecall(query: Record<string, unknown>): Promise<Result<unknown[]>>;
+}
 
 // ══════════════════════════════════════════════════════════════════
 // InMemoryMemoryClient

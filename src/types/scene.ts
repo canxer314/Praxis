@@ -9,10 +9,12 @@
 
 export type {
   ScenarioMatch,
-  GuidanceSignal,
   AutonomyLevel,
   AutonomyPolicy,
 } from "../cognitive/types";
+
+// GuidanceSignal is defined in orchestration/plan-generator.ts
+export type { GuidanceSignal } from "../orchestration/plan-generator";
 
 // TaskContext types — from orchestration/task-context.ts
 export type {
