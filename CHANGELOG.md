@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.18.0.0] - 2026-06-28
+
+### Added
+- **Phase 7 M2 Context Orchestration Wiring:**
+  - **deriveMaturity:** Session-count-based maturity derivation (novice/competent/expert). 8 tests. (`src/maturity.ts`)
+  - **Maturity in session_start:** deriveMaturity wired into EventOrchestrator.handleSessionStart — reads `session_count` from AgentMemory slot, passes to context organizer. (`src/orchestrator.ts`)
+  - **Semantic Disambiguation:** `disambiguateText()` wired into handleMessageReceived — user messages are analyzed for cross-scenario homographs. (`src/orchestrator.ts`)
+  - **TaskContext Progress:** `applyProgress()` wired into handleSessionEnd — LLM infers task progress, confidence <0.7 gates auto-update. (`src/orchestrator.ts`)
+
+### Changed
+- **orchestrator.ts:** handleSessionStart reads/increments session_count slot, passes maturity to SessionStartHandler. handleMessageReceived runs disambiguation. handleSessionEnd loads TaskContext and applies LLM-inferred progress.
+
+### Notes
+- `recallStructure` (Critical Lazy Loading): core logic ready in `src/memory/recall-structure.ts`; full MCP tool registration deferred to deployment phase.
+
+### Tests
+- 10 new tests: maturity (8), session-start Phase 7 (2)
+- 995 total tests, 70 files, all green. Typecheck clean.
+
 ## [0.17.0.0] - 2026-06-28
 
 ### Added
