@@ -290,6 +290,10 @@ export class SessionStartHandler {
         versionChain: Array.isArray(item.versionChain) ? item.versionChain : [],
         structure: item.structure ?? { steps: [] },
         function: item.function ?? { purpose: "", precondition: [], postcondition: [], failureModes: [] },
+        // B6: teleologicalMapping — 结构→功能映射 (§3 双重性质)
+        teleologicalMapping: Array.isArray(item.teleologicalMapping ?? item.teleological_mapping)
+          ? (item.teleologicalMapping ?? item.teleological_mapping)
+          : [],
         updatedAt: Number(item.updatedAt ?? 0),
         createdAt: Number(item.createdAt ?? 0),
       })) as unknown as SessionContextInjection["protoStructures"];
