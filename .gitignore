@@ -22,6 +22,9 @@ __pycache__/
 .venv/
 venv/
 
+# Draft — 设计迭代记录，不纳入版本管理
+draft/
+
 # Env
 .env
 .env.local
