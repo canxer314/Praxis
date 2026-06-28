@@ -17,6 +17,8 @@ import { parsePredictionMarkers } from "./orchestration/prediction-protocol";
 import { createVersion } from "./structure-version";
 import { StatisticalVerifier } from "./analysis/statistical-verifier";
 import { RoleVerifier } from "./analysis/role-verifier";
+import { ConceptVerifier } from "./analysis/concept-verifier";
+import { adaptLlmClient } from "./llm-adapter";
 import { fullPropagation } from "./structure-graph";
 import { CrossAgentSync } from "./analysis/cross-agent-sync";
 
@@ -177,8 +179,25 @@ export class SessionEndHandler {
     if (this.deps.fuser && injectedStructures && injectedStructures.length > 0) {
       const verifierSources: SignalSourceInput[] = [];
       if (toolCallTrace && toolCallTrace.length > 0) {
-        const vCtx: VerificationContext = { sessionId, toolCallTrace, transcript: transcript ?? "" };
-        const verifiers = [new StatisticalVerifier(), new RoleVerifier()];
+        // Phase 6: 构造 roleMap 供 RoleVerifier DAG 循环检测使用
+        const roleMap = new Map<string, ProtoStructure>();
+        for (const s of injectedStructures) {
+          if (s.protoType === "role") roleMap.set(s.id, s);
+        }
+        const vCtx: VerificationContext = {
+          sessionId,
+          toolCallTrace,
+          transcript: transcript ?? "",
+          roleMap: roleMap.size > 0 ? roleMap as unknown as Map<string, import("./cognitive/types").ProtoRole> : undefined,
+        };
+        // Phase 6: 加入 ConceptVerifier (LlmClient 可用时)
+        const verifiers: import("./analysis/types").Verifier[] = [new StatisticalVerifier(), new RoleVerifier()];
+        if (this.deps.llm) {
+          const llmClient = adaptLlmClient(this.deps.llm);
+          if (llmClient) {
+            verifiers.push(new ConceptVerifier(llmClient));
+          }
+        }
         for (const structure of injectedStructures) {
           for (const v of verifiers) {
             try {

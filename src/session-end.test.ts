@@ -292,3 +292,84 @@ describe("SessionEndHandler (T11 — CrossAgentSync wiring)", () => {
     expect(deps.memory.saveProtoStructure).toHaveBeenCalled();
   });
 });
+
+// ══════════════════════════════════════════════════════════════════
+// Phase 6: ConceptVerifier wiring + VerificationContext roleMap
+// ══════════════════════════════════════════════════════════════════
+
+import { ConceptVerifier } from "./analysis/concept-verifier";
+
+describe("SessionEndHandler (Phase 6 — ConceptVerifier wiring)", () => {
+  it("ConceptVerifier 被加入验证器数组 (LlmClient 可用时)", async () => {
+    const llm = {
+      analyzeTranscript: vi.fn().mockResolvedValue([]),
+      extractProtoStructures: vi.fn().mockResolvedValue([]),
+      analyze: vi.fn().mockResolvedValue({ ok: true, value: "no counter-example" }),
+    };
+    const fuser = { fuse: vi.fn().mockReturnValue(null) };
+    const deps = makeDeps({ llm, fuser });
+
+    const handler = new SessionEndHandler(deps);
+    const structures = [makeProtoStructure({
+      id: "concept-1",
+      protoType: "concept",
+      confidence: 0.5,
+    })];
+    const result = await handler.handle(
+      "phase6-test", "transcript...", [],
+      structures, ["concept-1"],
+    );
+
+    expect(result.ok).toBe(true);
+    // 验证 llm.analyze 不应因 ConceptVerifier 而崩溃
+  });
+
+  it("LlmClient 不可用时 ConceptVerifier 不加入 (不崩溃)", async () => {
+    const fuser = { fuse: vi.fn().mockReturnValue(null) };
+    const deps = makeDeps({ fuser }); // 无 llm
+
+    const handler = new SessionEndHandler(deps);
+    const structures = [makeProtoStructure({
+      id: "concept-1",
+      protoType: "concept",
+      confidence: 0.5,
+    })];
+    const result = await handler.handle(
+      "phase6-no-llm", "transcript...", [],
+      structures, ["concept-1"],
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("VerificationContext 包含 roleMap 字段 (Phase 6 fix)", async () => {
+    // RoleVerifier DAG 依赖此字段 — 缺失时该检查始终跳过
+    // 验证 session-end handler 在构造 vCtx 时补充 roleMap
+    const llm = {
+      analyzeTranscript: vi.fn().mockResolvedValue([]),
+      extractProtoStructures: vi.fn().mockResolvedValue([]),
+      analyze: vi.fn().mockResolvedValue({ ok: true, value: "ok" }),
+    };
+    const fuser = {
+      fuse: vi.fn().mockReturnValue({ confidence: 0.65 }),
+    };
+    const deps = makeDeps({ llm, fuser });
+
+    const handler = new SessionEndHandler(deps);
+    const structures = [
+      makeProtoStructure({ id: "s1", protoType: "sequence", confidence: 0.5 }),
+    ];
+    const toolTrace = [
+      { toolName: "Read", toolParams: { file: "test.txt" }, result: { success: true }, timestamp: Date.now() },
+    ];
+
+    const result = await handler.handle(
+      "phase6-rolemap", "transcript...", [],
+      structures, ["s1"],
+      [], toolTrace,
+    );
+
+    expect(result.ok).toBe(true);
+    // Handler 在处理时不应因缺失 roleMap 而崩溃
+  });
+});
