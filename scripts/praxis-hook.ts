@@ -153,6 +153,32 @@ export async function runHook(
 }
 
 // ══════════════════════════════════════════════════════════════════
+// stdin 读取 — message_received 从 hook stdin 读取消息内容
+// ══════════════════════════════════════════════════════════════════
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf-8").trim();
+}
+
+function extractMessageFromStdin(raw: string): { role: "user" | "assistant"; content: string } | null {
+  if (!raw) return null;
+  try {
+    // Claude Code hook: stdin is JSON with prompt/text/message fields
+    const data = JSON.parse(raw);
+    const content = data.prompt || data.text || data.message || "";
+    if (!content) return null;
+    return { role: "user", content };
+  } catch {
+    // Plain text fallback
+    return { role: "user", content: raw };
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
 // CLI 入口 (bun scripts/praxis-hook.ts ...)
 // ══════════════════════════════════════════════════════════════════
 
@@ -162,6 +188,12 @@ async function main(): Promise<void> {
     console.error("[Praxis] 用法: bun scripts/praxis-hook.ts <hook_type> <sessionId> [options]");
     console.error("  hook_type: session_start | message_received | before_tool_call | after_tool_call | agent_end | session_end");
     process.exit(1);
+  }
+
+  // Phase 7 follow-up: message_received 从 stdin 读取消息内容
+  if (ctx.hookType === "message_received" && !ctx.message) {
+    const raw = await readStdin();
+    ctx.message = extractMessageFromStdin(raw) ?? { role: "user", content: "(empty)" };
   }
 
   try {

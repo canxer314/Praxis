@@ -28,26 +28,14 @@
         ]
       }
     ],
-    "UserPromptExpansion": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "npx tsx src/phase1a-bridge.ts expand 2>$null",
-            "shell": "powershell",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
+    "UserPromptExpansion": [],
     "UserPromptSubmit": [
       {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "npx tsx src/phase1a-bridge.ts message 2>$null",
+            "command": "bun scripts/praxis-hook.ts message_received \"$env:CLAUDE_SESSION_ID\" 2>$null",
             "shell": "powershell",
             "timeout": 45
           }
