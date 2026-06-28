@@ -64,10 +64,10 @@
 - ✅ e2e 集成测试: EventOrchestrator 全生命周期融合+持久化 (回归守卫)
 
 **仍待修复 (后续)**:
-- ⏳ T1: M4 三个独立验证器接入运行时融合 — 需 B6 (完整结构) + toolCallTrace 接线
-- ⏳ T6: M1 关系图置信度传播接入运行时 — 需 B6 (relations 字段)
-- ⏳ B6: session_start 加载完整结构 (含 relations/versionChain/steps), 当前 fusion 仍操作 summary
-- ⏳ T9: bridge→EventOrchestrator 迁移 (生产入口是多进程 phase1a-bridge, 融合在生产中仍不触发) + cron_tick 外部调度器
+- ⏳ T1: M4 三个独立验证器接入运行时融合 — StatisticalVerifier + RoleVerifier 已接线; ConceptVerifier 待接线 (Phase 6)
+- ✅ T6: M1 关系图置信度传播接入运行时 — 5/6 关系已接入 (Phase 2, 2026-06-28; precedes 按设计延后)
+- ✅ B6: session_start 加载完整结构 (relations/versionChain/steps/function/teleologicalMapping) — 全 11 字段已补完 (Phase 0 + Phase 5, 2026-06-28)
+- ✅ T9: bridge→EventOrchestrator 迁移 — phase1a-bridge 已弃用, bun scripts/praxis-hook.ts 替代, buildM0Deps 共享工厂 (Phase 5, 2026-06-28)
 - ✅ T10: M2 maturity 映射 / recallStructure (Critical Lazy Loading) / applyProgress / disambiguate 接线 (Phase 3, 2026-06-28)
 - ✅ T11: CrossAgentSync 乐观锁写入接入 session-end (Phase 4, 2026-06-28)
 - ✅ T18: 两个适配器 DRY — base-adapter.ts 共享工厂 (Phase 4, 2026-06-28)

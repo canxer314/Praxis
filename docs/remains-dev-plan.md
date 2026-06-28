@@ -72,7 +72,7 @@ Phase 5: T9 生产运行时 (bridge退役 + EventOrchestrator入口 + OS cron + 
 
 ---
 
-## Phase 5 — T9 生产运行时迁移 `[最大, 生产落地, 阻塞全部后续验证]`
+## ✅ Phase 5 — T9 生产运行时迁移 `[已完成 2026-06-28]`
 
 **对应架构**: §1 (三层拓扑 + 适配器), §10 (运行时无关生命周期), §11 (EventOrchestrator), §6 (主动驱动), §9 (cron_tick)
 
@@ -515,7 +515,7 @@ Phase 8 重组后, cognitive/ 保留以下模块:
 
 | 阶段 | 预计工作量 | 关键交付 |
 |------|-----------|---------|
-| **Phase 5** (T9) | 大 (bridge 退役 + 入口脚本 + OS 调度器 + 数据迁移) | 融合管线生产可用 |
+| **Phase 5** (T9) | ✅ 已完成 2026-06-28 | bridge 退役 + bun 入口脚本 + 共享 deps + B6 fix |
 | **Phase 6** (T1 完成) | 小 (ConceptVerifier + LlmClient 适配层 + VerificationContext 修复) | 3 验证器全部接入 |
 | **Phase 7** (T10) | 中 (deriveMaturity + 接线 3 个模块) | M2 上下文编排完整 |
 | **Phase 8** (模块重组) | 大 (文件移动 + import 更新 + cognitive/ 17 模块删除) | 目录结构对齐 §11 |
@@ -537,7 +537,7 @@ Phase 8 重组后, cognitive/ 保留以下模块:
 
 ---
 
-> **下一步**: Phase 5 开工 — 这是最大的单项, 让 M0-M6 从"已实现但未激活"变为"生产可用"。
+> **下一步**: Phase 6 开工 — ConceptVerifier 接线 + LlmClient 适配层。Phase 5 已完成: bun per-hook 入口就绪, bridge 已弃用, 共享 deps 工厂就位, B6 teleologicalMapping 补完。
 > **架构参考**: [praxis-architecture.md](../architech/praxis-architecture.md)
 > **当前状态参考**: [ROADMAP.md](../docs/ROADMAP.md), [wiring-debt-dev-plan.md](../docs/wiring-debt-dev-plan.md)
 
