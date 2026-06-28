@@ -951,3 +951,10 @@ export interface AutonomyPolicy {
     critical: string[];
   };
 }
+
+// ══════════════════════════════════════════════════════════════════
+// Phase 10: 重新导出 — types/ 文件提供按领域组织的入口点
+//
+// 以下类型同时存在于 cognitive/types（向后兼容）和 types/（新入口点）。
+// 新代码建议直接从 types/memory, types/scene, types/hooks 导入。
+// ══════════════════════════════════════════════════════════════════

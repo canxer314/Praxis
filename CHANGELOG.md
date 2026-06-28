@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.20.1.0] - 2026-06-28
+
+### Added
+- **Phase 10 Prompts + Types — 16 new files completing §11 infrastructure:**
+  - **prompts/system/ (5 files):** memory-context.md, plan-injection.md, constraint-injection.md, prediction-markers.md, critical-mode.md — extracted from constraint-injector.ts, context-organizer.ts, prediction-protocol.ts
+  - **prompts/analysis/ (6 files):** extract-and-update.md, construct-proto-task.md, generate-plan.md, verify-progress.md, consistency-scan.md, audit-architecture.md — extracted from transcript-analyzer.ts, proto-task-learner.ts, plan-generator.ts, consistency-checker.ts, architecture-auditor.ts
+  - **prompts/user/ (2 files):** perception-summary.md, crystallization-proposal.md — session perception + structure crystallization approval
+  - **types/memory.ts:** Re-export entry for ProtoStructure, ProtoTask, LearningEvent, CompetencyModel, confidence/fusion types from cognitive/types.ts
+  - **types/scene.ts:** Re-export entry for ScenarioMatch, GuidanceSignal, AutonomyPolicy from cognitive/types.ts + TaskContext from orchestration/task-context.ts
+  - **types/hooks.ts:** Re-export entry for 7 lifecycle event types from cognitive/types.ts
+
+### Changed
+- **cognitive/types.ts:** Added Phase 10 re-export documentation comment — backward compatible; all original type definitions preserved
+
+### Notes
+- All 13 prompt .md files use Handlebars-style `{{variable}}` template syntax, independently editable without touching TypeScript source
+- types/ files are organized entry points; original type definitions remain in cognitive/types.ts for backward compatibility
+- 855 tests, 69 files, zero regressions. Typecheck clean.
+
 ## [0.20.0.0] - 2026-06-28
 
 ### Added
