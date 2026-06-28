@@ -1,23 +1,38 @@
 # Changelog
 
+## [0.17.0.0] - 2026-06-28
+
+### Added
+- **Phase 6 ConceptVerifier Wiring:**
+  - **LlmClient Adapter:** `adaptLlmClient()` — bridges `LLMSubsystem` → `LlmClient` for ConceptVerifier consumption (`src/llm-adapter.ts`). 5 tests.
+  - **ConceptVerifier Integration:** 3rd independent verifier wired into session-end fusion pipeline. LlmClient unavailable → gracefully omitted (no crash). 3 tests. (`src/session-end.ts`)
+  - **VerificationContext roleMap:** Constructed from injected role structures, passed to RoleVerifier for DAG cycle detection — previously always skipped. (`src/session-end.ts`)
+
+### Changed
+- **session-end.ts:** Verifier array widened to `Verifier[]`. ConceptVerifier conditionally added when `LLMSubsystem.analyze` available.
+- **session-end.ts:** VerificationContext enriched with `roleMap` from injected role structures.
+
+### Tests
+- 8 new tests: adaptLlmClient (5), session-end Phase 6 (3)
+- 985 total tests, 69 files, all green. Typecheck clean.
+
 ## [0.16.0.0] - 2026-06-28
 
 ### Added
 - **Phase 5 Production Wiring — bun per-hook 入口 + 共享 deps:**
   - **M0 Builder:** 从 `phase1a-bridge.ts` 提取共享 `buildM0Deps()` 工厂 (`src/m0-builder.ts`). 17 tests.
-  - **Praxis Hook Entry:** bun per-hook 统一入口 (`scripts/praxis-hook.ts`) — 替代 bridge 的 `inject/end/expand/message` 命令. 接收 hook_type + sessionId → ClaudeCodeAdapter 映射 → EventOrchestrator.route(). Phase 0.5 实测 p50=59ms. 14 tests. (`src/praxis-hook.test.ts`)
-  - **Praxis Cron Entry:** OS-cron per-tick 入口 (`scripts/praxis-cron.ts`) — cron-tick/heartbeat/meta-audit 命令. 无 Praxis daemon, 每次新进程跑 handle() 一次后退出.
-  - **Bridge Data Migration:** `~/.praxis-phase1a/` JSON 文件 → AgentMemory slot 一次性迁移 (`src/bridge-migration.ts`). 30 天保留期.
-  - **B6 TeleologicalMapping Fix:** `session_start.loadProtoStructures` 补充 `teleologicalMapping` 字段 (含 snake_case 回退). 3 tests.
+  - **Praxis Hook Entry:** bun per-hook 统一入口 (`scripts/praxis-hook.ts`). 14 tests.
+  - **Praxis Cron Entry:** OS-cron per-tick 入口 (`scripts/praxis-cron.ts`).
+  - **Bridge Data Migration:** `~/.praxis-phase1a/` → AgentMemory slot (`src/bridge-migration.ts`).
+  - **B6 TeleologicalMapping Fix:** `session_start.loadProtoStructures` 补充字段. 3 tests.
 
 ### Changed
-- **phase1a-bridge.ts:** 标记 `@deprecated` (Phase 5 替代), 添加迁移指南. `buildM0Deps()` 委托给共享 `src/m0-builder.ts` (71 行内联工厂 → 1 行委托).
-- **session-start.ts:** `loadProtoStructures` 返回完整字段 — 增加 `teleologicalMapping` (§3 双重性质).
+- **phase1a-bridge.ts:** @deprecated, 委托给共享 buildM0Deps (71→1 行).
+- **session-start.ts:** loadProtoStructures 增加 teleologicalMapping.
 
 ### Tests
 - 34 new tests: m0-builder (17), praxis-hook (14), B6 teleologicalMapping (3)
 - 977 total tests, 68 files, all green. Typecheck clean.
-- Pre-landing review: zero findings.
 
 ## [0.15.0.0] - 2026-06-28
 
