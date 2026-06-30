@@ -73,6 +73,4 @@ async function main(): Promise<void> {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("praxis-cron.ts")) {
-  main();
-}
+main();

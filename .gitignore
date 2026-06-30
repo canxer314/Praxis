@@ -16,6 +16,9 @@ $RECYCLE.BIN/
 # Node (if applicable later)
 node_modules/
 
+# Build output
+dist/
+
 # Python (if applicable later)
 __pycache__/
 *.pyc

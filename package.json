@@ -8,6 +8,7 @@
     ".": "./src/cognitive/index.ts"
   },
   "scripts": {
+    "build": "bun build scripts/praxis-hook.ts --target node --outdir dist --minify && bun build scripts/praxis-cron.ts --target node --outdir dist --minify",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

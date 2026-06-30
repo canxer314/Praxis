@@ -229,7 +229,4 @@ async function main(): Promise<void> {
   }
 }
 
-// 仅在直接运行时执行 main (import 时不执行)
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("praxis-hook.ts")) {
-  main();
-}
+main();

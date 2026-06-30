@@ -12,7 +12,6 @@
       "PowerShell"
     ],
     "deny": [
-      "Bash"
     ]
   },
   "hooks": {
@@ -22,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "try { & \"$env:USERPROFILE/.bun/bin/bun.exe\" scripts/praxis-hook.ts session_start \"$env:CLAUDE_SESSION_ID\" 2>$null } catch {} ; exit 0",
+            "command": "try { & \"$env:USERPROFILE/.bun/bin/bun.exe\" $env:CLAUDE_PROJECT_DIR/dist/praxis-hook.js session_start \"$env:CLAUDE_SESSION_ID\" 2>$null } catch {} ; exit 0",
             "shell": "powershell"
           }
         ]
@@ -35,7 +34,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "try { & \"$env:USERPROFILE/.bun/bin/bun.exe\" scripts/praxis-hook.ts message_received \"$env:CLAUDE_SESSION_ID\" 2>$null } catch {} ; exit 0",
+            "command": "try { & \"$env:USERPROFILE/.bun/bin/bun.exe\" $env:CLAUDE_PROJECT_DIR/dist/praxis-hook.js message_received \"$env:CLAUDE_SESSION_ID\" 2>$null } catch {} ; exit 0",
             "shell": "powershell",
             "timeout": 45
           }
@@ -48,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "try { & \"$env:USERPROFILE/.bun/bin/bun.exe\" scripts/praxis-hook.ts agent_end \"$env:CLAUDE_SESSION_ID\" 2>$null } catch {} ; exit 0",
+            "command": "try { & \"$env:USERPROFILE/.bun/bin/bun.exe\" $env:CLAUDE_PROJECT_DIR/dist/praxis-hook.js agent_end \"$env:CLAUDE_SESSION_ID\" 2>$null } catch {} ; exit 0",
             "shell": "powershell"
           }
         ]
