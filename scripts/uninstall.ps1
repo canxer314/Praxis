@@ -169,6 +169,19 @@ if ($DryRun) {
   Write-Host "  Praxis hooks 和权限已移除" -ForegroundColor Green
 }
 
+# 移除 .claude/commands/praxis.md
+$commandsFile = Join-Path (Split-Path -Parent $SettingsFile) "commands\praxis.md"
+if (Test-Path $commandsFile) {
+  if (-not $DryRun) { Remove-Item $commandsFile -Force -ErrorAction SilentlyContinue }
+  Write-Host "  /praxis 命令已移除" -ForegroundColor Green
+}
+
+# 清理空的 commands 目录
+$commandsDir = Join-Path (Split-Path -Parent $SettingsFile) "commands"
+if ((Test-Path $commandsDir) -and -not (Get-ChildItem $commandsDir -ErrorAction SilentlyContinue)) {
+  if (-not $DryRun) { Remove-Item $commandsDir -Force -ErrorAction SilentlyContinue }
+}
+
 # ══════════════════════════════════════════════════════════════════
 # Step 3: 移除 Windows Task Scheduler 任务
 # ══════════════════════════════════════════════════════════════════

@@ -110,6 +110,18 @@ else
   echo "  Praxis hooks 已移除"
 fi
 
+# 移除 .claude/commands/praxis.md
+COMMANDS_FILE="$(dirname "$SETTINGS_FILE")/commands/praxis.md"
+if [ -f "$COMMANDS_FILE" ]; then
+  if [ "$DRY_RUN" = false ]; then rm -f "$COMMANDS_FILE"; fi
+  echo "  /praxis 命令已移除"
+  # 清理空的 commands 目录
+  COMMANDS_DIR="$(dirname "$COMMANDS_FILE")"
+  if [ -d "$COMMANDS_DIR" ] && [ -z "$(ls -A "$COMMANDS_DIR" 2>/dev/null)" ]; then
+    if [ "$DRY_RUN" = false ]; then rmdir "$COMMANDS_DIR" 2>/dev/null || true; fi
+  fi
+fi
+
 # ══════════════════════════════════════════════════════════════════
 # Step 2: 移除 AgentMemory MCP (如果存在)
 # ══════════════════════════════════════════════════════════════════

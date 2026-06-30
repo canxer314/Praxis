@@ -16,6 +16,7 @@
 import { buildM0Deps } from "../src/m0-builder";
 import { EventOrchestrator, type PraxisLifecycleEvent } from "../src/orchestration/orchestrator";
 import type { Result } from "../src/platform-adapter";
+import { handlePraxisCommand, type PraxisCommand } from "../src/commands/praxis-cli";
 
 // ══════════════════════════════════════════════════════════════════
 // HookContext — 从 CLI args 解析的 hook 上下文
@@ -23,8 +24,9 @@ import type { Result } from "../src/platform-adapter";
 
 export interface HookContext {
   hookType: "session_start" | "message_received" | "before_tool_call"
-    | "after_tool_call" | "agent_end" | "session_end";
+    | "after_tool_call" | "agent_end" | "session_end" | "praxis";
   sessionId: string;
+  subcommand?: string;
   toolName?: string;
   toolParams?: Record<string, unknown>;
   result?: {
@@ -41,7 +43,7 @@ export interface HookContext {
 
 const VALID_HOOK_TYPES = new Set([
   "session_start", "message_received", "before_tool_call",
-  "after_tool_call", "agent_end", "session_end",
+  "after_tool_call", "agent_end", "session_end", "praxis",
 ]);
 
 /**
@@ -49,18 +51,28 @@ const VALID_HOOK_TYPES = new Set([
  * 返回 null 表示参数无效。
  */
 export function parseHookArgs(argv: string[]): HookContext | null {
-  // argv[0]=bun, argv[1]=script path, argv[2]=hookType, argv[3]=sessionId
+  // argv[0]=bun, argv[1]=script path, argv[2]=hookType, argv[3]=sessionId|subcommand
   if (argv.length < 4) return null;
 
   const hookType = argv[2];
-  const sessionId = argv[3];
+  const arg3 = argv[3];
 
   if (!VALID_HOOK_TYPES.has(hookType)) return null;
-  if (!sessionId || sessionId.startsWith("-")) return null;
+
+  // /praxis 命令: argv[3] 是子命令, 不需要 sessionId
+  if (hookType === "praxis") {
+    return {
+      hookType: "praxis",
+      sessionId: "",
+      subcommand: arg3,
+    };
+  }
+
+  if (!arg3 || arg3.startsWith("-")) return null;
 
   const ctx: HookContext = {
     hookType: hookType as HookContext["hookType"],
-    sessionId,
+    sessionId: arg3,
   };
 
   // 解析可选参数
@@ -147,6 +159,16 @@ export async function runHook(
     case "session_end":
       return orch.handleSessionEnd(ctx.sessionId, ctx.transcript);
 
+    case "praxis": {
+      const sub = (ctx.subcommand ?? "status") as PraxisCommand;
+      try {
+        const output = await handlePraxisCommand(sub, deps);
+        return { ok: true, value: output };
+      } catch (e) {
+        return { ok: false, error: { code: "PRAXIS_CMD_ERROR", message: String(e) } };
+      }
+    }
+
     default:
       return { ok: false, error: { code: "UNKNOWN_HOOK", message: `Unknown hook type: ${ctx.hookType}` } };
   }
@@ -201,6 +223,11 @@ async function main(): Promise<void> {
     const result = await runHook(ctx, deps);
 
     if (result.ok) {
+      // /praxis 命令: 纯文本输出 (Claude Code 直接展示给用户)
+      if (ctx.hookType === "praxis" && typeof result.value === "string") {
+        console.log(result.value);
+        process.exit(0);
+      }
       // SessionStart: stdout is the context injection mechanism — Claude Code inlines it
       if (ctx.hookType === "session_start" && result.value) {
         const injection = result.value as Record<string, unknown>;
@@ -214,7 +241,6 @@ async function main(): Promise<void> {
         }
       } else {
         // All other hooks: output JSON to match Claude Code's JSON expectation
-        // (avoids the known Stop hook false-error bug: anthropics/claude-code#10463)
         const val = result.value as Record<string, unknown> | undefined;
         console.log(JSON.stringify({ ok: true, hook: ctx.hookType, sessionId: ctx.sessionId, ...val }));
       }

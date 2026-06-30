@@ -220,8 +220,26 @@ else
            else $e + ($praxis_hooks.Stop // []) end
          ) |
          .permissions.allow = (((.permissions.allow // []) + $praxis_perms) | unique) |
-         .permissions = (.permissions // {allow: [], deny: []})
-       ' "$SETTINGS_FILE" > "$TMP" && mv "$TMP" "$SETTINGS_FILE"
+         .permissions = (.permissions // {allow: [], deny: []}) |
+       ' --arg bun_path "$BUN_PATH" --arg dist "$PRAXIS_DIST_DIR" "$SETTINGS_FILE" > "$TMP" && mv "$TMP" "$SETTINGS_FILE"
+	  # 注册 /praxis 命令 (.claude/commands/praxis.md)
+	  COMMANDS_DIR="$(dirname "$SETTINGS_FILE")/commands"
+	  mkdir -p "$COMMANDS_DIR"
+	  cat > "$COMMANDS_DIR/praxis.md" << CMDEOF
+---
+description: Praxis CLI — ontology / status / audit
+argument-hint: <ontology|status|audit>
+---
+
+Execute the shell command below and display its stdout verbatim:
+
+\`\`\`bash
+bun "$PRAXIS_DIST_DIR/praxis-hook.js" praxis "\$ARGUMENTS"
+\`\`\`
+
+The output is pre-formatted diagnostic text from the Praxis cognitive engine. Return it exactly as-is.
+CMDEOF
+	  echo "  /praxis 命令已注册 → $COMMANDS_DIR/praxis.md"
   else
     mkdir -p "$(dirname "$SETTINGS_FILE")"
     jq -n \

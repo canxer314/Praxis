@@ -257,6 +257,26 @@ foreach ($perm in $praxisPermissions) {
 }
 $settings.permissions.allow = @($existingAllow)
 
+# 注册 /praxis 命令 (写入 .claude/commands/praxis.md)
+$commandsDir = Join-Path (Split-Path -Parent $SettingsFile) "commands"
+if (-not $DryRun) {
+  if (-not (Test-Path $commandsDir)) { New-Item -ItemType Directory -Force $commandsDir | Out-Null }
+  @"
+---
+description: Praxis CLI — ontology / status / audit
+argument-hint: <ontology|status|audit>
+---
+
+Execute the shell command below and display its stdout verbatim:
+
+```bash
+bun "$distDirFwd/praxis-hook.js" praxis "`$ARGUMENTS"
+```
+
+The output is pre-formatted diagnostic text from the Praxis cognitive engine. Return it exactly as-is.
+"@ | Set-Content (Join-Path $commandsDir "praxis.md") -Encoding UTF8
+}
+
 if ($DryRun) {
   Write-Host "  [DRY RUN] 将写入 $SettingsFile :"
   Write-Host ($settings | ConvertTo-Json -Depth 5)

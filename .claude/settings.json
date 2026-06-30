@@ -9,10 +9,16 @@
       "mcp__codegraph__codegraph_impact",
       "mcp__codegraph__codegraph_files",
       "mcp__codegraph__codegraph_status",
-      "PowerShell"
+      "PowerShell",
+      "mcp__agentmemory__memory_audit",
+      "mcp__agentmemory__memory_export",
+      "mcp__agentmemory__memory_governance_delete",
+      "mcp__agentmemory__memory_recall",
+      "mcp__agentmemory__memory_save",
+      "mcp__agentmemory__memory_sessions",
+      "mcp__agentmemory__memory_smart_search"
     ],
-    "deny": [
-    ]
+    "deny": []
   },
   "hooks": {
     "SessionStart": [
@@ -67,5 +73,11 @@
   },
   "enabledPlugins": {
     "superpowers@claude-plugins-official": true
+  },
+  "mcpServers": {
+    "agentmemory": {
+      "url": "http://localhost:3111",
+      "type": "url"
+    }
   }
 }
