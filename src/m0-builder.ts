@@ -84,13 +84,16 @@ function getExtractProtoFn(): (t: string) => Promise<ProtoStructureCandidate[]> 
       try {
         const events = await analyzer.analyze(transcript);
         // 转换 LearningEvent[] → ProtoStructureCandidate[]
-        // Phase 8: 代码层 inferProtoType — LLM 仅提取语义, protoType 由关键词+类型信号推断
+        // Phase 8: protoType — LLM 直接输出优先, 代码层关键词推断兜底
         return events.map((e) => {
           const raw = e as unknown as Record<string, unknown>;
           const content = String(raw.content ?? raw.tentativeName ?? "");
           const learningType = String(raw.type ?? "");
+          const llmProtoType = raw.protoType as string | undefined;
           return {
-            protoType: inferProtoType(learningType, content),
+            protoType: (llmProtoType && ["sequence","role","concept","purpose","constraint"].includes(llmProtoType))
+              ? llmProtoType as ProtoStructureCandidate["protoType"]
+              : inferProtoType(learningType, content),
             tentativeName: content,
             scenarioId: String(raw.scenarioId ?? "general"),
             confidence: Number(raw.confidence ?? 0.5),

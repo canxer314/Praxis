@@ -37,6 +37,8 @@ export interface LearningEvent {
   /** 关联的 ProtoStructure ID 列表 — 此学习事件发生时的活跃场景。
    *  undefined/空数组 = 无场景上下文（向后兼容，Phase 0 实现前所有 learnings 均无此字段）。 */
   protoStructureIds?: string[];
+  /** Phase 8: LLM 直接输出的 protoType (sequence/role/concept/purpose/constraint) */
+  protoType?: string;
 }
 
 export type PraxisEvent =

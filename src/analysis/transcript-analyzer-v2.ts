@@ -22,17 +22,17 @@ function buildPrompt(transcript: string, activeScenarioIds?: string[]): string {
 
   return `从以下对话片段中提取值得在未来会话中记住的学习事件。
 ${scenarioSection}
-事件类型: correction（用户纠错）、preference（用户偏好）、pattern（可复用模式）、pitfall（陷阱/教训）、insight（领域洞察）。
-confidence: 0.9-1.0=明确表达, 0.7-0.8=推断, 0.5-0.6=合理猜测, <0.5=不确定。
-提取原则: 宁可多提, 每条 content 是含上下文的完整句子, 无值得记录事件时返回 []。
+事件类型 (type): correction（纠错）、preference（偏好）、pattern（模式）、pitfall（陷阱）、insight（洞察）
+结构类型 (protoType): constraint（约束规则/禁令/优先级）、sequence（流程步骤/调用链）、role（角色职责/平台适配）、purpose（目标意图/设计目的）、concept（概念定义/一般知识）
+confidence: 0.9-1.0=明确, 0.7-0.8=推断, 0.5-0.6=模糊
 
 对话片段:
 ---
 ${transcript.slice(0, 8000)}
 ---
 
-输出格式（严格遵循，直接输出 JSON）:
-[{"type":"correction|preference|pattern|pitfall|insight","content":"完整描述","confidence":0.X,"protoStructureIds":[]}]`;
+输出 (纯 JSON 数组):
+[{"type":"..","protoType":"..","content":"完整描述","confidence":0.X,"protoStructureIds":[]}]`;
 }
 
 // ---- TranscriptAnalyzerV2 ----
@@ -102,6 +102,7 @@ export class TranscriptAnalyzerV2 {
           protoStructureIds: Array.isArray(item.protoStructureIds)
             ? item.protoStructureIds.filter((s: unknown) => typeof s === "string")
             : [],
+          protoType: normalized.protoType,
         });
       }
 
@@ -120,11 +121,10 @@ export class TranscriptAnalyzerV2 {
   }
 
   /**
-   * Phase 8: 字段归一化。兼容 LLM 以非标准字段名返回有效语义信息的场景。
-   * 标准格式: { type, content, confidence }
-   * 兼容格式: { event, detail, value } 等 — 映射到 content，type 默认 insight
+   * Phase 8: 字段归一化 + protoType 透传。
+   * LLM 直接输出 protoType 时透传；未输出时由下游 inferProtoType 兜底。
    */
-  private normalizeItem(item: Record<string, unknown>): { type: string; content: string; confidence: number } | null {
+  private normalizeItem(item: Record<string, unknown>): { type: string; content: string; confidence: number; protoType?: string } | null {
     const validTypes = ["correction", "preference", "pattern", "pitfall", "insight"];
 
     // type: 优先标准字段，其次从 event 字段推断，最终默认 insight
@@ -151,6 +151,12 @@ export class TranscriptAnalyzerV2 {
       ? item.confidence
       : 0.5;
 
-    return { type, content: content.trim(), confidence };
+    // protoType: 透传 LLM 输出 (validTypes: sequence/role/concept/purpose/constraint)
+    const validProtoTypes = ["sequence", "role", "concept", "purpose", "constraint"];
+    const protoType = typeof item.protoType === "string" && validProtoTypes.includes(item.protoType)
+      ? item.protoType
+      : undefined;
+
+    return { type, content: content.trim(), confidence, protoType };
   }
 }
