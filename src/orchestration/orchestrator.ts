@@ -23,6 +23,7 @@ import { AgentEndHandler, type AgentEndSummary } from "../hooks/agent-end";
 import { CronTickHandler } from "../hooks/cron-tick";
 import { MidSessionLearner } from "../analysis/mid-session-learner";
 import { SessionStateStore, type SessionStateSnapshot } from "./session-state-store";
+import { convertTranscriptToDialogue } from "../transcript-filter";
 import { quickCheck, deepCheck, isProtoSequence } from "../analysis/teleological-judge";
 import { deriveMaturity } from "./maturity";
 import { disambiguateText } from "../analysis/semantic-disambiguator";
@@ -312,6 +313,9 @@ export class EventOrchestrator {
   async handleSessionEnd(sessionId: string, transcript?: string) {
     const state = await this.getOrCreateState(sessionId);
 
+    // Phase 8: 过滤 JSONL transcript → 对话文本
+    const filteredDialogue = transcript ? convertTranscriptToDialogue(transcript) : null;
+
     // Phase 7: TaskContext 自动进度推断 — 加载 → LLM 推断 → applyProgress → 持久化
     try {
       const tcResult = await this.deps.memory.getSlot("task_context");
@@ -319,10 +323,10 @@ export class EventOrchestrator {
         const taskCtx = tcResult.value as Record<string, unknown>;
         // 尝试 LLM 推断进度 (confidence < 0.7 不自动更新已在 applyProgress 内处理)
         const llm = this.deps.llm;
-        if (llm?.analyze && transcript && typeof taskCtx.task_id === "string") {
+        if (llm?.analyze && filteredDialogue && typeof taskCtx.task_id === "string") {
           try {
             const progressResult = await llm.analyze(
-              `Based on this session transcript, infer task progress for "${taskCtx.task_name ?? taskCtx.task_id}". Return JSON: {"phase":"...","progress_summary":"...","confidence":0.X}`,
+              `Based on this session transcript, infer task progress for "${taskCtx.task_name ?? taskCtx.task_id}". Transcript:\n${filteredDialogue.slice(0, 4000)}\n\nReturn JSON: {"phase":"...","progress_summary":"...","confidence":0.X}`,
             );
             if (progressResult.ok && progressResult.value) {
               const inferred = JSON.parse(progressResult.value);

@@ -21,6 +21,7 @@ import { ConceptVerifier } from "../analysis/concept-verifier";
 import { adaptLlmClient } from "../analysis/llm-adapter";
 import { fullPropagation } from "../analysis/structure-graph";
 import { CrossAgentSync } from "../analysis/cross-agent-sync";
+import { convertTranscriptToDialogue } from "../transcript-filter";
 
 // ---- SessionEndHandler ----
 
@@ -61,6 +62,12 @@ export class SessionEndHandler {
     }
     this.processed.add(sessionId);
 
+    // Phase 8: 从 JSONL transcript 过滤出对话文本供 LLM 分析
+    const dialogueTranscript = transcript ? convertTranscriptToDialogue(transcript) : null;
+    // extractUsageMarkers 和 parsePredictionMarkers 也能在过滤文本中工作
+    // （标记 [STRUCTURE_USED] 和 [PREDICTION_*] 在 assistant text 中）
+    const llmInput = dialogueTranscript ?? transcript;
+
     let lessonsFromSignals = 0;
     let lessonsFromTranscript = 0;
 
@@ -70,9 +77,9 @@ export class SessionEndHandler {
     }
 
     // 2. LLM transcript 分析 (可选 — 需要 llm 依赖)
-    if (transcript && this.deps.llm) {
+    if (llmInput && this.deps.llm) {
       try {
-        const llmEvents = await this.deps.llm.analyzeTranscript(transcript);
+        const llmEvents = await this.deps.llm.analyzeTranscript(llmInput!);
         for (const event of llmEvents) {
           await this.writeLesson(sessionId, {
             type: event.type,
@@ -93,9 +100,10 @@ export class SessionEndHandler {
     let fusedCount = 0;
     let versionedCount = 0;
     const llmMarkerSources: SignalSourceInput[] = [];
-    if (transcript) {
-      // 3a. STRUCTURE_USED 标记 → 记录 lessons + Phase 0: 实际调用 updateAttention
-      const usedIds = extractUsageMarkers(transcript);
+    // Phase 8: 注意力遥测 + 预测标记解析 — 使用过滤后的对话文本（标记在 assistant text 中）
+    if (llmInput) {
+      // 3a. STRUCTURE_USED 标记
+      const usedIds = extractUsageMarkers(llmInput!);
       structureUsageCount = usedIds.length;
       if (usedIds.length > 0) {
         for (const id of usedIds) {
@@ -117,7 +125,7 @@ export class SessionEndHandler {
       }
 
       // 3b. PREDICTION_* 标记 → M4.2 llm_marker 信号源数据
-      const predictions = parsePredictionMarkers(transcript);
+      const predictions = parsePredictionMarkers(llmInput!);
       predictionsParsed = predictions.length;
       for (const p of predictions) {
         await this.writeLesson(sessionId, {
@@ -141,9 +149,9 @@ export class SessionEndHandler {
 
     // 4. ProtoStructure 提取 (M1 Step 4) + Phase 0: 融合 → 版本化 → 持久化
     let extractedStructures = 0;
-    if (transcript && this.deps.llm?.extractProtoStructures) {
+    if (llmInput && this.deps.llm?.extractProtoStructures) {
       try {
-        const candidates = await this.deps.llm.extractProtoStructures(transcript);
+        const candidates = await this.deps.llm.extractProtoStructures(llmInput!);
         for (const c of candidates) {
           const structure = await this.saveProtoStructureCandidate(sessionId, c);
           extractedStructures++;

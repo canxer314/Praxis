@@ -74,9 +74,7 @@ const CLINIC_FLOW = {
 
 describe("EventOrchestrator fusion e2e (M4 Phase 0 wiring)", () => {
   it("fuses + persists a structure when llm_marker + mid_session sources align", async () => {
-    const { deps } = makeFusedDeps([CLINIC_FLOW]);
-    // T11: CrossAgentSync uses per-structure slots via setSlot (CAS write),
-    // not saveProtoStructure. Track setSlot calls for persistence verification.
+    const { deps, saveProtoStructure } = makeFusedDeps([CLINIC_FLOW]);
     const setSlotSpy = deps.memory.setSlot as ReturnType<typeof vi.fn>;
     const orchestrator = new EventOrchestrator(deps);
 
