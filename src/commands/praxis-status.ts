@@ -74,7 +74,16 @@ async function loadCompetency(deps: M0Deps): Promise<CompetencyData | null> {
   const result = await deps.memory.getSlot("competency_model");
   if (result.ok && result.value) {
     const model = result.value as Record<string, unknown>;
-    const dims = (model.dimensions ?? model.domainProficiencies ?? {}) as Record<string, number>;
+    const rawDims = (model.dimensions ?? model.domainProficiencies ?? {}) as Record<string, unknown>;
+    // 归一化: 支持 { domain: number } 和 { domain: { selfRating, taskCount } } 两种格式
+    const dims: Record<string, number> = {};
+    for (const [key, val] of Object.entries(rawDims)) {
+      if (typeof val === "number") {
+        dims[key] = val;
+      } else if (val && typeof val === "object" && typeof (val as Record<string, unknown>).selfRating === "number") {
+        dims[key] = (val as Record<string, unknown>).selfRating as number;
+      }
+    }
     return {
       overallProficiency: typeof model.overallProficiency === "number" ? model.overallProficiency : avgProficiency(dims),
       dimensions: dims,
@@ -195,8 +204,8 @@ export function formatStatusReport(report: StatusReport): string {
     }
     lines.push("");
   } else {
-    lines.push("### 能力模型: 数据不可用");
-    lines.push("_(competency_model slot 未写入且无历史快照。需要至少 1 次 cron_tick 运行来累积 competency_snapshots)_");
+    lines.push("### 能力模型: 等待初始化");
+    lines.push("_(competency_model 尚未合成。运行 `npm run praxis:bootstrap` 手动初始化，或等待下次 cron_tick 自动触发)_");
     lines.push("");
   }
 

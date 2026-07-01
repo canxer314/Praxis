@@ -177,6 +177,30 @@ PRAXIS_HOOKS=$(jq -n \
         command: "\($bun) \($dist)/praxis-hook.js agent_end \"$CLAUDE_SESSION_ID\" 2>/dev/null || true",
         shell: "bash"
       }]
+    }],
+    PreToolUse: [{
+      matcher: "",
+      hooks: [{
+        type: "command",
+        command: "\($bun) \($dist)/praxis-hook.js before_tool_call \"$CLAUDE_SESSION_ID\" 2>/dev/null || true",
+        shell: "bash"
+      }]
+    }],
+    PostToolUse: [{
+      matcher: "",
+      hooks: [{
+        type: "command",
+        command: "\($bun) \($dist)/praxis-hook.js after_tool_call \"$CLAUDE_SESSION_ID\" 2>/dev/null || true",
+        shell: "bash"
+      }]
+    }],
+    SessionEnd: [{
+      matcher: "",
+      hooks: [{
+        type: "command",
+        command: "\($bun) \($dist)/praxis-hook.js session_end \"$CLAUDE_SESSION_ID\" 2>/dev/null || true",
+        shell: "bash"
+      }]
     }]
   }')
 
@@ -219,6 +243,21 @@ else
            if ($e | any(.. | strings | test("praxis-hook"))) then $e
            else $e + ($praxis_hooks.Stop // []) end
          ) |
+         .hooks.PreToolUse = (
+           (.hooks.PreToolUse // []) as $e |
+           if ($e | any(.. | strings | test("praxis-hook"))) then $e
+           else $e + ($praxis_hooks.PreToolUse // []) end
+         ) |
+         .hooks.PostToolUse = (
+           (.hooks.PostToolUse // []) as $e |
+           if ($e | any(.. | strings | test("praxis-hook"))) then $e
+           else $e + ($praxis_hooks.PostToolUse // []) end
+         ) |
+         .hooks.SessionEnd = (
+           (.hooks.SessionEnd // []) as $e |
+           if ($e | any(.. | strings | test("praxis-hook"))) then $e
+           else $e + ($praxis_hooks.SessionEnd // []) end
+         ) |
          .permissions.allow = (((.permissions.allow // []) + $praxis_perms) | unique) |
          .permissions = (.permissions // {allow: [], deny: []}) |
        ' --arg bun_path "$BUN_PATH" --arg dist "$PRAXIS_DIST_DIR" "$SETTINGS_FILE" > "$TMP" && mv "$TMP" "$SETTINGS_FILE"
@@ -253,6 +292,9 @@ CMDEOF
   echo "    SessionStart     → $PRAXIS_DIST_DIR/praxis-hook.js"
   echo "    UserPromptSubmit → $PRAXIS_DIST_DIR/praxis-hook.js"
   echo "    Stop             → $PRAXIS_DIST_DIR/praxis-hook.js"
+  echo "    PreToolUse       → $PRAXIS_DIST_DIR/praxis-hook.js"
+  echo "    PostToolUse      → $PRAXIS_DIST_DIR/praxis-hook.js"
+  echo "    SessionEnd       → $PRAXIS_DIST_DIR/praxis-hook.js"
 fi
 
 # ══════════════════════════════════════════════════════════════════

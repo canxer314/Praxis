@@ -28,6 +28,7 @@ import {
 import type { StructuralGapSignal } from "../analysis/structural-gap-detector";
 import { ArchitectureAuditor } from "../analysis/architecture-auditor";
 import { CategoryAuditor } from "../analysis/category-auditor";
+import { bootstrapIfNeeded } from "../cognitive/praxis-bootstrap";
 
 // ══════════════════════════════════════════════════════════════════
 // 阈值
@@ -69,6 +70,38 @@ export class CronTickHandler {
 
   constructor(private readonly deps: M0Deps) {}
 
+  /** Phase 1B: 首次运行时从 agentmemory raw data 合成初始 cognitive model */
+  private async runBootstrapIfNeeded(): Promise<void> {
+    const BOOTSTRAP_KEY = "praxis_bootstrap_attempts";
+    const MAX_ATTEMPTS = 3;
+
+    try {
+      const attemptSlot = await this.deps.memory.getSlot(BOOTSTRAP_KEY);
+      const attempts = (attemptSlot.ok && typeof attemptSlot.value === "number")
+        ? attemptSlot.value as number
+        : 0;
+
+      if (attempts >= MAX_ATTEMPTS) return;
+
+      const result = await bootstrapIfNeeded(this.deps);
+      if (result.bootstrapped) {
+        this.deps.logger?.info("cron_tick: bootstrap completed", {
+          dimensions: result.dimensions,
+        });
+      } else if (result.error) {
+        const next = attempts + 1;
+        await this.deps.memory.setSlot(BOOTSTRAP_KEY, next).catch(() => {});
+        this.deps.logger?.warn(
+          `cron_tick: bootstrap attempt ${next}/${MAX_ATTEMPTS} failed`,
+          { error: result.error },
+        );
+      }
+    } catch (err) {
+      // 失败不阻塞 cron_tick 主流程
+      this.deps.logger?.warn("cron_tick: bootstrap error", { error: String(err) });
+    }
+  }
+
   async handle(): Promise<void> {
     const now = Date.now();
 
@@ -78,6 +111,9 @@ export class CronTickHandler {
       return;
     }
     this.lastRunAt = now;
+
+    // Phase 1B: Bootstrap — 首次运行时合成 competency_model
+    await this.runBootstrapIfNeeded();
 
     let protoTaskUpdated = 0;
     let structuresDecayed = 0;

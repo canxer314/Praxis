@@ -39,6 +39,7 @@ export interface HookContext {
     content: string;
   };
   transcript?: string;
+  transcriptFile?: string;
 }
 
 const VALID_HOOK_TYPES = new Set([
@@ -103,6 +104,9 @@ export function parseHookArgs(argv: string[]): HookContext | null {
         break;
       case "--transcript":
         ctx.transcript = argv[++i] ?? "";
+        break;
+      case "--transcript-file":
+        ctx.transcriptFile = argv[++i] ?? "";
         break;
     }
   }
@@ -200,6 +204,45 @@ function extractMessageFromStdin(raw: string): { role: "user" | "assistant"; con
   }
 }
 
+/**
+ * Phase 7: 从 Claude Code hook stdin JSON 提取上下文。
+ * Claude Code 通过 stdin 传入 JSON: {session_id, transcript_path, hook_event_name, ...}
+ * PreToolUse/PostToolUse 额外包含: {tool_name, tool_input, tool_output}
+ */
+interface ClaudeCodeHookStdin {
+  session_id?: string;
+  transcript_path?: string;
+  hook_event_name?: string;
+  tool_name?: string;
+  tool_input?: Record<string, unknown>;
+  tool_output?: unknown;
+  success?: boolean;
+  error?: string;
+}
+
+async function readClaudeCodeStdin(): Promise<ClaudeCodeHookStdin | null> {
+  try {
+    const raw = await readStdin();
+    if (!raw) return null;
+    const data = JSON.parse(raw) as ClaudeCodeHookStdin;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 从 Claude Code hook 的 transcript_path 读取完整 transcript 内容。
+ */
+async function readTranscriptFromPath(transcriptPath: string): Promise<string> {
+  const fs = await import("fs");
+  try {
+    return fs.readFileSync(transcriptPath, "utf-8");
+  } catch {
+    return `(transcript unreadable: ${transcriptPath})`;
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════
 // CLI 入口 (bun scripts/praxis-hook.ts ...)
 // ══════════════════════════════════════════════════════════════════
@@ -212,10 +255,39 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Phase 7 follow-up: message_received 从 stdin 读取消息内容
+  // Phase 7: message_received 从 stdin 读取消息内容
   if (ctx.hookType === "message_received" && !ctx.message) {
     const raw = await readStdin();
     ctx.message = extractMessageFromStdin(raw) ?? { role: "user", content: "(empty)" };
+  }
+
+  // Phase 7: before_tool_call / after_tool_call 从 Claude Code stdin JSON 读取工具信息
+  if ((ctx.hookType === "before_tool_call" || ctx.hookType === "after_tool_call") && !ctx.toolName) {
+    const stdinData = await readClaudeCodeStdin();
+    if (stdinData) {
+      ctx.toolName = stdinData.tool_name ?? ctx.toolName;
+      ctx.toolParams = stdinData.tool_input ?? ctx.toolParams;
+      if (ctx.hookType === "after_tool_call" && !ctx.result) {
+        ctx.result = {
+          success: stdinData.success ?? true,
+          output: stdinData.tool_output ?? undefined,
+          error: stdinData.error,
+        };
+      }
+    }
+  }
+
+  // Phase 7: session_end 从 Claude Code stdin JSON 读取 transcript
+  if (ctx.hookType === "session_end") {
+    // 优先 --transcript-file > --transcript > stdin transcript_path
+    if (!ctx.transcript && !ctx.transcriptFile) {
+      const stdinData = await readClaudeCodeStdin();
+      if (stdinData?.transcript_path) {
+        ctx.transcript = await readTranscriptFromPath(stdinData.transcript_path);
+      }
+    } else if (!ctx.transcript && ctx.transcriptFile) {
+      ctx.transcript = await readTranscriptFromPath(ctx.transcriptFile);
+    }
   }
 
   try {

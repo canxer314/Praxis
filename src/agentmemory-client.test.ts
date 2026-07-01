@@ -129,3 +129,84 @@ describe("agentmemory.saveLessonDeduped", () => {
     }
   });
 });
+
+describe("agentmemory.searchLessons", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("正常返回 lessons 列表", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      json: async () => ({
+        lessons: [
+          { id: "l1", content: "lesson one", confidence: 0.9, tags: ["praxis"], source: "manual" },
+          { id: "l2", content: "lesson two", confidence: 0.3, tags: [], source: "auto" },
+        ],
+      }),
+    });
+
+    const result = await agentmemory.searchLessons("*", 50, 0.5);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.length).toBe(1); // only confidence >= 0.5
+      expect(result.value[0].content).toBe("lesson one");
+    }
+  });
+
+  it("minConfidence 过滤低分 lessons", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      json: async () => ({
+        lessons: [
+          { id: "l1", content: "high", confidence: 0.95, tags: [], source: "" },
+          { id: "l2", content: "low", confidence: 0.2, tags: [], source: "" },
+          { id: "l3", content: "mid", confidence: 0.6, tags: [], source: "" },
+        ],
+      }),
+    });
+
+    const result = await agentmemory.searchLessons("*", 50, 0.5);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.length).toBe(2); // 0.95 and 0.6 pass
+    }
+  });
+
+  it("网络错误时返回 error Result", async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const result = await agentmemory.searchLessons("*", 10, 0.5);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("AGENTMEMORY_ERROR");
+    }
+  });
+
+  it("limit 参数控制返回数量", async () => {
+    const items = Array.from({ length: 20 }, (_, i) => ({
+      id: `l${i}`, content: `lesson ${i}`, confidence: 0.8, tags: [], source: "",
+    }));
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      json: async () => ({ lessons: items }),
+    });
+
+    const result = await agentmemory.searchLessons("*", 5, 0.5);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.length).toBe(5);
+    }
+  });
+
+  it("API 返回空数组时返回 ok+空数组", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      json: async () => ({ lessons: [] }),
+    });
+
+    const result = await agentmemory.searchLessons("nonexistent", 50, 0.5);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual([]);
+    }
+  });
+});

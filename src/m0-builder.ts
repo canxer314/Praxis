@@ -108,6 +108,8 @@ export function buildM0Deps(opts: M0BuilderOptions = {}): M0Deps {
       },
       saveProtoStructure: async (structure: ProtoStructure) =>
         agentmemory.saveProtoStructure(structure as unknown as Record<string, unknown>),
+      searchLessons: (query?: string, limit?: number, minConfidence?: number) =>
+        agentmemory.searchLessons(query, limit, minConfidence),
     },
     cache: {
       get: (key: string) => {

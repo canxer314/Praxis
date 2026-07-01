@@ -190,6 +190,30 @@ $hooksConfig = @{
       shell = "powershell"
     })
   })
+  PreToolUse = @(@{
+    matcher = ""
+    hooks = @(@{
+      type = "command"
+      command = "try { & `"$bunPathFwd`" `"$distDirFwd/praxis-hook.js`" before_tool_call `$env:CLAUDE_SESSION_ID 2>`$null } catch {} ; exit 0"
+      shell = "powershell"
+    })
+  })
+  PostToolUse = @(@{
+    matcher = ""
+    hooks = @(@{
+      type = "command"
+      command = "try { & `"$bunPathFwd`" `"$distDirFwd/praxis-hook.js`" after_tool_call `$env:CLAUDE_SESSION_ID 2>`$null } catch {} ; exit 0"
+      shell = "powershell"
+    })
+  })
+  SessionEnd = @(@{
+    matcher = ""
+    hooks = @(@{
+      type = "command"
+      command = "try { & `"$bunPathFwd`" `"$distDirFwd/praxis-hook.js`" session_end `$env:CLAUDE_SESSION_ID 2>`$null } catch {} ; exit 0"
+      shell = "powershell"
+    })
+  })
 }
 
 $praxisPermissions = @(
@@ -290,6 +314,9 @@ if ($DryRun) {
   Write-Host "    SessionStart     -> $distDirFwd/praxis-hook.js"
   Write-Host "    UserPromptSubmit -> $distDirFwd/praxis-hook.js"
   Write-Host "    Stop             -> $distDirFwd/praxis-hook.js"
+  Write-Host "    PreToolUse       -> $distDirFwd/praxis-hook.js"
+  Write-Host "    PostToolUse      -> $distDirFwd/praxis-hook.js"
+  Write-Host "    SessionEnd       -> $distDirFwd/praxis-hook.js"
 }
 
 # ══════════════════════════════════════════════════════════════════

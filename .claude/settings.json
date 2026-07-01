@@ -68,6 +68,40 @@
             "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/check-gstack.sh\""
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "try { & \"$env:USERPROFILE/.bun/bin/bun.exe\" $env:CLAUDE_PROJECT_DIR/dist/praxis-hook.js before_tool_call \"$env:CLAUDE_SESSION_ID\" 2>$null } catch {} ; exit 0",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "try { & \"$env:USERPROFILE/.bun/bin/bun.exe\" $env:CLAUDE_PROJECT_DIR/dist/praxis-hook.js after_tool_call \"$env:CLAUDE_SESSION_ID\" 2>$null } catch {} ; exit 0",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "try { & \"$env:USERPROFILE/.bun/bin/bun.exe\" $env:CLAUDE_PROJECT_DIR/dist/praxis-hook.js session_end \"$env:CLAUDE_SESSION_ID\" 2>$null } catch {} ; exit 0",
+            "shell": "powershell"
+          }
+        ]
       }
     ]
   },

@@ -30,6 +30,8 @@ export interface MemorySubsystem {
   saveProtoStructure?(structure: ProtoStructure): Promise<Result<void>>;
   /** Phase 0: 按查询检索 ProtoStructures */
   searchProtoStructures?(query: string, scenarioId?: string, limit?: number): Promise<Result<Record<string, unknown>[]>>;
+  /** Phase 1B: 语义搜索 lessons (bootstrap 用) */
+  searchLessons?(query: string, limit?: number, minConfidence?: number): Promise<Result<Array<{ content: string; confidence: number; tags: string[]; source: string }>>>;
 }
 
 // ══════════════════════════════════════════════════════════════════

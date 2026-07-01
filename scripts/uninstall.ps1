@@ -73,7 +73,7 @@ try {
 
 # 从 hook 数组中移除包含 praxis-hook 的条目 (兼容 .ts 和 .js)
 # UserPromptExpansion 单独处理: 仅当为空数组时删除
-$praxisHookTypes = @("SessionStart", "UserPromptSubmit", "Stop")
+$praxisHookTypes = @("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "SessionEnd")
 
 if ($settings.ContainsKey("hooks")) {
   foreach ($hookType in $praxisHookTypes) {

@@ -93,6 +93,36 @@ export const agentmemory = {
     }
   },
 
+  /**
+   * Phase 1B: 语义搜索 lessons（独立端点，返回 lessons 而非 observations）
+   * 用于 bootstrap 从已有 lessons 合成 competency_model
+   */
+  async searchLessons(
+    query = "*",
+    limit = 50,
+    minConfidence = 0.5,
+  ): Promise<Result<Array<{ content: string; confidence: number; tags: string[]; source: string }>>> {
+    try {
+      const data = await restPost("/agentmemory/lessons/search", {
+        query,
+        limit,
+      });
+      const lessons = (data.lessons as Array<Record<string, unknown>>) || [];
+      const filtered = lessons
+        .filter(l => (typeof l.confidence === "number" ? l.confidence : 0) >= minConfidence)
+        .map(l => ({
+          content: String(l.content || ""),
+          confidence: Number(l.confidence ?? 0.5),
+          tags: Array.isArray(l.tags) ? l.tags.map(String) : [],
+          source: String(l.source || "agentmemory"),
+        }))
+        .slice(0, limit);
+      return { ok: true, value: filtered };
+    } catch (err) {
+      return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(err) } };
+    }
+  },
+
   /** 语义搜索（观察 + lessons） */
   async smartSearch(
     query: string,

@@ -69,7 +69,7 @@ fi
 echo "[1/3] 移除 Praxis hooks..."
 
 # 用 jq 过滤掉 Praxis 的 hook 条目 (command 包含 praxis-hook 的, 兼容 .ts 和 .js)
-PRAXIS_HOOK_TYPES="SessionStart UserPromptSubmit Stop"
+PRAXIS_HOOK_TYPES="SessionStart UserPromptSubmit PreToolUse PostToolUse Stop SessionEnd"
 
 remove_praxis_hooks_filter=""
 for ht in $PRAXIS_HOOK_TYPES; do
