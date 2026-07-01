@@ -210,3 +210,93 @@ describe("agentmemory.searchLessons", () => {
     }
   });
 });
+
+describe("agentmemory.saveProtoStructure + searchProtoStructures", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("saveProtoStructure 调用 /agentmemory/lessons (tags: proto_structure)", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      json: async () => ({ success: true }),
+    });
+
+    const result = await agentmemory.saveProtoStructure({
+      id: "proto-test-1",
+      protoType: "concept",
+      tentativeName: "Test Structure",
+      confidence: 0.8,
+    });
+    expect(result.ok).toBe(true);
+
+    const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls;
+    const url = calls[0][0] as string;
+    const body = JSON.parse(calls[0][1].body as string);
+    expect(url).toContain("/agentmemory/lessons");
+    expect(body.tags).toContain("proto_structure");
+    expect(body.tags).toContain("concept");
+    expect(body.content).toBeDefined();
+  });
+
+  it("saveProtoStructure 网络错误 → error Result", async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error("network down"));
+
+    const result = await agentmemory.saveProtoStructure({
+      id: "proto-test-2",
+      protoType: "sequence",
+      tentativeName: "Bad Save",
+      confidence: 0.5,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("AGENTMEMORY_ERROR");
+    }
+  });
+
+  it("searchProtoStructures 调用 /agentmemory/lessons/search (* 转为 proto_structure)", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      json: async () => ({
+        success: true,
+        lessons: [
+          { id: "l1", content: JSON.stringify({ id: "s1", protoType: "concept" }), tags: ["proto_structure"], confidence: 1 },
+          { id: "l2", content: "not a structure", tags: ["other"], confidence: 0.8 },
+        ],
+      }),
+    });
+
+    const result = await agentmemory.searchProtoStructures("*");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.length).toBe(1);
+      expect(result.value[0].protoType).toBe("concept");
+    }
+
+    const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls;
+    const body = JSON.parse(calls[0][1].body as string);
+    expect(body.query).toBe("proto_structure"); // * → proto_structure
+  });
+
+  it("searchProtoStructures 网络错误 → error Result", async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error("timeout"));
+
+    const result = await agentmemory.searchProtoStructures("*");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("AGENTMEMORY_ERROR");
+    }
+  });
+
+  it("searchProtoStructures 空结果 → ok+空数组", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      json: async () => ({ success: true, lessons: [] }),
+    });
+
+    const result = await agentmemory.searchProtoStructures("nonexistent");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual([]);
+    }
+  });
+});

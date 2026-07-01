@@ -235,13 +235,18 @@ export const agentmemory = {
     return _available;
   },
 
-  /** 保存 ProtoStructure (architecture §9: memory_save type="proto_structure") */
+  /**
+   * Phase 8: 通过 /agentmemory/lessons 存储 ProtoStructure
+   * tag "proto_structure" 使其可通过 lessons/search 检索
+   */
   async saveProtoStructure(structure: Record<string, unknown>): Promise<Result<void>> {
     try {
-      const data = await restPost("/agentmemory/memory", {
-        type: "proto_structure",
+      const data = await restPost("/agentmemory/lessons", {
         content: JSON.stringify(structure),
         tags: ["praxis", "proto_structure", String(structure.protoType || "")],
+        confidence: 1,
+        source: "praxis-phase1a",
+        project: structure.project as string | undefined,
       });
       if (!data.success) {
         return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(data.error || "unknown") } };
@@ -252,28 +257,26 @@ export const agentmemory = {
     }
   },
 
-  /** 搜索 ProtoStructures (architecture §9: memory_smart_search) */
+  /** Phase 8: 通过 /agentmemory/lessons/search 检索 ProtoStructures */
   async searchProtoStructures(query: string, scenarioId?: string, limit = 20): Promise<Result<Record<string, unknown>[]>> {
     try {
-      const body: Record<string, unknown> = {
-        query: query || "*",
-        types: ["proto_structure"],
+      const data = await restPost("/agentmemory/lessons/search", {
+        query: query && query !== "*" ? query : "proto_structure",
         limit,
-      };
-      if (scenarioId) body.scenarioId = scenarioId;
-
-      const data = await restPost("/agentmemory/smart-search", body);
-      if (!data.success) {
-        return { ok: false, error: { code: "SEARCH_ERROR", message: String(data.error || "unknown") } };
-      }
-      const results = (data.results as Array<Record<string, unknown>>) || [];
-      return {
-        ok: true,
-        value: results.map((r) => {
-          try { return typeof r.content === "string" ? JSON.parse(r.content) : r; }
-          catch { return r; }
-        }),
-      };
+      });
+      // 内存过滤: 只保留带 proto_structure 标签的
+      const lessons = (data.lessons as Array<Record<string, unknown>>) || [];
+      const filtered = lessons
+        .filter((l) => {
+          const tags = Array.isArray(l.tags) ? l.tags : [];
+          return tags.includes("proto_structure");
+        })
+        .slice(0, limit)
+        .map((l) => {
+          try { return typeof l.content === "string" ? JSON.parse(l.content) : l; }
+          catch { return l; }
+        });
+      return { ok: true, value: filtered };
     } catch (err) {
       return { ok: false, error: { code: "AGENTMEMORY_ERROR", message: String(err) } };
     }

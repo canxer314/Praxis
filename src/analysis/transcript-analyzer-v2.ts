@@ -20,60 +20,19 @@ function buildPrompt(transcript: string, activeScenarioIds?: string[]): string {
     ? `\n当前活跃场景: ${activeScenarioIds.join(", ")}\n每条事件可包含 "protoStructureIds": ["<匹配的场景ID>"] 字段标注此学习属于哪个场景。不确定时留空数组。\n`
     : "";
 
-  return `你是一个 AI 学习事件提取器。分析以下对话片段，提取对未来会话有价值的学习事件。${scenarioSection}
-什么是"有价值的学习事件"：任何在未来的对话中应该被记住的信息，例如：
-- 用户纠正了你的错误或误解
-- 用户表达了编码风格、工具选择、工作流程的偏好
-- 发现了一个可复用的技术模式、架构原则或最佳实践
-- 踩到了陷阱——某个方案行不通、某个工具有问题、某个做法导致了 bug
-- 获得了领域洞察——对某个系统、项目、业务逻辑有了更深入的理解
-
-提取原则：
-- 提取你希望下个 session 的自己已经知道的信息，不需要在这次对话中重新发现
-- 宁可多提——如果拿不准是否值得记住，提出来，用较低的 confidence 表达
-- 每条 content 必须是完整句子，包含必要的上下文，让未来 session 能理解
-- 纯问候、闲谈、单字确认等不提取
-
-每条事件格式: { "type": "...", "content": "...", "confidence": 0.0-1.0, "protoStructureIds": [...] }
-
-type 取值:
-- correction  — 用户纠正了你的错误
-- preference  — 用户表达了偏好（工具、风格、流程）
-- pattern     — 可复用的技术模式或架构原则
-- pitfall     — 踩到的陷阱，以后应该避免的做法
-- insight     — 对项目/系统/领域的深入理解
-
-protoStructureIds: 此学习事件关联的场景 ID 列表。如果提供了活跃场景列表，选择最相关的场景 ID 填入。不确定时填入空数组 []。
-
-confidence 取值:
-- 0.9-1.0  — 用户明确说出来（"以后都用 X"、"记住 X"）
-- 0.7-0.8  — 从对话中推断出来的模式或偏好
-- 0.5-0.6  — 合理的推断，但证据不够充分
-- <0.5     — 不确定但仍值得标记的观察
-
-返回格式: 纯 JSON 数组，不要 Markdown 代码块包裹，不要额外解释。
-如果没有值得记录的学习事件，返回 []。
-
-示例输入:
-"用户: 别用 interface 了，这个项目统一用 type
-AI: 好的，已改为 type
-用户: AgentMemory MCP 调用经常超时，以后加个超时控制"
-
-示例输出:
-[{"type":"preference","content":"用户偏好使用 type 别名而非 interface 声明，要求项目统一使用 type","confidence":0.9,"protoStructureIds":[]},{"type":"pitfall","content":"AgentMemory MCP 调用默认超时过长，需要 10 秒超时控制","confidence":0.85,"protoStructureIds":[]}]
-
-示例输入2（分析/设计对话）:
-"用户: Phase 1B 的 context-organizer 现在还需要吗？
-AI: AgentMemory 语义搜索返回的 score 本身就是质量分级。score > 0.5 的注入、< 0.1 的丢弃，不需要复杂的 Tier 系统。
-用户: 合理，所以砍掉。"
-
-示例输出2:
-[{"type":"insight","content":"Phase 1B context-organizer 的 Tier A/B/C 分级可用 AgentMemory smartSearch 的 score 阈值替代，不需要独立模块","confidence":0.8,"protoStructureIds":[]}]
+  return `从以下对话片段中提取值得在未来会话中记住的学习事件。
+${scenarioSection}
+事件类型: correction（用户纠错）、preference（用户偏好）、pattern（可复用模式）、pitfall（陷阱/教训）、insight（领域洞察）。
+confidence: 0.9-1.0=明确表达, 0.7-0.8=推断, 0.5-0.6=合理猜测, <0.5=不确定。
+提取原则: 宁可多提, 每条 content 是含上下文的完整句子, 无值得记录事件时返回 []。
 
 对话片段:
 ---
 ${transcript.slice(0, 8000)}
----`;
+---
+
+输出格式（严格遵循，直接输出 JSON）:
+[{"type":"correction|preference|pattern|pitfall|insight","content":"完整描述","confidence":0.X,"protoStructureIds":[]}]`;
 }
 
 // ---- TranscriptAnalyzerV2 ----
@@ -117,28 +76,29 @@ export class TranscriptAnalyzerV2 {
 
   private parseResponse(raw: string): LearningEvent[] | null {
     try {
-      const json = JSON.parse(raw.trim());
+      // Phase 8: strip markdown code block wrapper (flash 模型偶尔忽略 "不要 Markdown" 指令)
+      let cleaned = raw.trim();
+      const codeBlockMatch = cleaned.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```\s*$/);
+      if (codeBlockMatch) cleaned = codeBlockMatch[1];
+
+      const json = JSON.parse(cleaned);
       if (!Array.isArray(json)) return null;
 
       const events: LearningEvent[] = [];
-
       const rawCount = json.length;
+      const validTypes = ["correction", "preference", "pattern", "pitfall", "insight"];
 
       for (const item of json) {
-        // 类型校验：防止 LLM 返回非预期类型导致 NaN/崩溃
-        if (!item.type || typeof item.type !== "string") continue;
-        if (typeof item.content !== "string" || item.content.trim().length === 0) continue;
-        if (typeof item.confidence !== "number" || isNaN(item.confidence)) continue;
-
-        const validTypes = ["correction", "preference", "pattern", "pitfall", "insight"];
-        if (!validTypes.includes(item.type)) continue;
+        // Phase 8: 字段归一化 — flash 模型可能用不同字段名返回等价的语义信息
+        const normalized = this.normalizeItem(item);
+        if (!normalized) continue;
 
         this.counter++;
         events.push({
           id: `llm_${this.counter}_${Date.now()}`,
-          type: item.type as LearningEvent["type"],
-          content: item.content,
-          confidence: Math.min(1, Math.max(0, item.confidence)),
+          type: normalized.type as LearningEvent["type"],
+          content: normalized.content,
+          confidence: Math.min(1, Math.max(0, normalized.confidence)),
           protoStructureIds: Array.isArray(item.protoStructureIds)
             ? item.protoStructureIds.filter((s: unknown) => typeof s === "string")
             : [],
@@ -151,12 +111,46 @@ export class TranscriptAnalyzerV2 {
       }
       return events.slice(0, 15);
     } catch (e) {
-      // JSON 解析失败是正常降级路径；非 SyntaxError 说明解析器自身有 bug，需记录
       if (!(e instanceof SyntaxError)) {
         logDegraded("transcript-analyzer-v2", "parseResponse",
           `unexpected error: ${e instanceof Error ? e.message : String(e)}`);
       }
       return null;
     }
+  }
+
+  /**
+   * Phase 8: 字段归一化。兼容 LLM 以非标准字段名返回有效语义信息的场景。
+   * 标准格式: { type, content, confidence }
+   * 兼容格式: { event, detail, value } 等 — 映射到 content，type 默认 insight
+   */
+  private normalizeItem(item: Record<string, unknown>): { type: string; content: string; confidence: number } | null {
+    const validTypes = ["correction", "preference", "pattern", "pitfall", "insight"];
+
+    // type: 优先标准字段，其次从 event 字段推断，最终默认 insight
+    let type: string;
+    if (typeof item.type === "string" && validTypes.includes(item.type)) {
+      type = item.type;
+    } else if (typeof item.event === "string") {
+      const evt = item.event.toLowerCase();
+      if (evt.includes("纠正") || evt.includes("correction")) type = "correction";
+      else if (evt.includes("偏好") || evt.includes("preference")) type = "preference";
+      else if (evt.includes("模式") || evt.includes("pattern")) type = "pattern";
+      else if (evt.includes("陷阱") || evt.includes("pitfall") || evt.includes("失败")) type = "pitfall";
+      else type = "insight";
+    } else {
+      type = "insight";
+    }
+
+    // content: 优先标准字段，其次 detail/value/event/description
+    const content = (item.content ?? item.detail ?? item.value ?? item.event ?? item.description ?? "") as string;
+    if (typeof content !== "string" || content.trim().length === 0) return null;
+
+    // confidence: 优先标准字段，其次默认 0.5 (合理推断)
+    const confidence = typeof item.confidence === "number" && !isNaN(item.confidence)
+      ? item.confidence
+      : 0.5;
+
+    return { type, content: content.trim(), confidence };
   }
 }
