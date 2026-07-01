@@ -24,7 +24,6 @@ import { CronTickHandler } from "../hooks/cron-tick";
 import { MidSessionLearner } from "../analysis/mid-session-learner";
 import { SessionStateStore, type SessionStateSnapshot } from "./session-state-store";
 import { quickCheck, deepCheck, isProtoSequence } from "../analysis/teleological-judge";
-import { CrossAgentSync } from "../analysis/cross-agent-sync";
 import { deriveMaturity } from "./maturity";
 import { disambiguateText } from "../analysis/semantic-disambiguator";
 import { applyProgress } from "./task-context";
@@ -85,8 +84,8 @@ export class EventOrchestrator {
   constructor(deps: M0Deps) {
     this.deps = deps;
     this.sessionStart = new SessionStartHandler(deps);
-    // T11: 注入 CrossAgentSync 以启用乐观锁写入 (子 Agent 认知回流)
-    this.sessionEnd = new SessionEndHandler(deps, new CrossAgentSync(deps));
+    // Phase 8: CrossAgentSync 与新的 lesson 存储不兼容，传入 undefined 走直写
+    this.sessionEnd = new SessionEndHandler(deps, undefined);
     this.beforeToolCall = new BeforeToolCallHandler(deps);
     this.cronTick = new CronTickHandler(deps);
     this.stateStore = new SessionStateStore(deps);
