@@ -40,6 +40,40 @@ export interface M0BuilderOptions {
 let _extractProtoViaLLM: ((t: string) => Promise<ProtoStructureCandidate[]>) | null = null;
 let _extractInitError = false;
 
+/** Phase 8: 从学习事件 content + type 推断 protoType */
+function inferProtoType(
+  learningType: string,
+  content: string,
+): ProtoStructureCandidate["protoType"] {
+  const text = content.toLowerCase();
+  const cn = content;
+
+  // constraint: 禁止性/强制性语言 → 约束
+  if (/必须|禁止|不能|永远不要|不可|不得|never|must\b|always\b|强制|必须遵守|决不/.test(cn)) {
+    return "constraint";
+  }
+
+  // sequence: 流程/步骤/顺序描述 → 序列
+  if (/流程|步骤|顺序|先.*再|首先.*然后|→|调用链|先处理.*再处理|收到.*检查.*调用/.test(cn) ||
+      (learningType === "pattern" && /→|流程|步骤/.test(cn))) {
+    return "sequence";
+  }
+
+  // purpose: 目标/目的/意图 → 目标
+  if (/目标|目的|为了|旨在|意义|purpose|goal|aim|希望达到|实现.*目标/.test(cn)) {
+    return "purpose";
+  }
+
+  // role: 角色/职责/平台适配/分工 → 角色
+  if (/负责|角色|平台|适配|映射到|使用.*工具|每个.*采用|根据.*平台|作为.*代理|担任/.test(cn) ||
+      (learningType === "preference" && /平台|工具.*选择/.test(cn))) {
+    return "role";
+  }
+
+  // 默认 → concept
+  return "concept";
+}
+
 function getExtractProtoFn(): (t: string) => Promise<ProtoStructureCandidate[]> {
   if (_extractProtoViaLLM) return _extractProtoViaLLM;
   if (_extractInitError) return async () => [];
@@ -50,11 +84,14 @@ function getExtractProtoFn(): (t: string) => Promise<ProtoStructureCandidate[]> 
       try {
         const events = await analyzer.analyze(transcript);
         // 转换 LearningEvent[] → ProtoStructureCandidate[]
+        // Phase 8: 代码层 inferProtoType — LLM 仅提取语义, protoType 由关键词+类型信号推断
         return events.map((e) => {
           const raw = e as unknown as Record<string, unknown>;
+          const content = String(raw.content ?? raw.tentativeName ?? "");
+          const learningType = String(raw.type ?? "");
           return {
-            protoType: (raw.protoType as ProtoStructureCandidate["protoType"]) ?? "concept",
-            tentativeName: String(raw.content ?? raw.tentativeName ?? ""),
+            protoType: inferProtoType(learningType, content),
+            tentativeName: content,
             scenarioId: String(raw.scenarioId ?? "general"),
             confidence: Number(raw.confidence ?? 0.5),
           };
