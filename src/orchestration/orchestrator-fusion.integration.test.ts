@@ -104,14 +104,13 @@ describe("EventOrchestrator fusion e2e (M4 Phase 0 wiring)", () => {
       // Fusion ran: ≥1 structure was fused (llm_marker + mid_session ≥ MIN_SOURCES).
       expect(result.value.fusedCount).toBeGreaterThan(0);
     }
-    // T11 Persistence: CrossAgentSync writes per-structure slot via setSlot (CAS write)
-    const savedCalls = setSlotSpy.mock.calls.filter(
-      (c: unknown[]) => typeof c[0] === "string" && (c[0] as string).startsWith("proto_struct_"),
+    // Phase 8: saveProtoStructure (lesson-based) replaces CrossAgentSync (slot-based)
+    expect(saveProtoStructure).toHaveBeenCalled();
+    const savedCall = saveProtoStructure.mock.calls.find(
+      (c: unknown[]) => (c[0] as Record<string, unknown>)?.id === "ps-clinic-flow",
     );
-    expect(savedCalls.length).toBeGreaterThan(0);
-    const saved = savedCalls[0]?.[1] as Record<string, unknown> | undefined;
-    expect(saved?.id).toBe("ps-clinic-flow");
-    // Confidence was fused away from the initial 0.5.
+    expect(savedCall).toBeDefined();
+    const saved = savedCall?.[0] as Record<string, unknown>;
     expect(saved?.confidence).not.toBe(0.5);
   });
 });
@@ -145,7 +144,7 @@ function makeSlotBackedDeps(protoStructures: unknown[]) {
 
 describe("EventOrchestrator cross-process state (Phase 0 SessionStateStore)", () => {
   it("orchestrator B (session_end) loads state persisted by orchestrator A (session_start+message)", async () => {
-    const { deps, slots } = makeSlotBackedDeps([CLINIC_FLOW]);
+    const { deps, slots, saveProtoStructure } = makeSlotBackedDeps([CLINIC_FLOW]);
 
     // Process A: session_start + message (produces mid_session source) → state persisted to slot
     const orchA = new EventOrchestrator(deps);
@@ -165,10 +164,13 @@ describe("EventOrchestrator cross-process state (Phase 0 SessionStateStore)", ()
       // fusion ran from persisted state (mid_session from A + llm_marker from transcript)
       expect(result.value.fusedCount).toBeGreaterThan(0);
     }
-    // T11: CrossAgentSync persists via per-structure slot → verify in slot map
-    const savedSlot = slots.get("proto_struct_ps-clinic-flow") as Record<string, unknown> | undefined;
-    expect(savedSlot).toBeTruthy();
-    expect(savedSlot?.id).toBe("ps-clinic-flow");
+    // Phase 8: saveProtoStructure (lesson-based) replaces CrossAgentSync
+    expect(saveProtoStructure).toHaveBeenCalled();
+    const savedCall = saveProtoStructure.mock.calls.find(
+      (c: unknown[]) => (c[0] as Record<string, unknown>)?.id === "ps-clinic-flow",
+    );
+    expect(savedCall).toBeDefined();
+    expect((savedCall?.[0] as Record<string, unknown>)?.id).toBe("ps-clinic-flow");
   });
 
   it("T1: LLM-independent verifiers (statistical) feed fusion when toolCallTrace present", async () => {
@@ -196,7 +198,7 @@ describe("EventOrchestrator cross-process state (Phase 0 SessionStateStore)", ()
       structure: { steps: [{ position: 1, action: "问诊" }] },
       relations: [{ targetId: "ps-triage", type: "depends_on" as const, strength: 1.0, evidence: [], establishedAt: 0, lastValidatedAt: 0 }],
     };
-    const { deps, slots } = makeSlotBackedDeps([A, B]);
+    const { deps, slots, saveProtoStructure } = makeSlotBackedDeps([A, B]);
     const orch = new EventOrchestrator(deps);
     await orch.handleSessionStart("t6-session");
     // after_tool_call matching B's step "分诊" → StatisticalVerifier match for B; llm_marker for B
@@ -204,9 +206,11 @@ describe("EventOrchestrator cross-process state (Phase 0 SessionStateStore)", ()
     await orch.handleSessionEnd("t6-session", "用户: 分诊\nassistant: [PREDICTION_CONFIRMED: ps-triage]");
 
     // B fused (llm_marker + statistical) → confidence changed → propagated to A (depends_on B)
-    // T11: CrossAgentSync persists via per-structure slots, read from slot map
-    const savedA = slots.get("proto_struct_ps-consult") as Record<string, unknown> | undefined;
-    expect(savedA).toBeTruthy();
+    // Phase 8: verify via saveProtoStructure (lesson-based), not CrossAgentSync slot
+    const savedA = saveProtoStructure.mock.calls.find(
+      (c: unknown[]) => (c[0] as Record<string, unknown>)?.id === "ps-consult",
+    )?.[0] as Record<string, unknown> | undefined;
+    expect(savedA).toBeDefined();
     // A had no direct fusion sources (its step "问诊" didn't match "分诊") → its confidence change
     // is purely from relation-graph propagation (§3 depends_on).
     expect(savedA!.confidence).not.toBe(0.5);

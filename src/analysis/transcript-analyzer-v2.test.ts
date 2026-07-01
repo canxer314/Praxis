@@ -157,8 +157,8 @@ describe("TranscriptAnalyzerV2", () => {
     const analyzer = new TranscriptAnalyzerV2(llm);
     const events = await analyzer.analyze("test");
 
-    // 3 条中 1 条无效，应返回 2 条
-    expect(events).toHaveLength(2);
+    // Phase 8: normalizeItem 给缺失 type 字段的条目默认 type="insight"——全部通过
+    expect(events).toHaveLength(3);
   });
 
   // ---- 空输入 ----
